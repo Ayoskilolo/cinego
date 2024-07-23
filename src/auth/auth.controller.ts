@@ -4,7 +4,9 @@ import { SignUpDto } from './dto/sign-up.dto';
 
 import { UserExistsDto } from 'src/user/dto/user-exists.dto';
 import { LoginDto } from './dto/login.dto';
+import { Public } from './auth.decorator';
 
+@Public()
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}

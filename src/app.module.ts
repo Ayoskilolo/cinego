@@ -8,9 +8,11 @@ import { SimExperienceModule } from './sim-experience/sim-experience.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import config from './config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ResponseInterceptor } from './response/response.interceptor';
 import { HttpExceptionFilter } from './http-exception/http-exception.filter';
+import { AuthGuard } from './auth/auth.guard';
+import { JwtService } from '@nestjs/jwt';
 
 @Module({
   imports: [
@@ -36,9 +38,11 @@ import { HttpExceptionFilter } from './http-exception/http-exception.filter';
   controllers: [AppController],
   providers: [
     AppService,
+    JwtService,
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ClassSerializerInterceptor },
+    { provide: APP_GUARD, useClass: AuthGuard },
   ],
 })
 export class AppModule {}
