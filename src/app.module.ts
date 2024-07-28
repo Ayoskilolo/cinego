@@ -13,6 +13,8 @@ import { ResponseInterceptor } from './response/response.interceptor';
 import { HttpExceptionFilter } from './http-exception/http-exception.filter';
 import { AuthGuard } from './auth/auth.guard';
 import { JwtService } from '@nestjs/jwt';
+import { MovieModule } from './movie/movie.module';
+import { TransactionsModule } from './transactions/transactions.module';
 
 @Module({
   imports: [
@@ -34,6 +36,10 @@ import { JwtService } from '@nestjs/jwt';
     SubscriptionModule,
 
     SimExperienceModule,
+
+    MovieModule,
+
+    TransactionsModule,
   ],
   controllers: [AppController],
   providers: [

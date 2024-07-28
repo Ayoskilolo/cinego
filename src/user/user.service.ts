@@ -9,6 +9,7 @@ import { MongoRepository } from 'typeorm';
 import { UserExistsDto } from './dto/user-exists.dto';
 import { SignUpDto } from 'src/auth/dto/sign-up.dto';
 import { hash } from 'bcrypt';
+import { SubscriptionType } from './enum/userType';
 
 @Injectable()
 export class UserService {
@@ -37,6 +38,9 @@ export class UserService {
       createUserDto.phoneNumber = this.formatPhoneNumber(
         createUserDto.phoneNumber,
       );
+    }
+
+    if (createUserDto.subscriptionType === SubscriptionType.PREMIUM) {
     }
 
     const user = this.userRepository.create(createUserDto);
