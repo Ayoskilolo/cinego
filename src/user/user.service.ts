@@ -7,7 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { MongoRepository } from 'typeorm';
 import { UserExistsDto } from './dto/user-exists.dto';
-import { SignUpDto } from 'src/auth/dto/sign-up.dto';
+import { SignUpDto } from '../auth/dto/sign-up.dto';
 import { hash } from 'bcrypt';
 import { SubscriptionType } from './enum/userType';
 
