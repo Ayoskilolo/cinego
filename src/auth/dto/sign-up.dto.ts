@@ -6,7 +6,7 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
-import { SubscriptionType } from 'src/user/enum/userType';
+import { SubscriptionType } from '../../user/enum/userType';
 
 export class SignUpDto {
   @IsString()

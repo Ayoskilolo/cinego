@@ -2,7 +2,7 @@ import { Controller, Post, Body } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignUpDto } from './dto/sign-up.dto';
 
-import { UserExistsDto } from 'src/user/dto/user-exists.dto';
+import { UserExistsDto } from '../user/dto/user-exists.dto';
 import { LoginDto } from './dto/login.dto';
 import { Public } from './auth.decorator';
 
