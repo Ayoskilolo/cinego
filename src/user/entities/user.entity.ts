@@ -27,6 +27,9 @@ export class User extends BaseEntity {
   @Column({ nullable: true })
   password: string;
 
+  @Column({ nullable: true })
+  dateOfBirth: Date;
+
   @ManyToOne(() => Profile, (profile) => profile.user)
   profiles: Profile[];
 

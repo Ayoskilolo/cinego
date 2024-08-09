@@ -1,4 +1,5 @@
 import {
+  IsDateString,
   IsEmail,
   IsEnum,
   IsMobilePhone,
@@ -24,6 +25,9 @@ export class SignUpDto {
   @IsMobilePhone('en-NG')
   @IsOptional()
   phoneNumber?: string;
+
+  @IsDateString()
+  dateOfBirth: Date;
 
   @IsString()
   @IsNotEmpty()
