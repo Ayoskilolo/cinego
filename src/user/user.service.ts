@@ -41,8 +41,10 @@ export class UserService {
     }
 
     if (createUserDto.subscriptionType === SubscriptionType.PREMIUM) {
+      //
     }
 
+    createUserDto.dateOfBirth = new Date(createUserDto.dateOfBirth);
     const user = this.userRepository.create(createUserDto);
 
     return await this.userRepository.save(user);
@@ -59,17 +61,22 @@ export class UserService {
       throw new BadRequestException('Email or phone number required');
     }
 
+    let userPhoneNumberExists: User;
+    let userEmailExists: User;
+
     if (phoneNumber) {
       phoneNumber = this.formatPhoneNumber(phoneNumber);
+
+      userPhoneNumberExists = await this.userRepository.findOne({
+        where: { phoneNumber: { $eq: phoneNumber } },
+      });
     }
 
-    const userPhoneNumberExists = await this.userRepository.findOne({
-      where: { phoneNumber },
-    });
-
-    const userEmailExists = await this.userRepository.findOne({
-      where: { email },
-    });
+    if (email) {
+      userEmailExists = await this.userRepository.findOne({
+        where: { email },
+      });
+    }
 
     const userExists = !!userEmailExists || !!userPhoneNumberExists;
 
