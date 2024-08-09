@@ -1,7 +1,8 @@
 import { Exclude } from 'class-transformer';
 import { BaseEntity } from '../../base-entity/base-entity.entity';
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, OneToMany } from 'typeorm';
 import { MaturityRatings } from '../enum/maturityRatings';
+import { User } from './user.entity';
 
 @Entity()
 export class Profile extends BaseEntity {
@@ -10,12 +11,16 @@ export class Profile extends BaseEntity {
     Object.assign(this, partial);
   }
 
+  @Column()
   userId: string;
+
+  @OneToMany(() => User, (user) => user.profiles)
+  user: User;
 
   @Column()
   profileName: string;
 
-  @Column()
+  @Column({ type: 'enum', enum: MaturityRatings })
   maturityRatings: MaturityRatings;
 
   //TODO: build out logic to implement a list of movies watched by a user or profile?

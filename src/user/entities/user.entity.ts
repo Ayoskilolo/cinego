@@ -1,6 +1,6 @@
 import { Exclude } from 'class-transformer';
 import { BaseEntity } from '../../base-entity/base-entity.entity';
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, ManyToOne } from 'typeorm';
 import { Profile } from './profile.entity';
 import { SubscriptionType } from '../enum/userType';
 
@@ -24,22 +24,23 @@ export class User extends BaseEntity {
   phoneNumber: string;
 
   @Exclude()
-  @Column({ nullable: true, unique: true })
+  @Column({ nullable: true })
   password: string;
 
-  @Column({ nullable: true, unique: true })
+  @ManyToOne(() => Profile, (profile) => profile.user)
   profiles: Profile[];
 
-  @Column({ nullable: true, unique: true })
+  @Column({ nullable: true })
   preferredGenres: string[];
 
   //TODO: build out logic to implement a list of movies watched by a user or profile?
   // @Column({ nullable: true, unique: true })
   // List: Movie[];
-  @Column({ nullable: true, unique: true })
-  displayPicture: File;
 
-  @Column({ nullable: true, unique: true })
+  @Column({ nullable: true })
+  displayPicture: string;
+
+  @Column({ nullable: true, type: 'enum', enum: SubscriptionType })
   subscriptionType: SubscriptionType;
 
   @Column({ nullable: true, unique: true })
