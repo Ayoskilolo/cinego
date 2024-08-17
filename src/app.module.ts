@@ -15,6 +15,9 @@ import { AuthGuard } from './auth/auth.guard';
 import { JwtService } from '@nestjs/jwt';
 import { MovieModule } from './movie/movie.module';
 import { TransactionsModule } from './transactions/transactions.module';
+import { PaymentModule } from './payment/payment.module';
+import { FlutterwaveModule } from './flutterwave/flutterwave.module';
+import { UtilModule } from './util/util.module';
 
 @Module({
   imports: [
@@ -40,6 +43,12 @@ import { TransactionsModule } from './transactions/transactions.module';
     MovieModule,
 
     TransactionsModule,
+
+    PaymentModule,
+
+    FlutterwaveModule,
+
+    UtilModule,
   ],
   controllers: [AppController],
   providers: [

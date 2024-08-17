@@ -6,8 +6,8 @@ import {
 
 import { JwtService } from '@nestjs/jwt';
 import { SignUpDto } from './dto/sign-up.dto';
-import { UserExistsDto } from 'src/user/dto/user-exists.dto';
-import { UserService } from 'src/user/user.service';
+import { UserExistsDto } from '../user/dto/user-exists.dto';
+import { UserService } from '../user/user.service';
 import { LoginDto } from './dto/login.dto';
 import { User } from '../user/entities/user.entity';
 import { compare } from 'bcrypt';
@@ -54,7 +54,7 @@ export class AuthService {
 
     if (passwordsMatch) {
       const payload = {
-        sub: user.__id,
+        sub: user._id,
         email: user.email,
         phoneNumber: user.phoneNumber,
       };

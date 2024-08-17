@@ -1,4 +1,5 @@
 import {
+  IsDateString,
   IsEmail,
   IsEnum,
   IsMobilePhone,
@@ -6,7 +7,7 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
-import { SubscriptionType } from 'src/user/enum/userType';
+import { SubscriptionType } from '../../user/enum/userType';
 
 export class SignUpDto {
   @IsString()
@@ -24,6 +25,9 @@ export class SignUpDto {
   @IsMobilePhone('en-NG')
   @IsOptional()
   phoneNumber?: string;
+
+  @IsDateString()
+  dateOfBirth: Date;
 
   @IsString()
   @IsNotEmpty()
