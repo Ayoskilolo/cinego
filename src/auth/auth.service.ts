@@ -54,7 +54,7 @@ export class AuthService {
 
     if (passwordsMatch) {
       const payload = {
-        sub: user.__id,
+        sub: user._id,
         email: user.email,
         phoneNumber: user.phoneNumber,
       };

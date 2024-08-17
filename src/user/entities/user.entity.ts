@@ -1,8 +1,9 @@
 import { Exclude } from 'class-transformer';
 import { BaseEntity } from '../../base-entity/base-entity.entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, ManyToOne, OneToOne } from 'typeorm';
 import { Profile } from './profile.entity';
 import { SubscriptionType } from '../enum/userType';
+import { PaymentMethod } from '../../payment/entities/payment-method.entity';
 
 @Entity()
 export class User extends BaseEntity {
@@ -17,7 +18,7 @@ export class User extends BaseEntity {
   @Column()
   lastName: string;
 
-  @Column()
+  @Column({ unique: true })
   email: string;
 
   @Column({ nullable: true, unique: true })
@@ -40,10 +41,17 @@ export class User extends BaseEntity {
   // @Column({ nullable: true, unique: true })
   // List: Movie[];
 
+  @OneToOne(() => PaymentMethod, (paymentMethod) => paymentMethod.user)
+  paymentMethod: PaymentMethod;
+
   @Column({ nullable: true })
   displayPicture: string;
 
-  @Column({ nullable: true, type: 'enum', enum: SubscriptionType })
+  @Column({
+    default: SubscriptionType.FREE_TIER,
+    type: 'enum',
+    enum: SubscriptionType,
+  })
   subscriptionType: SubscriptionType;
 
   @Column({ nullable: true, unique: true })
