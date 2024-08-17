@@ -8,7 +8,7 @@ import {
 
 export class BaseEntity {
   @ObjectIdColumn()
-  __id: ObjectId;
+  _id: ObjectId;
 
   @CreateDateColumn()
   createdAt: Date;
