@@ -20,8 +20,7 @@ export class PaymentMethod extends BaseEntity {
   @Column()
   cvv: string;
 
-  @ObjectIdColumn()
-  userId: ObjectId;
+  userId: string;
 
   @OneToOne(() => User, (user) => user.paymentMethod)
   @JoinColumn()

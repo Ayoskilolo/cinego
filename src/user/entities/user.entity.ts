@@ -34,8 +34,8 @@ export class User extends BaseEntity {
   @ManyToOne(() => Profile, (profile) => profile.user)
   profiles: Profile[];
 
-  @Column({ nullable: true })
-  preferredGenres: string[];
+  // @Column({ nullable: true })
+  // preferredGenres: string[];
 
   //TODO: build out logic to implement a list of movies watched by a user or profile?
   // @Column({ nullable: true, unique: true })

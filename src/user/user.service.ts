@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
-import { MongoRepository, ObjectId } from 'typeorm';
+import { Repository } from 'typeorm';
 import { UserExistsDto } from './dto/user-exists.dto';
 import { SignUpDto } from '../auth/dto/sign-up.dto';
 import { hash } from 'bcrypt';
@@ -17,7 +17,7 @@ import { AddPaymentMethodDto } from './dto/add-payment-method.dto';
 export class UserService {
   constructor(
     @InjectRepository(User)
-    private readonly userRepository: MongoRepository<User>,
+    private readonly userRepository: Repository<User>,
     private readonly paymentService: PaymentService,
   ) {}
 
@@ -71,13 +71,13 @@ export class UserService {
       phoneNumber = this.formatPhoneNumber(phoneNumber);
 
       userPhoneNumberExists = await this.userRepository.findOne({
-        where: { phoneNumber: { $eq: phoneNumber } },
+        where: { phoneNumber },
       });
     }
 
     if (email) {
       userEmailExists = await this.userRepository.findOne({
-        where: { email: { $eq: email } },
+        where: { email },
       });
     }
 
@@ -87,7 +87,7 @@ export class UserService {
   }
 
   async addPaymentService(
-    userId: ObjectId,
+    userId: string,
     addPaymentMethodDto: AddPaymentMethodDto,
   ) {
     const user = await this.findOneById(userId);
@@ -95,10 +95,10 @@ export class UserService {
     return user;
   }
 
-  async findOneById(id: ObjectId) {
+  async findOneById(id: string) {
     try {
       return await this.userRepository.findOneOrFail({
-        where: { _id: id },
+        where: { id: id },
       });
     } catch (error) {
       console.log(error);
@@ -106,10 +106,7 @@ export class UserService {
     }
   }
 
-  async updateSubscriptionType(
-    id: ObjectId,
-    subscriptionType: SubscriptionType,
-  ) {
+  async updateSubscriptionType(id: string, subscriptionType: SubscriptionType) {
     const user = await this.findOneById(id);
     user.subscriptionType = subscriptionType;
     return await this.userRepository.save(user);

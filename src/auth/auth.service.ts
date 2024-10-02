@@ -3,7 +3,6 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-
 import { JwtService } from '@nestjs/jwt';
 import { SignUpDto } from './dto/sign-up.dto';
 import { UserExistsDto } from '../user/dto/user-exists.dto';
@@ -29,8 +28,16 @@ export class AuthService {
     return userExists;
   }
 
-  signUp(signUpDto: SignUpDto) {
-    return this.userService.create(signUpDto);
+  async signUp(signUpDto: SignUpDto, file: Express.Multer.File) {
+    const user = await this.userService.create(signUpDto);
+
+    if (file) {
+      //TODO: Upload PROFILE PICTURE to cloudinary
+      // const profilePicture = await this.fileService.uploadFile(file);
+      // user.profilePicture = profilePicture;
+    }
+
+    return user;
   }
 
   async login({ email, phoneNumber, password }: LoginDto) {
@@ -54,7 +61,7 @@ export class AuthService {
 
     if (passwordsMatch) {
       const payload = {
-        sub: user._id,
+        sub: user.id,
         email: user.email,
         phoneNumber: user.phoneNumber,
       };
@@ -66,11 +73,16 @@ export class AuthService {
     throw new UnauthorizedException('Invalid Credentials');
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} auth`;
-  }
+  async forgotPassword(forgotPasswordDto: UserExistsDto) {
+    const doesUserExist =
+      await this.userService.checkIfUserExists(forgotPasswordDto);
 
-  remove(id: number) {
-    return `This action removes a #${id} auth`;
+    if (!doesUserExist) {
+      throw new BadRequestException('User does not exist');
+    }
+
+    //TODO: Send password reset otp.
+
+    return doesUserExist;
   }
 }

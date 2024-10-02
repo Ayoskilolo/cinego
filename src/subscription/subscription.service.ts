@@ -4,11 +4,11 @@ import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
 
 @Injectable()
 export class SubscriptionService {
-  create(createSubscriptionDto: CreateSubscriptionDto) {
-    return 'This action adds a new subscription';
-  }
+  // createSubscription(createSubscriptionDto: CreateSubscriptionDto) {
+  //   return 'This action adds a new subscription';
+  // }
 
-  findAll() {
+  placeUserOnPremiumPlan(userId: string) {
     return `This action returns all subscription`;
   }
 

@@ -3,13 +3,13 @@ import { UtilService } from '../util/util.service';
 import { CreatePaymentMethodDto } from './dto/create-payment-method.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PaymentMethod } from './entities/payment-method.entity';
-import { MongoRepository } from 'typeorm';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class PaymentService {
   constructor(
     @InjectRepository(PaymentMethod)
-    private readonly paymentMethodRepository: MongoRepository<PaymentMethod>,
+    private readonly paymentMethodRepository: Repository<PaymentMethod>,
     private readonly utilService: UtilService,
   ) {}
 

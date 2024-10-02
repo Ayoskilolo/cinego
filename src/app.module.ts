@@ -14,10 +14,12 @@ import { HttpExceptionFilter } from './http-exception/http-exception.filter';
 import { AuthGuard } from './auth/auth.guard';
 import { JwtService } from '@nestjs/jwt';
 import { MovieModule } from './movie/movie.module';
-import { TransactionsModule } from './transactions/transactions.module';
+import { TransactionModule } from './transaction/transaction.module';
 import { PaymentModule } from './payment/payment.module';
 import { FlutterwaveModule } from './flutterwave/flutterwave.module';
 import { UtilModule } from './util/util.module';
+import { FileResolver } from './file/file.resolver';
+import { FileModule } from './file/file.module';
 
 @Module({
   imports: [
@@ -42,13 +44,15 @@ import { UtilModule } from './util/util.module';
 
     MovieModule,
 
-    TransactionsModule,
+    TransactionModule,
 
     PaymentModule,
 
     FlutterwaveModule,
 
     UtilModule,
+
+    FileModule,
   ],
   controllers: [AppController],
   providers: [
@@ -58,6 +62,7 @@ import { UtilModule } from './util/util.module';
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ClassSerializerInterceptor },
     { provide: APP_GUARD, useClass: AuthGuard },
+    FileResolver,
   ],
 })
 export class AppModule {}
