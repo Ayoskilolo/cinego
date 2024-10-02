@@ -18,7 +18,7 @@ import { TransactionModule } from './transaction/transaction.module';
 import { PaymentModule } from './payment/payment.module';
 import { FlutterwaveModule } from './flutterwave/flutterwave.module';
 import { UtilModule } from './util/util.module';
-import { FileResolver } from './file/file.resolver';
+// import { FileResolver } from './file/file.resolver';
 import { FileModule } from './file/file.module';
 
 @Module({
@@ -62,7 +62,7 @@ import { FileModule } from './file/file.module';
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ClassSerializerInterceptor },
     { provide: APP_GUARD, useClass: AuthGuard },
-    FileResolver,
+    // FileResolver,
   ],
 })
 export class AppModule {}
