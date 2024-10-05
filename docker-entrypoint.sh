@@ -2,11 +2,13 @@
 
 npm install -g pnpm
 
+npm install -g @nestjs/cli
+
 pnpm install
 
 pnpm build
 
-pnpm run migration:run
+# pnpm run migration:run
 
 # pnpm seed
 
