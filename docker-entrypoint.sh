@@ -8,6 +8,6 @@ pnpm build
 
 pnpm run migration:run
 
-pnpm seed
+# pnpm seed
 
 node dist/src/main.js

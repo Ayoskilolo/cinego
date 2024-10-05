@@ -9,15 +9,18 @@
 # https://github.com/docker/awesome-compose
 version: '3.8'
 services:
-  api:
+  cinego-api:
+    container_name: cinego-api
     build:
       context: .
+    depends_on:
+      - postgres
     environment:
       NODE_ENV: production
     env_file:
       - .env
     ports:
-      - 3000:3000
+      - '${PORT}:${PORT}'
     networks:
       - main_network
 
