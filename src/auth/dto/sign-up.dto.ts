@@ -1,13 +1,11 @@
 import {
   IsDateString,
   IsEmail,
-  IsEnum,
   IsMobilePhone,
   IsNotEmpty,
   IsOptional,
   IsString,
 } from 'class-validator';
-import { SubscriptionType } from '../../user/enum/userType';
 
 export class SignUpDto {
   @IsString()
@@ -17,6 +15,10 @@ export class SignUpDto {
   @IsString()
   @IsNotEmpty()
   lastName: string;
+
+  @IsString()
+  @IsNotEmpty()
+  userName: string;
 
   @IsEmail()
   @IsOptional()
@@ -32,8 +34,4 @@ export class SignUpDto {
   @IsString()
   @IsNotEmpty()
   password: string;
-
-  @IsEnum(SubscriptionType)
-  @IsNotEmpty()
-  subscriptionType: SubscriptionType;
 }

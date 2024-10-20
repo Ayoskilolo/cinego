@@ -11,6 +11,7 @@ import {
 import { UserService } from './user.service';
 import { SignUpDto } from '../auth/dto/sign-up.dto';
 import { AddPaymentMethodDto } from './dto/add-payment-method.dto';
+import { SubscriptionType } from './enum/userType';
 
 @Controller('user')
 export class UserController {
@@ -18,7 +19,19 @@ export class UserController {
 
   @Post()
   create(@Body() createUserDto: SignUpDto) {
-    return this.userService.create(createUserDto);
+    return this.userService.createUser(createUserDto);
+  }
+
+  @Post('subscribe')
+  async placeUserOnSubscription(
+    @Req() req: Request,
+    subscriptionType: SubscriptionType,
+  ) {
+    const data = await this.userService.updateSubscriptionType(
+      req['user'].id,
+      subscriptionType,
+    );
+    return { data };
   }
 
   @Get()

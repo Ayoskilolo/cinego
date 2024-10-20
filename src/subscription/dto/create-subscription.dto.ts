@@ -1,1 +1,3 @@
-export class CreateSubscriptionDto {}
+export class CreateSubscriptionDto {
+  // cardDetails
+}

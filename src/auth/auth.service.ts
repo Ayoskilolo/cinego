@@ -29,7 +29,7 @@ export class AuthService {
   }
 
   async signUp(signUpDto: SignUpDto, file: Express.Multer.File) {
-    const user = await this.userService.create(signUpDto);
+    const user = await this.userService.createUser(signUpDto);
 
     if (file) {
       //TODO: Upload PROFILE PICTURE to cloudinary
@@ -37,7 +37,14 @@ export class AuthService {
       // user.profilePicture = profilePicture;
     }
 
-    return user;
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+    };
+
+    const accessToken = await this.jwtService.signAsync(payload);
+    return { accessToken, user };
   }
 
   async login({ email, phoneNumber, password }: LoginDto) {
