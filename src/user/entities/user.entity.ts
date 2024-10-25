@@ -54,6 +54,6 @@ export class User extends BaseEntity {
   })
   subscriptionType: SubscriptionType;
 
-  @Column({ nullable: true, unique: true })
+  @Column({ unique: true })
   userName: string;
 }

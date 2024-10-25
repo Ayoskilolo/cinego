@@ -22,10 +22,10 @@ export class AuthService {
     const userExists = await this.userService.checkIfUserExists(userExistsDto);
 
     if (userExists) {
-      throw new BadRequestException('User already exists');
+      return userExists;
+    } else {
+      throw new BadRequestException('User does not exist');
     }
-
-    return userExists;
   }
 
   async checkIfUserNameExists(userName: string) {
@@ -33,9 +33,9 @@ export class AuthService {
 
     if (userExists) {
       throw new BadRequestException('Username is already in use.');
+    } else {
+      return userExists;
     }
-
-    return userExists;
   }
 
   async signUp(signUpDto: SignUpDto, file: Express.Multer.File) {

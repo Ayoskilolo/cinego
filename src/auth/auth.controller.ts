@@ -4,6 +4,8 @@ import {
   Body,
   UseInterceptors,
   UploadedFile,
+  Get,
+  Query,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignUpDto } from './dto/sign-up.dto';
@@ -36,13 +38,13 @@ export class AuthController {
   @Post('user-exists')
   async checkIfUserExists(@Body() userExistsDto: UserExistsDto) {
     const data = await this.authService.checkIfUserExists(userExistsDto);
-    return { data, message: 'User does not exist' };
+    return { data, message: 'User exists' };
   }
 
-  @Post('user-name')
-  async checkIfUserNameExists(@Body() userName: string) {
+  @Get('user-name')
+  async checkIfUserNameExists(@Query('userName') userName: string) {
     const data = await this.authService.checkIfUserNameExists(userName);
-    return { data, message: 'User does not exist' };
+    return { data, message: 'UserName is not in use' };
   }
 
   @Post('forgot-password')

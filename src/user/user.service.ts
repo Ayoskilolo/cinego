@@ -139,13 +139,15 @@ export class UserService {
     }
 
     const user = await this.userRepository.findOne({
-      where: { userName },
+      where: {
+        userName,
+      },
     });
 
     if (user) {
-      throw new NotAcceptableException('Username already in use.');
-    } else {
       return true;
+    } else {
+      return false;
     }
   }
 
