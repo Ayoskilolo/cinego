@@ -12,6 +12,7 @@ import { UserService } from './user.service';
 import { SignUpDto } from '../auth/dto/sign-up.dto';
 import { AddPaymentMethodDto } from './dto/add-payment-method.dto';
 import { SubscriptionType } from './enum/userType';
+import { CreateProfileDto } from './dto/create-user.dto';
 
 @Controller('user')
 export class UserController {
@@ -20,6 +21,14 @@ export class UserController {
   @Post()
   create(@Body() createUserDto: SignUpDto) {
     return this.userService.createUser(createUserDto);
+  }
+
+  @Post('profile')
+  async createProfile(
+    @Req() req: Request,
+    @Body() createProfileDto: CreateProfileDto,
+  ) {
+    return this.userService.createProfile(req['user'].id, createProfileDto);
   }
 
   @Post('subscribe')

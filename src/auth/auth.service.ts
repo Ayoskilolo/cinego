@@ -28,6 +28,16 @@ export class AuthService {
     return userExists;
   }
 
+  async checkIfUserNameExists(userName: string) {
+    const userExists = await this.userService.checkIfUserNameExists(userName);
+
+    if (userExists) {
+      throw new BadRequestException('Username is already in use.');
+    }
+
+    return userExists;
+  }
+
   async signUp(signUpDto: SignUpDto, file: Express.Multer.File) {
     const user = await this.userService.createUser(signUpDto);
 

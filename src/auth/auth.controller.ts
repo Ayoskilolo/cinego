@@ -2,7 +2,6 @@ import {
   Controller,
   Post,
   Body,
-  Get,
   UseInterceptors,
   UploadedFile,
 } from '@nestjs/common';
@@ -34,9 +33,15 @@ export class AuthController {
     return { data };
   }
 
-  @Get('user-exists')
+  @Post('user-exists')
   async checkIfUserExists(@Body() userExistsDto: UserExistsDto) {
     const data = await this.authService.checkIfUserExists(userExistsDto);
+    return { data, message: 'User does not exist' };
+  }
+
+  @Post('user-name')
+  async checkIfUserNameExists(@Body() userName: string) {
+    const data = await this.authService.checkIfUserNameExists(userName);
     return { data, message: 'User does not exist' };
   }
 

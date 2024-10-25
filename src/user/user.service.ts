@@ -62,6 +62,8 @@ export class UserService {
     try {
       const user = this.userRepository.create(createUserDto);
 
+      await this.userRepository.save(user);
+
       const initialUserProfile: CreateProfileDto = {
         userId: user.id,
         user,
@@ -73,9 +75,28 @@ export class UserService {
 
       await this.profileRepository.save(userProfile);
 
-      return await this.userRepository.save(user);
+      return user;
     } catch (error) {
+      console.log;
       throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async createProfile(userId: string, createProfileDto: CreateProfileDto) {
+    try {
+      const user = await this.findOneById(userId);
+
+      if (!user) {
+        throw new NotFoundException('User does not exist.');
+      }
+
+      createProfileDto.userId = user.id;
+      const userProfile = this.profileRepository.create(createProfileDto);
+      await this.profileRepository.save(userProfile);
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Something went wrong in creating this profile.',
+      );
     }
   }
 
