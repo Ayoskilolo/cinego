@@ -18,7 +18,7 @@ export class User extends BaseEntity {
   @Column()
   lastName: string;
 
-  @Column({ unique: true })
+  @Column({ nullable: true, unique: true })
   email: string;
 
   @Column({ nullable: true, unique: true })
@@ -56,4 +56,7 @@ export class User extends BaseEntity {
 
   @Column({ unique: true })
   userName: string;
+
+  @Column({ default: false })
+  isSubscribed: boolean;
 }
