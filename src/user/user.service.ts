@@ -2,7 +2,6 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
-  NotAcceptableException,
   NotFoundException,
 } from '@nestjs/common';
 import { hash } from 'bcrypt';
@@ -18,6 +17,7 @@ import { PaymentService } from '../payment/payment.service';
 import { AddPaymentMethodDto } from './dto/add-payment-method.dto';
 import { MaturityRatings } from './enum/maturityRatings';
 import { CreateProfileDto } from './dto/create-user.dto';
+import { Genres } from '../movie/genres.enum';
 
 @Injectable()
 export class UserService {
@@ -30,17 +30,21 @@ export class UserService {
   ) {}
 
   async createUser(createUserDto: SignUpDto) {
+    // Check if email or phone number is provided.
     if (!createUserDto.email && !createUserDto.phoneNumber) {
       throw new BadRequestException('Email or phone number required');
     }
 
+    // Check if the user already exists based on email or phone number.
     const userExists = await this.checkIfUserExists({
       email: createUserDto.email,
       phoneNumber: createUserDto.phoneNumber,
     });
 
     if (userExists) {
-      throw new BadRequestException('Account already exists');
+      throw new BadRequestException(
+        'Account already exists. Please check the email or phone number.',
+      );
     }
 
     createUserDto.password = await hash(createUserDto.password, 8);
@@ -53,17 +57,24 @@ export class UserService {
 
     createUserDto.dateOfBirth = new Date(createUserDto.dateOfBirth);
 
+    const user = this.userRepository.create(createUserDto);
+
+    try {
+      await this.userRepository.save(user);
+    } catch (error) {
+      console.log(error);
+      throw new InternalServerErrorException(error.message);
+    }
+
+    //Try creating the defaullt base profile for the user.
+
     //Check if the user is less than age 18
     const today = new Date();
-    const usersAgeInYears = differenceInYears(createUserDto.dateOfBirth, today);
+    const usersAgeInYears = differenceInYears(today, createUserDto.dateOfBirth);
     const maturityRatings =
       this.assignMaturityRatingsBasedonAge(usersAgeInYears);
 
     try {
-      const user = this.userRepository.create(createUserDto);
-
-      await this.userRepository.save(user);
-
       const initialUserProfile: CreateProfileDto = {
         userId: user.id,
         user,
@@ -76,10 +87,7 @@ export class UserService {
       await this.profileRepository.save(userProfile);
 
       return user;
-    } catch (error) {
-      console.log;
-      throw new InternalServerErrorException(error.message);
-    }
+    } catch (error) {}
   }
 
   async createProfile(userId: string, createProfileDto: CreateProfileDto) {
@@ -94,9 +102,27 @@ export class UserService {
       const userProfile = this.profileRepository.create(createProfileDto);
       await this.profileRepository.save(userProfile);
     } catch (error) {
+      console.log(error);
       throw new InternalServerErrorException(
         'Something went wrong in creating this profile.',
+        error,
       );
+    }
+  }
+
+  async getAllUserProfiles(userId: string) {
+    try {
+      console.log(userId);
+
+      const profiles = await this.profileRepository.find({
+        where: { userId },
+      });
+
+      console.log('profiles', profiles);
+      console.log('he');
+      return profiles;
+    } catch (e) {
+      throw new InternalServerErrorException(e.message);
     }
   }
 
@@ -151,6 +177,19 @@ export class UserService {
     }
   }
 
+  async updateUserGenres(userId: string, genres: Genres[]) {
+    try {
+      const user = await this.findOneById(userId);
+
+      user.preferredGenres = genres;
+      await this.userRepository.save(user);
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Something went wrong in updating user genres.',
+      );
+    }
+  }
+
   //TODO: change this to receive already encrypted card information and send to updateSubscriptionType service's endppoint.
   async addPaymentService(
     userId: string,
@@ -202,19 +241,20 @@ export class UserService {
   }
 
   assignMaturityRatingsBasedonAge(userAge: number) {
-    switch (userAge) {
-      case 0:
-        if (userAge < 13) return MaturityRatings.PG;
-        break;
-      case 1:
-        if (userAge > 13 && userAge < 17) return MaturityRatings.PG_13;
-        break;
-      case 2:
-        if (userAge > 17 && userAge < 18) return MaturityRatings.NC_17;
-        break;
-      case 3:
-        if (userAge > 18) return MaturityRatings.R;
-        break;
+    if (userAge < 13) {
+      return MaturityRatings.PG;
+    }
+
+    if (userAge > 13 && userAge < 17) {
+      return MaturityRatings.PG_13;
+    }
+
+    if (userAge > 17 && userAge < 18) {
+      return MaturityRatings.NC_17;
+    }
+
+    if (userAge > 18) {
+      return MaturityRatings.R;
     }
   }
 

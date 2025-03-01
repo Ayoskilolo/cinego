@@ -17,4 +17,7 @@ export class Movie extends BaseEntity {
 
   @Column()
   s3ObjectKey: string;
+
+  @Column()
+  isActive: boolean;
 }

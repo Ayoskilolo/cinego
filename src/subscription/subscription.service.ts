@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
-import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
+// import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
 import { UserService } from 'src/user/user.service';
 import { Subscription } from './entities/subscription.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { SubscriptionType } from '../user/enum/userType';
 
 @Injectable()
 export class SubscriptionService {
@@ -27,17 +28,17 @@ export class SubscriptionService {
     return await this.subscriptionRepository.save(newSubscription);
   }
 
-  placeUserOnPremiumPlan(userId: string) {
-    return `This action returns all subscription`;
+  // placeUserOnPremiumPlan(userId: string) {
+  //   return `This action returns all subscription`;
+  // }
+
+  returnAllSubscriptionTypes() {
+    return SubscriptionType;
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} subscription`;
-  }
-
-  update(id: number, updateSubscriptionDto: UpdateSubscriptionDto) {
-    return `This action updates a #${id} subscription`;
-  }
+  // update(id: number, updateSubscriptionDto: UpdateSubscriptionDto) {
+  //   return `This action updates a #${id} subscription`;
+  // }
 
   remove(id: number) {
     return `This action removes a #${id} subscription`;

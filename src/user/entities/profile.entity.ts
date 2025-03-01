@@ -21,8 +21,10 @@ export class Profile extends BaseEntity {
   profileName: string;
 
   @Column({ type: 'enum', enum: MaturityRatings })
-  maturityRatings: MaturityRatings;
+  maturityRatings?: MaturityRatings;
 
+  @Column({ nullable: true })
+  profileImageUrl?: string;
   //TODO: build out logic to implement a list of movies watched by a user or profile?
   // List: Movie[];
 

@@ -22,9 +22,9 @@ export class AuthService {
     const userExists = await this.userService.checkIfUserExists(userExistsDto);
 
     if (userExists) {
-      return userExists;
+      return { userExists, message: 'User exists' };
     } else {
-      throw new BadRequestException('User does not exist');
+      return { userExists, message: 'User does not exist' };
     }
   }
 

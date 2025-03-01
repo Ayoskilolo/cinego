@@ -7,12 +7,14 @@ import {
   Delete,
   Put,
   Req,
+  Patch,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { SignUpDto } from '../auth/dto/sign-up.dto';
 import { AddPaymentMethodDto } from './dto/add-payment-method.dto';
 import { SubscriptionType } from './enum/userType';
 import { CreateProfileDto } from './dto/create-user.dto';
+import { Genres } from '../movie/genres.enum';
 
 @Controller('user')
 export class UserController {
@@ -28,7 +30,19 @@ export class UserController {
     @Req() req: Request,
     @Body() createProfileDto: CreateProfileDto,
   ) {
-    return this.userService.createProfile(req['user'].id, createProfileDto);
+    return this.userService.createProfile(req['user'].sub, createProfileDto);
+  }
+
+  @Patch('genres')
+  async updateUserGenres(
+    @Req() req: Request,
+    @Body('genres') genres: Genres[],
+  ) {
+    const data = await this.userService.updateUserGenres(
+      req['user'].sub,
+      genres,
+    );
+    return { data };
   }
 
   @Post('subscribe')
@@ -46,6 +60,12 @@ export class UserController {
   @Get()
   findAll() {
     return this.userService.findAll();
+  }
+
+  @Get('profile')
+  async findUserProfiles(@Req() req: Request) {
+    const data = await this.userService.getAllUserProfiles(req['user'].sub);
+    return { data };
   }
 
   @Get(':id')

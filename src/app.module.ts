@@ -14,9 +14,9 @@ import { HttpExceptionFilter } from './http-exception/http-exception.filter';
 import { AuthGuard } from './auth/auth.guard';
 import { JwtService } from '@nestjs/jwt';
 import { MovieModule } from './movie/movie.module';
-import { TransactionModule } from './transaction/transaction.module';
+import { TransactionsModule } from './transactions/transactions.module';
 import { PaymentModule } from './payment/payment.module';
-import { FlutterwaveModule } from './flutterwave/flutterwave.module';
+import { FlutterwaveModule } from './payment/flutterwave/flutterwave.module';
 import { UtilModule } from './util/util.module';
 // import { FileResolver } from './file/file.resolver';
 import { FileModule } from './file/file.module';
@@ -44,8 +44,6 @@ import { FileModule } from './file/file.module';
 
     MovieModule,
 
-    TransactionModule,
-
     PaymentModule,
 
     FlutterwaveModule,
@@ -53,6 +51,8 @@ import { FileModule } from './file/file.module';
     UtilModule,
 
     FileModule,
+
+    TransactionsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -1,0 +1,16 @@
+export enum Genres {
+  ACTION = 'action',
+  ANIME = 'anime',
+  CLASSIC = 'classic',
+  COMEDY = 'comedy',
+  CRIME = 'crime',
+  DOCUMENTARY = 'documentary',
+  DRAMA = 'drama',
+  FANTASY = 'fantasy',
+  MUSICAL = 'musical',
+  HORROR = 'horror',
+  ROMANCE = 'romance',
+  SCI_FI = 'sci-fi',
+  THRILLER = 'thriller',
+  TV_SHOWS = 'tvshows',
+}

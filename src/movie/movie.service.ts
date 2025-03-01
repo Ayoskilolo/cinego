@@ -4,6 +4,7 @@ import { CreateMovieDto } from './dto/create-movie.dto';
 import { Movie } from './entities/movie.entity';
 import { Repository } from 'typeorm';
 import { PaginateQuery, paginate } from 'nestjs-paginate';
+import { Genres } from './genres.enum';
 
 @Injectable()
 export class MovieService {
@@ -28,6 +29,10 @@ export class MovieService {
 
   findOne(id: number) {
     return `This action returns a #${id} movie`;
+  }
+
+  findAllGenres() {
+    return Object.keys(Genres);
   }
 
   // async getStreamingUrl(movieId: string): Promise<string> {

@@ -38,7 +38,7 @@ export class AuthController {
   @Post('user-exists')
   async checkIfUserExists(@Body() userExistsDto: UserExistsDto) {
     const data = await this.authService.checkIfUserExists(userExistsDto);
-    return { data, message: 'User exists' };
+    return { data };
   }
 
   @Get('user-name')
