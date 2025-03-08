@@ -60,10 +60,6 @@
 
 FROM node:latest
 
-RUN apk update
-
-RUN apk add openjdk11
-
 RUN mkdir -p /app
 
 COPY . /app
