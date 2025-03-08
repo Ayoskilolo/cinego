@@ -58,7 +58,7 @@
 
 
 
-FROM node:18.18.2-alpine
+FROM node:latest
 
 RUN apk update
 
