@@ -4,7 +4,7 @@ npm install -g pnpm@9.15.4
 
 npm install -g @nestjs/cli
 
-npm install
+pnpm install
 
 pnpm build
 
