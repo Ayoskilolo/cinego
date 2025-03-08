@@ -3,7 +3,7 @@ import { BaseEntity } from '../../base-entity/base-entity.entity';
 import { Column, Entity, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { Profile } from './profile.entity';
 import { SubscriptionType } from '../enum/userType';
-import { PaymentMethod } from '../../payment/entities/payment-method.entity';
+import { PaymentPartner } from '../../payment/entities/payment-partner.entity';
 import { Genres } from '../../movie/genres.enum';
 import { Transaction } from 'src/transactions/entities/transaction.entity';
 
@@ -59,8 +59,8 @@ export class User extends BaseEntity {
   @Column({ default: false })
   isSubscribed: boolean;
 
-  @OneToOne(() => PaymentMethod, (paymentMethod) => paymentMethod.user)
-  paymentMethod: PaymentMethod;
+  @OneToMany(() => PaymentPartner, (paymentPartner) => paymentPartner.user)
+  paymentMethod: PaymentPartner;
 
   @Column({ default: false })
   hasUsedFreeTrial: boolean;

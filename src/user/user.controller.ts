@@ -73,18 +73,18 @@ export class UserController {
     return this.userService.findOne(+id);
   }
 
-  @Put('add-payment-method')
-  async addPaymentMethod(
-    @Body() addPaymentMethodDto: AddPaymentMethodDto,
-    @Req() req: Request,
-  ) {
-    const data = await this.userService.addPaymentService(
-      req['user'].sub,
-      addPaymentMethodDto,
-    );
+  // @Put('add-payment-method')
+  // async addPaymentMethod(
+  //   @Body() addPaymentMethodDto: AddPaymentMethodDto,
+  //   @Req() req: Request,
+  // ) {
+  //   const data = await this.userService.addPaymentService(
+  //     req['user'].sub,
+  //     addPaymentMethodDto,
+  //   );
 
-    return { data, message: 'Payment method added successfully' };
-  }
+  //   return { data, message: 'Payment method added successfully' };
+  // }i
 
   @Delete(':id')
   remove(@Param('id') id: string) {

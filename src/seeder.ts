@@ -3,7 +3,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import config from './config';
 import { seeder } from 'nestjs-seeder';
 import { Movie } from './movie/entities/movie.entity';
-import { PaymentMethod } from './payment/entities/payment-method.entity';
 import { PaymentPartner } from './payment/entities/payment-partner.entity';
 import { Profile } from './user/entities/profile.entity';
 import { User } from './user/entities/user.entity';
@@ -24,7 +23,6 @@ seeder({
     TypeOrmModule.forFeature([
       User,
       Profile,
-      PaymentMethod,
       Subscription,
       PaymentPartner,
       Movie,

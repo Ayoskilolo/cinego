@@ -4,7 +4,6 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { SubscriptionModule } from './subscription/subscription.module';
-import { SimExperienceModule } from './sim-experience/sim-experience.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import config from './config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -19,7 +18,6 @@ import { PaymentModule } from './payment/payment.module';
 import { FlutterwaveModule } from './payment/flutterwave/flutterwave.module';
 import { UtilModule } from './util/util.module';
 // import { FileResolver } from './file/file.resolver';
-import { FileModule } from './file/file.module';
 
 @Module({
   imports: [
@@ -40,8 +38,6 @@ import { FileModule } from './file/file.module';
 
     SubscriptionModule,
 
-    SimExperienceModule,
-
     MovieModule,
 
     PaymentModule,
@@ -49,8 +45,6 @@ import { FileModule } from './file/file.module';
     FlutterwaveModule,
 
     UtilModule,
-
-    FileModule,
 
     TransactionsModule,
   ],

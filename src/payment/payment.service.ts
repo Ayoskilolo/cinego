@@ -1,35 +1,26 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { UtilService } from '../util/util.service';
 import { CreatePaymentMethodDto } from './dto/create-payment-method.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { PaymentMethod } from './entities/payment-method.entity';
+import { PaymentPartner } from './entities/payment-partner.entity';
 import { Repository } from 'typeorm';
 
 @Injectable()
 export class PaymentService {
   constructor(
-    @InjectRepository(PaymentMethod)
-    private readonly paymentMethodRepository: Repository<PaymentMethod>,
+    @InjectRepository(PaymentPartner)
+    private readonly paymentPartnerRepository: Repository<PaymentPartner>,
     private readonly utilService: UtilService,
   ) {}
 
-  async create({
-    cardNumber,
-    cvv,
-    expiryDate,
-    userId,
-  }: CreatePaymentMethodDto) {
-    const encryptedPaymentMethod: CreatePaymentMethodDto = {
-      cardNumber: await this.utilService.encrypt(cardNumber),
-      expiryDate: await this.utilService.encrypt(expiryDate),
-      cvv: await this.utilService.encrypt(cvv),
-      userId,
-    };
-
-    const paymentMethod = this.paymentMethodRepository.create(
-      encryptedPaymentMethod,
-    );
-
-    return await this.paymentMethodRepository.save(paymentMethod);
-  }
+async findPaymentProviderBySlug(slug: string) {
+      try {
+      return await this.paymentPartnerRepository.findOneOrFail({
+        where: { slug },
+      });
+    } catch (error) {
+      console.log(error);
+      throw new NotFoundException('User does not exist');
+    }
+}
 }

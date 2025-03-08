@@ -190,15 +190,6 @@ export class UserService {
     }
   }
 
-  //TODO: change this to receive already encrypted card information and send to updateSubscriptionType service's endppoint.
-  async addPaymentService(
-    userId: string,
-    addPaymentMethodDto: AddPaymentMethodDto,
-  ) {
-    const user = await this.findOneById(userId);
-    await this.paymentService.create({ ...addPaymentMethodDto, userId });
-    return user;
-  }
 
   async findOneById(id: string) {
     try {

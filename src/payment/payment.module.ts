@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { PaymentMethod } from './entities/payment-method.entity';
+import { PaymentPartner } from './entities/payment-partner.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([PaymentMethod])],
+  imports: [TypeOrmModule.forFeature([PaymentPartner])],
   providers: [PaymentService],
   exports: [PaymentService],
 })
