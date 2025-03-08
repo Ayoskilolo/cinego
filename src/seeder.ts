@@ -8,6 +8,7 @@ import { Profile } from './user/entities/profile.entity';
 import { User } from './user/entities/user.entity';
 import { PaymentPartnerSeeder } from './payment/payment.method.seeder';
 import { Subscription } from './subscription/entities/subscription.entity';
+import { Transaction } from './transactions/entities/transaction.entity';
 
 seeder({
   imports: [
@@ -26,6 +27,7 @@ seeder({
       Subscription,
       PaymentPartner,
       Movie,
+      Transaction
     ]),
   ],
 }).run([PaymentPartnerSeeder]);
