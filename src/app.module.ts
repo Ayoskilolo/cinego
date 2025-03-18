@@ -18,6 +18,7 @@ import { PaymentModule } from './payment/payment.module';
 import { FlutterwaveModule } from './payment/flutterwave/flutterwave.module';
 import { UtilModule } from './util/util.module';
 // import { FileResolver } from './file/file.resolver';
+import { ProvidersModule } from './providers/providers.module';
 
 @Module({
   imports: [
@@ -47,6 +48,8 @@ import { UtilModule } from './util/util.module';
     UtilModule,
 
     TransactionsModule,
+
+    ProvidersModule,
   ],
   controllers: [AppController],
   providers: [

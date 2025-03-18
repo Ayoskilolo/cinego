@@ -9,8 +9,8 @@ export class PaymentPartnerSeeder implements Seeder {
   constructor(
     @InjectRepository(PaymentPartner)
     private readonly paymentPartnerRepository: Repository<PaymentPartner>,
-    private readonly logger = new Logger(PaymentPartnerSeeder.name),
   ) {}
+  private readonly logger = new Logger(PaymentPartnerSeeder.name);
 
   async seed(): Promise<any> {
     const isAlreadySeeded = !!(await this.paymentPartnerRepository.count());

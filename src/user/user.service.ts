@@ -119,7 +119,6 @@ export class UserService {
       });
 
       console.log('profiles', profiles);
-      console.log('he');
       return profiles;
     } catch (e) {
       throw new InternalServerErrorException(e.message);
@@ -189,7 +188,6 @@ export class UserService {
       );
     }
   }
-
 
   async findOneById(id: string) {
     try {
