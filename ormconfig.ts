@@ -12,6 +12,7 @@ const AppDataSource = new DataSource({
   database: process.env.POSTGRES_DB,
   entities: [`${__dirname}/**/*.entity.{ts,js}`],
   migrations: [`${__dirname}/database/migrations/**/*.{ts,js}`],
+  synchronize: true,
 
   ...(process.env.NODE_ENV !== 'development' && {
     ssl: { rejectUnauthorized: false },
