@@ -1,10 +1,19 @@
-import { Exclude } from 'class-transformer';
+import { Exclude, Expose } from 'class-transformer';
 import { BaseEntity } from '../../base-entity/base-entity.entity';
-import { Column, Entity, OneToMany } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  Unique,
+} from 'typeorm';
 import { MaturityRatings } from '../enum/maturityRatings';
 import { User } from './user.entity';
+import { WatchHistory } from './watch-history.entity';
 
 @Entity()
+@Unique(['userId', 'pin'])
 export class Profile extends BaseEntity {
   constructor(partial: Partial<Profile>) {
     super();
@@ -14,7 +23,10 @@ export class Profile extends BaseEntity {
   @Column()
   userId: string;
 
-  @OneToMany(() => User, (user) => user.profiles)
+  @ManyToOne(() => User, (user) => user.profiles, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'userId' })
   user: User;
 
   @Column()
@@ -28,7 +40,15 @@ export class Profile extends BaseEntity {
   //TODO: build out logic to implement a list of movies watched by a user or profile?
   // List: Movie[];
 
+  @OneToMany(() => WatchHistory, (watchHistory) => watchHistory.profile)
+  watchHistory: WatchHistory[];
+
   @Exclude()
-  @Column({ nullable: true, unique: true })
+  @Column({ nullable: true })
   pin: string;
+
+  @Expose()
+  get hasPin(): boolean {
+    return !!this.pin;
+  }
 }

@@ -6,6 +6,7 @@ import {
   Param,
   Delete,
   Query,
+  Req,
 } from '@nestjs/common';
 import { MovieService } from './movie.service';
 import { CreateMovieDto } from './dto/create-movie.dto';
@@ -17,8 +18,8 @@ export class MovieController {
   constructor(private readonly movieService: MovieService) {}
 
   @Get()
-  async getMovies(@Paginate() query: PaginateQuery) {
-    const data = await this.movieService.getMovies(query);
+  async getMovies(@Paginate() query: PaginateQuery, @Req() req: Request) {
+    const data = await this.movieService.getMovies(query, req['user']?.sub);
     return { data };
   }
 
@@ -28,12 +29,12 @@ export class MovieController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.movieService.findOne(id);
+  findOne(@Param('id') id: string, @Req() req: Request) {
+    return this.movieService.findOne(id, req['user']?.sub);
   }
 
   @Get('/genres/:genre')
-  findMoviesByGenre(@Param('genre') genre: string) {
-    return this.movieService.findByGenre(genre);
+  findMoviesByGenre(@Param('genre') genre: string, @Req() req: Request) {
+    return this.movieService.findByGenre(genre, req['user']?.sub);
   }
 }

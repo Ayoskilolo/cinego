@@ -1,6 +1,7 @@
-import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { BaseEntity } from '../../base-entity/base-entity.entity';
 import { ProvidersEntity } from 'src/providers/entities/providers.entity';
+import { MyListEntity } from 'src/my-list/entities/my-list.entity';
 
 @Entity()
 export class Movie extends BaseEntity {
@@ -53,9 +54,14 @@ export class Movie extends BaseEntity {
     thumbnail: string;
   };
 
+  @OneToMany(() => MyListEntity, (myList) => myList.movie)
+  myList: MyListEntity[];
+
   @ManyToOne(() => ProvidersEntity, (provider) => provider.movies, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'providerId' })
   provider: ProvidersEntity;
+
+  isInMyList?: boolean;
 }

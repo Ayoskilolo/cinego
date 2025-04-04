@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CreateMovieDto } from './dto/create-movie.dto';
 import { Movie } from './entities/movie.entity';
@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { FilterOperator, PaginateQuery, paginate } from 'nestjs-paginate';
 import { Genres } from './genres.enum';
 import { ProvidersService } from 'src/providers/providers.service';
+import { MyListService } from '../my-list/my-list.service';
 
 @Injectable()
 export class MovieService {
@@ -13,11 +14,34 @@ export class MovieService {
     @InjectRepository(Movie)
     private readonly movieRepository: Repository<Movie>,
     private readonly providersService: ProvidersService,
+    private readonly myListService: MyListService,
   ) {}
 
   private readonly logger = new Logger(MovieService.name);
 
-  async getMovies(query: PaginateQuery) {
+  private async getMyListCount(movieId: string): Promise<number> {
+    const result = await this.movieRepository
+      .createQueryBuilder('movie')
+      .leftJoin('movie.myList', 'myList')
+      .where('movie.id = :id', { id: movieId })
+      .select('COUNT(myList.id)', 'count')
+      .getRawOne();
+
+    return parseInt(result?.count || '0');
+  }
+
+  private async enrichMovieWithMyListData(movie: Movie, userId?: string) {
+    const myListCount = await this.getMyListCount(movie.id);
+    return {
+      ...movie,
+      myListCount,
+      isInMyList: userId
+        ? await this.myListService.isInMyList(userId, movie.id)
+        : undefined,
+    };
+  }
+
+  async getMovies(query: PaginateQuery, userId?: string) {
     const movieCheck = await this.movieRepository.count();
     if (movieCheck < 1) {
       // call all active providers api and save to db
@@ -39,11 +63,11 @@ export class MovieService {
         }
       }
     }
-    return await this.searchMovies(query);
+    return await this.searchMovies(query, userId);
   }
 
-  async searchMovies(query: PaginateQuery) {
-    return await paginate(query, this.movieRepository, {
+  async searchMovies(query: PaginateQuery, userId?: string) {
+    const result = await paginate(query, this.movieRepository, {
       sortableColumns: ['dateCreated', 'productionYear'],
       defaultSortBy: [['dateCreated', 'DESC']],
       searchableColumns: [
@@ -82,23 +106,45 @@ export class MovieService {
         'dateCreated',
       ],
     });
+
+    // Enrich movies with MyList data
+    const enrichedMovies = await Promise.all(
+      result.data.map((movie) => this.enrichMovieWithMyListData(movie, userId)),
+    );
+
+    return {
+      ...result,
+      data: enrichedMovies,
+    };
   }
 
-  async findOne(id: string) {
-    const movie = await this.movieRepository.findOne({ where: { id } });
+  async findOne(id: string, userId?: string) {
+    const movie = await this.movieRepository.findOne({
+      where: { id },
+    });
 
-    const { s3ObjectKey, providerId, ...returnMovie } = movie;
+    if (!movie) {
+      throw new NotFoundException('Movie not found');
+    }
 
-    return { data: returnMovie };
+    const enrichedMovie = await this.enrichMovieWithMyListData(movie, userId);
+    const { s3ObjectKey, providerId, ...movieData } = enrichedMovie;
+
+    return { data: movieData };
   }
 
-  async findByGenre(genre: string) {
+  async findByGenre(genre: string, userId?: string) {
     const result = await this.movieRepository
       .createQueryBuilder('movie')
       .where(':genre = ANY(movie.genres)', { genre: genre.toLowerCase() })
       .getMany();
 
-    return { data: result };
+    // Enrich movies with MyList data
+    const enrichedMovies = await Promise.all(
+      result.map((movie) => this.enrichMovieWithMyListData(movie, userId)),
+    );
+
+    return { data: enrichedMovies };
   }
 
   async findAllGenres() {

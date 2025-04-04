@@ -12,10 +12,10 @@ import { UserModule } from '../user/user.module';
       useFactory: (configService: ConfigService) => configService.get('jwt'),
       inject: [ConfigService],
     }),
-
     UserModule,
   ],
   controllers: [AuthController],
   providers: [AuthService],
+  exports: [AuthService],
 })
 export class AuthModule {}

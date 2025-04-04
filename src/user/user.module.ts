@@ -4,11 +4,24 @@ import { UserController } from './user.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { Profile } from './entities/profile.entity';
+import { WatchHistory } from './entities/watch-history.entity';
 import { PaymentModule } from '../payment/payment.module';
 import { Transaction } from '../transactions/entities/transaction.entity';
+import { MyListModule } from '../my-list/my-list.module';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Profile, Transaction]), PaymentModule],
+  imports: [
+    TypeOrmModule.forFeature([User, Profile, WatchHistory, Transaction]),
+    PaymentModule,
+    MyListModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => configService.get('jwt'),
+      inject: [ConfigService],
+    }),
+  ],
   controllers: [UserController],
   providers: [UserService],
   exports: [UserService],

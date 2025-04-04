@@ -15,6 +15,7 @@ export class ProvidersSeeder implements Seeder {
   async seed(): Promise<any> {
     const isAlreadySeeded = !!(await this.providersRepository.count());
 
+    // change this to filter for duplicates when new providers are added
     if (isAlreadySeeded) return;
 
     const providers = [

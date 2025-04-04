@@ -5,7 +5,9 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsEnum,
 } from 'class-validator';
+import { MaturityRatings } from '../../user/enum/maturityRatings';
 
 export class SignUpDto {
   @IsString()
@@ -34,4 +36,13 @@ export class SignUpDto {
   @IsString()
   @IsNotEmpty()
   password: string;
+
+  // Profile details
+  @IsString()
+  @IsOptional()
+  profileName?: string;
+
+  @IsEnum(MaturityRatings)
+  @IsOptional()
+  maturityRatings?: MaturityRatings;
 }

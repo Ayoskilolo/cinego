@@ -1,12 +1,12 @@
 import { Exclude } from 'class-transformer';
 import { BaseEntity } from '../../base-entity/base-entity.entity';
-import { Column, Entity, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Column, Entity, OneToMany } from 'typeorm';
 import { Profile } from './profile.entity';
 import { SubscriptionType } from '../enum/userType';
 import { PaymentPartner } from '../../payment/entities/payment-partner.entity';
 import { Genres } from '../../movie/genres.enum';
 import { Transaction } from 'src/transactions/entities/transaction.entity';
-
+import { MyListEntity } from 'src/my-list/entities/my-list.entity';
 @Entity()
 export class User extends BaseEntity {
   constructor(partial: Partial<User>) {
@@ -33,11 +33,14 @@ export class User extends BaseEntity {
   @Column({ nullable: true })
   dateOfBirth: Date;
 
-  @ManyToOne(() => Profile, (profile) => profile.user)
+  @OneToMany(() => Profile, (profile) => profile.user)
   profiles: Profile[];
 
-  @Column('simple-array', { nullable: true })
-  preferredGenres: Genres[];
+  @Column({ nullable: true })
+  activeProfileId: string;
+
+  @Column('text', { array: true, nullable: true })
+  preferredGenres: string[];
 
   //TODO: build out logic to implement a list of movies watched by a user or profile?
   // @Column({ nullable: true, unique: true })
@@ -67,4 +70,7 @@ export class User extends BaseEntity {
 
   @OneToMany(() => Transaction, (transaction) => transaction.user)
   transactions: Transaction[];
+
+  @OneToMany(() => MyListEntity, (myList) => myList.user)
+  myList: MyListEntity[];
 }

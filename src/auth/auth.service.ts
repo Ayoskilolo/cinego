@@ -42,19 +42,23 @@ export class AuthService {
     const user = await this.userService.createUser(signUpDto);
 
     if (file) {
-      //TODO: Upload PROFILE PICTURE to cloudinary
+      // TODO: Upload PROFILE PICTURE to cloudinary
       // const profilePicture = await this.fileService.uploadFile(file);
       // user.profilePicture = profilePicture;
     }
+
+    // Fetch the user's profiles to include in the response
+    const userWithProfiles = await this.userService.findOne(user.id);
 
     const payload = {
       sub: user.id,
       email: user.email,
       phoneNumber: user.phoneNumber,
+      activeProfileId: user.activeProfileId,
     };
 
     const accessToken = await this.jwtService.signAsync(payload);
-    return { accessToken, user };
+    return { accessToken, user: userWithProfiles };
   }
 
   async login({ email, phoneNumber, password }: LoginDto) {
@@ -77,14 +81,16 @@ export class AuthService {
     const passwordsMatch = await compare(password, user.password);
 
     if (passwordsMatch) {
+      const userWithProfile = await this.userService.findOne(user.id);
       const payload = {
         sub: user.id,
         email: user.email,
         phoneNumber: user.phoneNumber,
+        activeProfileId: userWithProfile.activeProfileId,
       };
 
       const accessToken = await this.jwtService.signAsync(payload);
-      return { accessToken, user };
+      return { accessToken, user: userWithProfile };
     }
 
     throw new UnauthorizedException('Invalid Credentials');
