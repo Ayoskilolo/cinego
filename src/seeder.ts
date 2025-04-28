@@ -7,10 +7,11 @@ import { PaymentPartner } from './payment/entities/payment-partner.entity';
 import { Profile } from './user/entities/profile.entity';
 import { User } from './user/entities/user.entity';
 import { PaymentPartnerSeeder } from './payment/payment.method.seeder';
-import { Subscription } from './subscription/entities/subscription.entity';
 import { Transaction } from './transactions/entities/transaction.entity';
 import { ProvidersEntity } from './providers/entities/providers.entity';
 import { ProvidersSeeder } from './providers/providers.seeder';
+import { WatchHistory } from './user/entities/watch-history.entity';
+import { MyListEntity } from './my-list/entities/my-list.entity';
 
 seeder({
   imports: [
@@ -26,11 +27,12 @@ seeder({
     TypeOrmModule.forFeature([
       User,
       Profile,
-      Subscription,
       PaymentPartner,
       Movie,
       Transaction,
       ProvidersEntity,
+      WatchHistory,
+      MyListEntity,
     ]),
   ],
 }).run([PaymentPartnerSeeder, ProvidersSeeder]);

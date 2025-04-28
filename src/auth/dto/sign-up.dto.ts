@@ -18,13 +18,9 @@ export class SignUpDto {
   @IsNotEmpty()
   lastName: string;
 
-  @IsString()
-  @IsNotEmpty()
-  userName: string;
-
-  @IsEmail()
-  @IsOptional()
-  email?: string;
+  @IsEmail({}, { message: 'Please provide a valid email address.' })
+  @IsNotEmpty({ message: 'Email address is required.' })
+  email: string;
 
   @IsMobilePhone('en-NG')
   @IsOptional()

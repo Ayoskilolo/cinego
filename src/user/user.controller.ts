@@ -8,6 +8,10 @@ import {
   Put,
   Req,
   Patch,
+  UseGuards, // Added UseGuards
+  HttpCode, // Added HttpCode
+  HttpStatus,
+  UnauthorizedException, // Added HttpStatus
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { SignUpDto } from '../auth/dto/sign-up.dto';
@@ -19,6 +23,8 @@ import { MyListService } from '../my-list/my-list.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateWatchHistoryDto } from './dto/update-watch-history.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
+import { AuthGuard } from '../auth/auth.guard'; // Import AuthGuard
+import { Request } from 'express'; // Import Request
 
 @Controller('user')
 export class UserController {
@@ -44,17 +50,18 @@ export class UserController {
     return { data };
   }
 
-  @Post('subscribe')
-  async placeUserOnSubscription(
-    @Req() req: Request,
-    subscriptionType: SubscriptionType,
-  ) {
-    const data = await this.userService.updateSubscriptionType(
-      req['user'].id,
-      subscriptionType,
-    );
-    return { data };
-  }
+  // TODO: Make this an admin endpoint just so that the admin can grant premium to a user
+  // @Post('subscribe')
+  // async placeUserOnSubscription(
+  //   @Req() req: Request,
+  //   subscriptionType: SubscriptionType,
+  // ) {
+  //   const data = await this.userService.updateSubscriptionType(
+  //     req['user'].id,
+  //     subscriptionType,
+  //   );
+  //   return { data };
+  // }
 
   @Post('profiles')
   async createProfile(
@@ -258,5 +265,16 @@ export class UserController {
   async deleteAccount(@Req() req: Request) {
     const data = await this.userService.deleteAccount(req['user'].sub);
     return { data, message: 'Account deleted successfully' };
+  }
+
+  @Post('start-free-trial')
+  @HttpCode(HttpStatus.OK)
+  async startFreeTrial(@Req() req: Request) {
+    const userId = req['user']?.sub;
+    if (!userId) {
+      throw new UnauthorizedException('User not authenticated.');
+    }
+    const updatedUser = await this.userService.startFreeTrial(userId);
+    return { data: updatedUser, message: 'Free trial started successfully.' };
   }
 }

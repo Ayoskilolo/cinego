@@ -7,6 +7,7 @@ import { PaymentPartner } from '../../payment/entities/payment-partner.entity';
 import { Genres } from '../../movie/genres.enum';
 import { Transaction } from 'src/transactions/entities/transaction.entity';
 import { MyListEntity } from 'src/my-list/entities/my-list.entity';
+
 @Entity()
 export class User extends BaseEntity {
   constructor(partial: Partial<User>) {
@@ -23,12 +24,31 @@ export class User extends BaseEntity {
   @Column({ nullable: true, unique: true })
   email: string;
 
+  @Column({ default: false })
+  isEmailVerified: boolean;
+
+  @Exclude()
+  @Column({ nullable: true })
+  emailVerificationToken: string;
+
+  @Exclude()
+  @Column({ nullable: true })
+  emailVerificationExpires: Date;
+
   @Column({ nullable: true, unique: true })
   phoneNumber: string;
 
   @Exclude()
   @Column({ nullable: true })
   password: string;
+
+  @Exclude()
+  @Column({ nullable: true })
+  passwordResetOtp: string; // Added field for OTP
+
+  @Exclude()
+  @Column({ nullable: true })
+  passwordResetExpires: Date; // Added field for OTP expiry
 
   @Column({ nullable: true })
   dateOfBirth: Date;
@@ -49,6 +69,7 @@ export class User extends BaseEntity {
   @Column({ nullable: true })
   displayPicture: string;
 
+  // TODO: implement the subscription logic from when someone pays to updating the subscription type
   @Column({
     default: SubscriptionType.FREE_TIER,
     type: 'enum',
@@ -56,11 +77,11 @@ export class User extends BaseEntity {
   })
   subscriptionType: SubscriptionType;
 
-  @Column({ unique: true })
-  userName: string;
-
   @Column({ default: false })
   isSubscribed: boolean;
+
+  @Column({ nullable: true })
+  subscriptionExpiresAt: Date | null;
 
   @OneToMany(() => PaymentPartner, (paymentPartner) => paymentPartner.user)
   paymentMethod: PaymentPartner;

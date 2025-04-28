@@ -1,4 +1,5 @@
 import { ClassSerializerInterceptor, Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -15,11 +16,12 @@ import { JwtService } from '@nestjs/jwt';
 import { MovieModule } from './movie/movie.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { PaymentModule } from './payment/payment.module';
-import { FlutterwaveModule } from './payment/flutterwave/flutterwave.module';
 import { UtilModule } from './util/util.module';
 // import { FileResolver } from './file/file.resolver';
 import { ProvidersModule } from './providers/providers.module';
 import { MyListModule } from './my-list/my-list.module';
+import { User } from './user/entities/user.entity';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -34,6 +36,8 @@ import { MyListModule } from './my-list/my-list.module';
       inject: [ConfigService],
     }),
 
+    TypeOrmModule.forFeature([User]),
+
     AuthModule,
 
     UserModule,
@@ -44,8 +48,6 @@ import { MyListModule } from './my-list/my-list.module';
 
     PaymentModule,
 
-    FlutterwaveModule,
-
     UtilModule,
 
     TransactionsModule,
@@ -53,6 +55,10 @@ import { MyListModule } from './my-list/my-list.module';
     ProvidersModule,
 
     MyListModule,
+
+    ScheduleModule.forRoot(),
+
+    MailModule,
   ],
   controllers: [AppController],
   providers: [

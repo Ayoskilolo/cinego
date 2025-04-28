@@ -14,6 +14,7 @@ import { WatchHistory } from './watch-history.entity';
 
 @Entity()
 @Unique(['userId', 'pin'])
+@Unique(['userId', 'profileName'])
 export class Profile extends BaseEntity {
   constructor(partial: Partial<Profile>) {
     super();

@@ -4,8 +4,11 @@ import {
   Body,
   UseInterceptors,
   UploadedFile,
+  HttpCode,
+  HttpStatus,
   Get,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignUpDto } from './dto/sign-up.dto';
@@ -13,6 +16,8 @@ import { UserExistsDto } from '../user/dto/user-exists.dto';
 import { LoginDto } from './dto/login.dto';
 import { Public } from './auth.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 
 @Public()
 @Controller('auth')
@@ -41,15 +46,34 @@ export class AuthController {
     return { data };
   }
 
-  @Get('user-name')
-  async checkIfUserNameExists(@Query('userName') userName: string) {
-    const data = await this.authService.checkIfUserNameExists(userName);
-    return { data, message: 'UserName is not in use' };
-  }
-
   @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
   async forgotPassword(@Body() forgotPasswordDto: UserExistsDto) {
     const data = await this.authService.forgotPassword(forgotPasswordDto);
-    return { data, message: 'Password reset email sent' };
+    return { data };
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    const result = await this.authService.resetPassword(resetPasswordDto);
+    return { message: result.message };
+  }
+
+  @Get('verify-email')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(@Query('token') token: string) {
+    if (!token) {
+      throw new BadRequestException('Verification token is missing.');
+    }
+    const result = await this.authService.verifyEmail(token);
+    return { message: result.message, user: result.user };
+  }
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  async resendVerificationEmail(@Body() resendDto: ResendVerificationDto) {
+    const result = await this.authService.resendVerificationEmail(resendDto);
+    return { message: result.message };
   }
 }

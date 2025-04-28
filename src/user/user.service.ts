@@ -3,9 +3,10 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  UnauthorizedException, // Added UnauthorizedException
 } from '@nestjs/common';
 import { hash, compare } from 'bcrypt';
-import { differenceInYears } from 'date-fns';
+import { differenceInYears, addMinutes, addHours } from 'date-fns'; // Added addHours
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
@@ -14,7 +15,6 @@ import { UserExistsDto } from './dto/user-exists.dto';
 import { SignUpDto } from '../auth/dto/sign-up.dto';
 import { SubscriptionType } from './enum/userType';
 import { PaymentService } from '../payment/payment.service';
-import { AddPaymentMethodDto } from './dto/add-payment-method.dto';
 import { MaturityRatings } from './enum/maturityRatings';
 import { CreateProfileDto } from './dto/create-user.dto';
 import { Genres } from '../movie/genres.enum';
@@ -27,8 +27,8 @@ import {
 } from './interfaces/profile.interface';
 import { WatchHistory } from './entities/watch-history.entity';
 import { UpdateWatchHistoryDto } from './dto/update-watch-history.dto';
-import { plainToClass } from 'class-transformer';
 import { UpdateAccountDto } from './dto/update-account.dto';
+import { ResetPasswordDto } from '../auth/dto/reset-password.dto'; // Assuming you create this DTO
 
 @Injectable()
 export class UserService {
@@ -71,12 +71,17 @@ export class UserService {
 
     createUserDto.dateOfBirth = new Date(createUserDto.dateOfBirth);
 
-    const user = this.userRepository.create(createUserDto);
+    const user = this.userRepository.create({
+      ...createUserDto,
+      isEmailVerified: false,
+    });
 
     try {
       await this.userRepository.save(user);
     } catch (error) {
-      throw new InternalServerErrorException(error.message);
+      throw new InternalServerErrorException(
+        `An error occurred while trying to register: ${error.message}`,
+      );
     }
 
     // Create profile based on provided information or defaults
@@ -328,24 +333,6 @@ export class UserService {
     return userExists;
   }
 
-  async checkIfUserNameExists(userName: string) {
-    if (!userName) {
-      throw new BadRequestException('Please provide username');
-    }
-
-    const user = await this.userRepository.findOne({
-      where: {
-        userName,
-      },
-    });
-
-    if (user) {
-      return true;
-    } else {
-      return false;
-    }
-  }
-
   async updateUserGenres(userId: string, genres: Genres[]) {
     try {
       const user = await this.findOneById(userId);
@@ -382,7 +369,7 @@ export class UserService {
     return await this.userRepository.save(user);
   }
 
-  async findOneByEmail(email: string) {
+  async findOneByEmail(email: string): Promise<User> {
     try {
       return await this.userRepository.findOneByOrFail({ email });
     } catch (error) {
@@ -390,11 +377,186 @@ export class UserService {
     }
   }
 
-  async findOneByPhoneNumber(phoneNumber: string) {
+  async findOneByPhoneNumber(phoneNumber: string): Promise<User> {
     try {
-      return await this.userRepository.findOneByOrFail({ phoneNumber });
+      const formattedPhoneNumber = this.formatPhoneNumber(phoneNumber); // Ensure phone number is formatted
+      return await this.userRepository.findOneByOrFail({
+        phoneNumber: formattedPhoneNumber,
+      });
     } catch (error) {
       throw new NotFoundException('User does not exist');
+    }
+  }
+
+  async generatePasswordResetOtp(
+    userId: string,
+  ): Promise<{ otp: string; expires: Date }> {
+    const user = await this.findOneById(userId);
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // Generate 6-digit OTP
+    const expires = addMinutes(new Date(), 15); // OTP expires in 15 minutes
+
+    user.passwordResetOtp = await hash(otp, 8); // Hash the OTP before saving
+    user.passwordResetExpires = expires;
+
+    try {
+      await this.userRepository.save(user);
+      return { otp, expires }; // Return the plain OTP for sending email
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Failed to save password reset OTP.',
+      );
+    }
+  }
+
+  async resetPasswordWithOtp(
+    resetPasswordDto: ResetPasswordDto,
+  ): Promise<User> {
+    const { email, phoneNumber, otp, newPassword } = resetPasswordDto;
+
+    if (!email && !phoneNumber) {
+      throw new BadRequestException('Email or phone number is required');
+    }
+
+    let user: User;
+    try {
+      if (email) {
+        user = await this.findOneByEmail(email);
+      } else {
+        user = await this.findOneByPhoneNumber(phoneNumber);
+      }
+    } catch (error) {
+      throw new NotFoundException('User not found.');
+    }
+
+    if (!user.passwordResetOtp || !user.passwordResetExpires) {
+      throw new BadRequestException(
+        'Password reset not requested or already completed.',
+      );
+    }
+
+    if (new Date() > user.passwordResetExpires) {
+      // Clear expired OTP fields
+      user.passwordResetOtp = null;
+      user.passwordResetExpires = null;
+      await this.userRepository.save(user);
+      throw new BadRequestException(
+        'OTP has expired. Please request a new one.',
+      );
+    }
+
+    const isOtpValid = await compare(otp, user.passwordResetOtp);
+    if (!isOtpValid) {
+      throw new BadRequestException('Invalid OTP.');
+    }
+
+    // Reset password and clear OTP fields
+    user.password = await hash(newPassword, 8);
+    user.passwordResetOtp = null;
+    user.passwordResetExpires = null;
+
+    try {
+      await this.userRepository.save(user);
+      return user;
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to reset password.');
+    }
+  }
+
+  async generateEmailVerificationToken(
+    userId: string,
+  ): Promise<{ token: string; expires: Date }> {
+    const user = await this.findOneById(userId);
+    const timestamp = Math.floor(Date.now() / 1000).toString(36);
+    const randomChars = Math.random().toString(36).substring(2, 5);
+    const token = `${timestamp}-${randomChars}`; // Format: xxxxxx-xxx (where x are alphanumeric)
+    const expires = addHours(new Date(), 24); // Token expires in 24 hours
+
+    user.emailVerificationToken = token;
+    user.emailVerificationExpires = expires;
+    user.isEmailVerified = false; // Ensure verification status is false
+
+    try {
+      await this.userRepository.save(user);
+      return { token, expires };
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Failed to save email verification token.',
+      );
+    }
+  }
+
+  async verifyEmail(token: string): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { emailVerificationToken: token },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid verification token.');
+    }
+
+    if (user.isEmailVerified) {
+      throw new BadRequestException('Email already verified.');
+    }
+
+    if (new Date() > user.emailVerificationExpires) {
+      user.emailVerificationToken = null;
+      user.emailVerificationExpires = null;
+      await this.userRepository.save(user);
+      throw new BadRequestException(
+        'Verification token has expired. Please request a new one.',
+      );
+    }
+
+    // Mark email as verified and clear token fields
+    user.isEmailVerified = true;
+    user.emailVerificationToken = null;
+    user.emailVerificationExpires = null;
+
+    try {
+      await this.userRepository.save(user);
+      return user;
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to verify email.');
+    }
+  }
+
+  async startFreeTrial(userId: string): Promise<User> {
+    const user = await this.findOneById(userId);
+
+    if (user.hasUsedFreeTrial) {
+      throw new BadRequestException('Free trial has already been used.');
+    }
+
+    if (
+      user.isSubscribed &&
+      user.subscriptionType !== SubscriptionType.FREE_TIER
+    ) {
+      throw new BadRequestException('User is already on a paid subscription.');
+    }
+
+    // Start free trial (e.g., 30 days of Premium)
+    const trialEndDate = new Date();
+    trialEndDate.setDate(trialEndDate.getDate() + 30); // Add 30 days
+
+    user.subscriptionType = SubscriptionType.PREMIUM;
+    user.isSubscribed = true;
+    user.subscriptionExpiresAt = trialEndDate;
+    user.hasUsedFreeTrial = true;
+
+    try {
+      await this.userRepository.save(user);
+      // Exclude sensitive fields if necessary before returning
+      const {
+        password,
+        passwordResetOtp,
+        passwordResetExpires,
+        emailVerificationToken,
+        emailVerificationExpires,
+        ...safeUser
+      } = user;
+      return safeUser as User;
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to start free trial.');
     }
   }
 
@@ -714,5 +876,9 @@ export class UserService {
     } catch (error) {
       throw new InternalServerErrorException('Failed to delete account.');
     }
+  }
+
+  async updateUser(userId, updateObj: Partial<User>) {
+    return await this.userRepository.update(userId, updateObj);
   }
 }

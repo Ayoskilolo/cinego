@@ -12,11 +12,11 @@ export class SubscriptionController {
   //   return this.subscriptionService.create(createSubscriptionDto);
   // }
 
-  @Get('type')
-  findAll() {
-    const data = this.subscriptionService.returnAllSubscriptionTypes();
-    return { data };
-  }
+  // @Get('type')
+  // findAll() {
+  //   const data = this.subscriptionService.returnAllSubscriptionTypes();
+  //   return { data };
+  // }
 
   // @Get(':id')
   // findOne(@Param('id') id: string) {
