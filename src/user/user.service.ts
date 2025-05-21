@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
   UnauthorizedException, // Added UnauthorizedException
 } from '@nestjs/common';
@@ -29,9 +30,12 @@ import { WatchHistory } from './entities/watch-history.entity';
 import { UpdateWatchHistoryDto } from './dto/update-watch-history.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { ResetPasswordDto } from '../auth/dto/reset-password.dto'; // Assuming you create this DTO
+import { EmailTemplateData } from 'src/mail/interfaces';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -39,7 +43,7 @@ export class UserService {
     private readonly profileRepository: Repository<Profile>,
     @InjectRepository(WatchHistory)
     private readonly watchHistoryRepository: Repository<WatchHistory>,
-    private readonly paymentService: PaymentService,
+    private readonly mailService: MailService,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -99,8 +103,17 @@ export class UserService {
         maturityRatings,
       };
 
+      const defaultKidsProfile: CreateProfileDto = {
+        userId: user.id,
+        user,
+        profileName: user.lastName + 'Kids',
+        maturityRatings: MaturityRatings.PG,
+      };
+
       const userProfile = this.profileRepository.create(initialUserProfile);
+      const kidsProfile = this.profileRepository.create(defaultKidsProfile);
       await this.profileRepository.save(userProfile);
+      await this.profileRepository.save(kidsProfile);
 
       // Set this profile as active
       user.activeProfileId = userProfile.id;
@@ -388,41 +401,42 @@ export class UserService {
     }
   }
 
-  async generatePasswordResetOtp(
-    userId: string,
-  ): Promise<{ otp: string; expires: Date }> {
+  async generatePasswordResetOtp(userId: string) {
     const user = await this.findOneById(userId);
-    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // Generate 6-digit OTP
-    const expires = addMinutes(new Date(), 15); // OTP expires in 15 minutes
-
-    user.passwordResetOtp = await hash(otp, 8); // Hash the OTP before saving
-    user.passwordResetExpires = expires;
-
-    try {
-      await this.userRepository.save(user);
-      return { otp, expires }; // Return the plain OTP for sending email
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Failed to save password reset OTP.',
-      );
+    if (!user) {
+      throw new NotFoundException('User not found');
     }
+
+    // Generate a 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiry = addMinutes(new Date(), 15); // OTP valid for 15 minutes
+
+    // Hash the OTP before storing
+    const hashedOtp = await hash(otp, 8);
+
+    // Update user with new OTP and expiry
+    user.passwordResetOtp = hashedOtp;
+    user.passwordResetExpires = otpExpiry;
+    user.passwordResetOtpSentAt = new Date(); // Track when OTP was sent
+
+    await this.userRepository.save(user);
+
+    return { otp };
   }
 
   async resetPasswordWithOtp(
     resetPasswordDto: ResetPasswordDto,
   ): Promise<User> {
-    const { email, phoneNumber, otp, newPassword } = resetPasswordDto;
+    const { email, otp, newPassword } = resetPasswordDto;
 
-    if (!email && !phoneNumber) {
-      throw new BadRequestException('Email or phone number is required');
+    if (!email) {
+      throw new BadRequestException('Email is required');
     }
 
     let user: User;
     try {
       if (email) {
         user = await this.findOneByEmail(email);
-      } else {
-        user = await this.findOneByPhoneNumber(phoneNumber);
       }
     } catch (error) {
       throw new NotFoundException('User not found.');
@@ -512,11 +526,37 @@ export class UserService {
     user.emailVerificationToken = null;
     user.emailVerificationExpires = null;
 
-    try {
-      await this.userRepository.save(user);
-      return user;
-    } catch (error) {
-      throw new InternalServerErrorException('Failed to verify email.');
+    const verificationSuccessEmailData: EmailTemplateData = {
+      title: 'Email Verification Successful!',
+      messages: [
+        `Hi ${user.firstName},`,
+        'Your email has been successfully verified. Welcome to Cinego!',
+        'You can now enjoy all the features of your account.',
+        'Thank you for choosing Cinego for your entertainment needs.',
+        'Start watching your favorite movies and shows today!',
+      ],
+      ctaText: 'Go to Cinego',
+      ctaLink: '#',
+    };
+
+    const verificationSuccessEmailSent =
+      await this.mailService.sendGeneralTemplatedMail({
+        recipients: [user.email],
+        subject: 'Cinego - Verify Your Email',
+        templateData: verificationSuccessEmailData,
+      });
+
+    if (verificationSuccessEmailSent) {
+      this.logger.log(
+        `Verification success email sent successfully to ${user.email}`,
+      );
+
+      try {
+        await this.userRepository.save(user);
+        return user;
+      } catch (error) {
+        throw new InternalServerErrorException('Failed to verify email.');
+      }
     }
   }
 
@@ -616,7 +656,7 @@ export class UserService {
         await this.userRepository.save(user);
       }
 
-      // If no profiles exist, create a default one
+      // If no profiles exist, create a default one and a kids one
       if (user.profiles.length === 0) {
         const defaultProfile = await this.createProfile(userId, {
           userId: user.id,
@@ -625,7 +665,13 @@ export class UserService {
             differenceInYears(new Date(), user.dateOfBirth),
           ),
         });
+        const defaultKidsProfile = await this.createProfile(userId, {
+          userId: user.id,
+          profileName: user.lastName + 'Kids',
+          maturityRatings: MaturityRatings.PG,
+        });
         user.profiles.push(defaultProfile);
+        user.profiles.push(defaultKidsProfile);
         user.activeProfileId = defaultProfile.id;
         await this.userRepository.save(user);
       }

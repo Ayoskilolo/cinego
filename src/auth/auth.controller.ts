@@ -18,6 +18,8 @@ import { Public } from './auth.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { ValidateOtpDto } from './dto/validate-otp.dto';
+import { ResendOtpDto } from './dto/resend-otp.dto';
 
 @Public()
 @Controller('auth')
@@ -53,6 +55,13 @@ export class AuthController {
     return { data };
   }
 
+  @Post('validate-otp')
+  @HttpCode(HttpStatus.OK)
+  async validateOtp(@Body() validateOtpDto: ValidateOtpDto) {
+    const result = await this.authService.validateOtp(validateOtpDto);
+    return { valid: result.valid, message: result.message };
+  }
+
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
@@ -74,6 +83,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async resendVerificationEmail(@Body() resendDto: ResendVerificationDto) {
     const result = await this.authService.resendVerificationEmail(resendDto);
+    return { message: result.message };
+  }
+
+  @Post('resend-otp')
+  @HttpCode(HttpStatus.OK)
+  async resendOtp(@Body() resendOtpDto: ResendOtpDto) {
+    const result = await this.authService.resendOtp(resendOtpDto);
     return { message: result.message };
   }
 }

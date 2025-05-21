@@ -1,20 +1,20 @@
 import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../base-entity/base-entity.entity';
 import { User } from 'src/user/entities/user.entity';
-import { PaymentChannel, PaymentReason, TransactionStatus } from '../enum'; // Import TransactionStatus
+import { PaymentChannel, PaymentReason, TransactionStatus } from '../enum';
 
 @Entity()
 export class Transaction extends BaseEntity {
   @Column()
   amount: number;
 
-  @Column({ unique: true }) // Ensure reference is unique
+  @Column({ unique: true })
   reference: string;
 
-  @Column({ nullable: true }) // Made nullable
+  @Column({ nullable: true })
   externalId: string | null; // The flutterwave transaction id
 
-  @Column({ nullable: true }) // Made nullable
+  @Column({ nullable: true })
   externalReference: string | null; // The flutterwave transaction reference
 
   @Column({ type: 'enum', enum: PaymentReason })
@@ -25,12 +25,12 @@ export class Transaction extends BaseEntity {
     enum: PaymentChannel,
     default: PaymentChannel.FLUTTERWAVE,
   })
-  paymentChanel: PaymentChannel; // Typo fixed: paymentChannel
+  paymentChanel: PaymentChannel;
 
   @Column({
     type: 'enum',
     enum: TransactionStatus,
-    default: TransactionStatus.PENDING, // Default to PENDING
+    default: TransactionStatus.PENDING,
   })
   status: TransactionStatus;
 

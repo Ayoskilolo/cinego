@@ -42,25 +42,30 @@ export class AuthGuard implements CanActivate {
         secret: this.configService.get('jwt.secret'),
       });
 
-      const user = await this.userService.findOne(payload.sub);
+      const user = await this.userService.findOne(payload.sub); // User object from DB
 
+      if (!user) { // Ensure user exists
+        throw new UnauthorizedException('User not found.');
+      }
+
+      let finalActiveProfileId = user.activeProfileId;
       // Add profile validation
       const profile = user.profiles.find((p) => p.id === user.activeProfileId);
       if (!profile) {
         // Profile doesn't exist anymore, try to ensure a valid profile
         const updatedUser = await this.userService.ensureActiveProfile(user.id);
-        request['user'] = {
-          ...payload,
-          activeProfileId: updatedUser.activeProfileId,
-        };
-      } else {
-        request['user'] = {
-          ...payload,
-          activeProfileId: user.activeProfileId,
-        };
+        finalActiveProfileId = updatedUser.activeProfileId;
       }
-    } catch {
-      throw new UnauthorizedException();
+      
+      // Assign custom user object to the request
+      request['user'] = {
+        ...payload, // sub, email, etc. from JWT
+        activeProfileId: finalActiveProfileId,
+        role: user.role, // Add the role from the fetched user object
+      };
+    } catch (e) {
+      // Catch specific JWT errors or rethrow a generic UnauthorizedException
+      throw new UnauthorizedException(e.message || 'Invalid token or authentication failed.');
     }
     return true;
   }

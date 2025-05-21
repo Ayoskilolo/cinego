@@ -26,6 +26,7 @@ import {
   FindOptionsWhere,
   DataSource,
   EntityManager,
+  In,
 } from 'typeorm';
 import { SubscriptionType } from 'src/user/enum/userType';
 import { User } from 'src/user/entities/user.entity';
@@ -300,6 +301,7 @@ export class TransactionsService {
                 const expiryDate = new Date();
                 expiryDate.setMonth(expiryDate.getMonth() + 1); // Set expiry 1 month from now
                 updatePayload.subscriptionExpiresAt = expiryDate;
+                updatePayload.nextBillingDate = expiryDate; // Set next billing date to same as expiry
                 needsUpdate = true;
               } else if (transaction.paymentReason === PaymentReason.FREEMIUM) {
                 this.logger.log(
@@ -308,6 +310,7 @@ export class TransactionsService {
                 updatePayload.subscriptionType = SubscriptionType.FREEMIUM;
                 updatePayload.isSubscribed = true;
                 updatePayload.subscriptionExpiresAt = null; // Freemium might not expire
+                updatePayload.nextBillingDate = null; // No billing for freemium
                 needsUpdate = true;
               }
 
@@ -408,10 +411,8 @@ export class TransactionsService {
   }
 
   async processFlutterWebhook(payload: any, signature: string) {
-    // TODO: Implement the handling of different types of webhooks, for success, failure, cancellation, etc.
-
     this.logger.log('Received Flutterwave webhook');
-    // 1. Verify Signature (same as before)
+    // 1. Verify Signature
     const flutterwaveWebhookHash = this.configService.get<string>(
       'FLUTTERWAVE_WEBHOOK_HASH',
     );
@@ -419,115 +420,282 @@ export class TransactionsService {
       this.logger.error('Invalid webhook signature received');
       throw new UnauthorizedException('Invalid webhook signature');
     }
-    this.logger.log(`Webhook signature verified for txRef: ${payload?.txRef}`);
 
-    // 2. Extract Key Information
-    const reference = payload?.txRef; // Use txRef which is our reference
-    const externalId = payload?.id?.toString(); // Flutterwave's transaction ID
+    const eventType = payload?.event;
+    const eventData = payload?.data;
+
+    this.logger.log(`Webhook signature verified. Event: ${eventType}`);
+
+    if (!eventData) {
+      this.logger.error('Webhook payload missing "data" object');
+      throw new BadRequestException('Webhook payload missing "data" object');
+    }
+
+    // Handle subscription.cancelled event type separately as it doesn't have tx_ref
+    if (eventType === 'subscription.cancelled') {
+      const customerEmail = eventData?.customer?.email;
+      const flutterwaveSubscriptionId = eventData?.id?.toString();
+
+      if (!customerEmail) {
+        this.logger.error(
+          `Email missing from 'subscription.cancelled' webhook (Flutterwave Subscription ID: ${flutterwaveSubscriptionId || 'N/A'}). Cannot process reliably.`,
+        );
+        throw new BadRequestException(
+          `Email missing from 'subscription.cancelled' payload data.`,
+        );
+      }
+
+      this.logger.log(
+        `Processing 'subscription.cancelled' webhook directly for email: ${customerEmail}, Flutterwave Subscription ID: ${flutterwaveSubscriptionId || 'N/A'}`,
+      );
+
+      try {
+        const user = await this.userService.findOneByEmail(customerEmail);
+
+        if (
+          user.subscriptionType === SubscriptionType.FREE_TIER &&
+          !user.isSubscribed
+        ) {
+          this.logger.log(
+            `User ${user.id} (Email: ${customerEmail}) is already on FREE_TIER or not subscribed. 'subscription.cancelled' webhook action redundant.`,
+          );
+          return `Subscription for user ${user.id} (Email: ${customerEmail}) already reflects a non-active/free status.`;
+        }
+
+        const updatePayload: Partial<User> = {
+          subscriptionType: SubscriptionType.FREE_TIER,
+          isSubscribed: false,
+          subscriptionExpiresAt: null,
+          nextBillingDate: null,
+        };
+
+        await this.userService.updateUser(user.id, updatePayload);
+
+        this.logger.log(
+          `Successfully processed 'subscription.cancelled' webhook for user ${user.id} (Email: ${customerEmail}). User subscription set to FREE_TIER.`,
+        );
+        return `Subscription cancelled successfully for user ${user.id} with email ${customerEmail}.`;
+      } catch (error) {
+        if (error instanceof NotFoundException) {
+          this.logger.warn(
+            `User with email ${customerEmail} not found while processing 'subscription.cancelled' webhook (Flutterwave Subscription ID: ${flutterwaveSubscriptionId || 'N/A'}). Ignoring.`,
+          );
+          return `Webhook for 'subscription.cancelled' acknowledged: User with email ${customerEmail} not found. No action taken.`;
+        }
+        this.logger.error(
+          `Error processing 'subscription.cancelled' webhook for email ${customerEmail} (Flutterwave Subscription ID: ${flutterwaveSubscriptionId || 'N/A'}): ${error.message}`,
+          error.stack,
+        );
+        throw new InternalServerErrorException(
+          `Failed to process subscription cancellation for email ${customerEmail}. Please check logs for details.`,
+        );
+      }
+    }
+
+    // For other event types, proceed with tx_ref based logic
+    const reference = eventData?.tx_ref; // Our internal reference
+    const externalId = eventData?.id?.toString(); // Flutterwave's transaction ID
+    const flutterwaveStatus = eventData?.status; // e.g., "successful", "failed" from data object
+    const flwRef = eventData?.flw_ref; // Flutterwave's reference string
 
     if (!reference) {
-      this.logger.error('txRef (reference) missing from webhook payload');
-      throw new BadRequestException(
-        'Transaction reference missing from payload',
-      );
-    }
-    if (!externalId) {
-      this.logger.error('id (externalId) missing from webhook payload');
-      throw new BadRequestException(
-        'External transaction ID missing from payload',
-      );
-    }
-
-    // 3. Find Pending Transaction by Reference
-    let transaction;
-    try {
-      transaction = await this.transactionRepository.findOne({
-        where: { reference: reference, status: TransactionStatus.PENDING },
-      });
-
-      if (!transaction) {
-        // Could be already processed or reference is wrong
-        // Check if already successful/failed based on externalId to handle potential duplicate webhooks
-        const existingCompleted = await this.transactionRepository.findOne({
-          where: [
-            { externalId: externalId, status: TransactionStatus.SUCCESSFUL },
-            { externalId: externalId, status: TransactionStatus.FAILED },
-            { externalId: externalId, status: TransactionStatus.ERROR },
-          ],
-        });
-        if (existingCompleted) {
-          this.logger.log(
-            `Webhook received for already completed transaction (Ref: ${reference}, ExternalId: ${externalId}, Status: ${existingCompleted.status}). Ignoring.`,
-          );
-          return 'Webhook ignored, transaction already completed.';
-        } else {
-          this.logger.warn(
-            `Pending transaction with reference ${reference} not found for webhook (External ID: ${externalId}). Might be processed or invalid.`,
-          );
-          throw new NotFoundException(
-            `Pending transaction with reference ${reference} not found.`,
-          );
-        }
-      }
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
       this.logger.error(
-        `Error finding transaction by reference ${reference}: ${error.message}`,
+        `txRef (reference) missing from webhook payload data for event: ${eventType}. This is unexpected for non-cancellation events.`,
       );
-      throw new InternalServerErrorException(
-        'Database error finding transaction.',
+      throw new BadRequestException(
+        `Transaction reference missing from payload data for event type ${eventType}`,
       );
     }
 
-    // 4. Update Transaction with External ID (if needed)
-    if (!transaction.externalId) {
-      try {
-        await this.transactionRepository.update(transaction.id, { externalId });
-        this.logger.log(
-          `Updated transaction ${transaction.id} with externalId ${externalId}`,
-        );
-      } catch (error) {
-        this.logger.error(
-          `Failed to update externalId for transaction ${transaction.id}: ${error.message}`,
-        );
-        // Decide if this is critical enough to stop processing
-        throw new InternalServerErrorException(
-          'Failed to store external transaction ID.',
-        );
-      }
-    } else if (transaction.externalId !== externalId) {
-      // This case should be rare if reference is unique, but log a warning
-      this.logger.warn(
-        `Webhook externalId ${externalId} differs from stored externalId ${transaction.externalId} for transaction ${transaction.id}. Using webhook's ID for verification.`,
-      );
-      try {
-        await this.transactionRepository.update(transaction.id, { externalId });
-      } catch (error) {
-        this.logger.error(
-          `Failed to update differing externalId for transaction ${transaction.id}: ${error.message}`,
-        );
-        throw new InternalServerErrorException(
-          'Failed to update external transaction ID.',
-        );
-      }
-    }
-
-    // 5. Trigger Verification (Asynchronously - Fire and Forget)
-    // We don't await this so the webhook returns quickly.
-    // The verifyTransaction method handles its own state updates.
-    this.verifyFlutterTransaction(transaction.id).catch((error) => {
-      // Log errors from the async verification process if needed,
-      // but the method itself should handle setting ERROR status.
-      this.logger.error(
-        `Error occurred during background verification triggered by webhook for transaction ${transaction.id}: ${error.message}`,
-        error.stack,
-      );
+    // Find transaction by our internal reference
+    const transaction = await this.transactionRepository.findOne({
+      where: { reference: reference },
     });
 
+    if (!transaction) {
+      this.logger.warn(
+        `Transaction with reference ${reference} not found for webhook event '${eventType}'. External ID from webhook: ${externalId}. Ignoring.`,
+      );
+      if (eventType === 'charge.completed') {
+        throw new NotFoundException(
+          `Transaction with reference ${reference} not found for event '${eventType}'.`,
+        );
+      }
+      return `Webhook for event '${eventType}' on non-existent local transaction ${reference} ignored.`;
+    }
+
     this.logger.log(
-      `Webhook for transaction ${transaction.id} processed. Verification triggered in background.`,
+      `Processing webhook event '${eventType}' for transaction ${transaction.id} (current status: ${transaction.status}). Flutterwave data status: ${flutterwaveStatus}`,
     );
-    return 'Webhook received and verification initiated.'; // Return quickly
+
+    // The switch statement will now only handle events that are expected to have a tx_ref
+    switch (eventType) {
+      case 'charge.completed':
+        if (!externalId) {
+          this.logger.error(
+            `'id' (externalId) missing from 'charge.completed' webhook payload data for txRef ${reference}. Cannot process reliably.`,
+          );
+          throw new BadRequestException(
+            `External transaction ID missing from 'charge.completed' payload data.`,
+          );
+        }
+
+        // Ensure externalId in our DB matches/is updated with the one from the webhook
+        if (!transaction.externalId) {
+          this.logger.log(
+            `Transaction ${transaction.id} missing externalId. Updating with ${externalId} from webhook.`,
+          );
+          await this.transactionRepository.update(transaction.id, {
+            externalId,
+          });
+          transaction.externalId = externalId; // Keep in-memory object consistent
+        } else if (transaction.externalId !== externalId) {
+          this.logger.warn(
+            `Webhook externalId ${externalId} differs from stored externalId ${transaction.externalId} for transaction ${transaction.id}. Updating to use webhook's ID.`,
+          );
+          await this.transactionRepository.update(transaction.id, {
+            externalId,
+          });
+          transaction.externalId = externalId;
+        }
+
+        // Handle based on flutterwaveStatus from the webhook data
+        if (flutterwaveStatus === 'successful') {
+          if (transaction.status === TransactionStatus.SUCCESSFUL) {
+            this.logger.log(
+              `Transaction ${transaction.id} is already SUCCESSFUL. Webhook for 'charge.completed' (successful) ignored to prevent reprocessing.`,
+            );
+            return 'Webhook ignored, transaction already successful.';
+          }
+          this.logger.log(
+            `Charge reported as 'successful' by webhook for ${transaction.id}. Triggering full verification.`,
+          );
+          this.verifyFlutterTransaction(transaction.id).catch((error) => {
+            this.logger.error(
+              `Error during background verification triggered by 'charge.completed' (successful) webhook for transaction ${transaction.id}: ${error.message}`,
+            );
+          });
+          return 'Webhook for successful charge processed; verification initiated.';
+        } else if (flutterwaveStatus === 'failed') {
+          if (transaction.status === TransactionStatus.FAILED) {
+            this.logger.log(
+              `Transaction ${transaction.id} is already FAILED. Webhook for 'charge.completed' (failed) ignored.`,
+            );
+            return 'Webhook ignored, transaction already failed.';
+          }
+          if (transaction.status === TransactionStatus.SUCCESSFUL) {
+            this.logger.error(
+              `CRITICAL: Transaction ${transaction.id} is SUCCESSFUL in DB, but 'charge.completed' (failed) webhook received. Manual investigation needed. Status NOT changed by webhook.`,
+            );
+            return 'Webhook for failed charge processed, but conflicts with existing successful status; manual review needed.';
+          }
+          this.logger.log(
+            `Charge reported as 'failed' by webhook for ${transaction.id}. Updating status to FAILED.`,
+          );
+          await this._updateTransactionStatus(
+            transaction.id,
+            TransactionStatus.FAILED,
+            flwRef || transaction.externalReference,
+          );
+          return 'Webhook for failed charge processed; transaction marked as FAILED.';
+        } else {
+          // e.g., "pending", "requires_action", etc.
+          this.logger.log(
+            `'charge.completed' webhook for transaction ${transaction.id} has Flutterwave status '${flutterwaveStatus}'. No immediate status change by webhook. Verification cron or subsequent events will handle.`,
+          );
+          // If our transaction is PENDING, we can proactively trigger verification.
+          if (transaction.status === TransactionStatus.PENDING) {
+            this.verifyFlutterTransaction(transaction.id).catch((err) => {
+              this.logger.error(
+                `Error in background verification for ${transaction.id} (webhook - ${flutterwaveStatus}): ${err.message}`,
+              );
+            });
+            return `Webhook for charge with status '${flutterwaveStatus}' processed; verification re-triggered if applicable.`;
+          }
+          return `Webhook for charge with status '${flutterwaveStatus}' processed.`;
+        }
+
+      // --- Placeholder for other event types ---
+      // Consult Flutterwave documentation for exact event names and payloads
+      case 'transfer.completed': // Example, may be 'transfer.successful'
+      case 'transfer.successful':
+      case 'transfer.failed':
+        // this.logger.log(
+        //   `Received '${eventType}' event for transaction ${transaction.id}. Data: ${JSON.stringify(eventData)}. Implement specific logic.`,
+        // );
+        // Example:
+        // if (eventType === 'transfer.successful' && transaction.paymentReason === PaymentReason.PAYOUT) {
+        //   await this.handleSuccessfulPayout(transaction, eventData);
+        // }
+        return `Webhook event '${eventType}' for transaction ${transaction.id} acknowledged. Specific handling TBD.`;
+
+      case 'subscription.cancelled':
+        const customerEmail = eventData?.customer?.email;
+        const flutterwaveSubscriptionId = eventData?.id?.toString(); // Flutterwave's subscription ID
+
+        if (!customerEmail) {
+          this.logger.error(
+            `Email missing from 'subscription.cancelled' webhook (Flutterwave Subscription ID: ${flutterwaveSubscriptionId || 'N/A'}). Cannot process reliably.`,
+          );
+          throw new BadRequestException(
+            `Email missing from 'subscription.cancelled' payload data.`,
+          );
+        }
+
+        this.logger.log(
+          `Processing 'subscription.cancelled' webhook for email: ${customerEmail}, Flutterwave Subscription ID: ${flutterwaveSubscriptionId || 'N/A'}`,
+        );
+
+        try {
+          const user = await this.userService.findOneByEmail(customerEmail);
+
+          // If user is already on FREE_TIER or not subscribed, log and exit gracefully.
+          if (
+            user.subscriptionType === SubscriptionType.FREE_TIER &&
+            !user.isSubscribed
+          ) {
+            this.logger.log(
+              `User ${user.id} (Email: ${customerEmail}) is already on FREE_TIER or not subscribed. 'subscription.cancelled' webhook action redundant.`,
+            );
+            return `Subscription for user ${user.id} (Email: ${customerEmail}) already reflects a non-active/free status.`;
+          }
+
+          const updatePayload: Partial<User> = {
+            subscriptionType: SubscriptionType.FREE_TIER,
+            isSubscribed: false,
+            subscriptionExpiresAt: null,
+            nextBillingDate: null,
+          };
+
+          await this.userService.updateUser(user.id, updatePayload);
+
+          this.logger.log(
+            `Successfully processed 'subscription.cancelled' webhook for user ${user.id} (Email: ${customerEmail}). User subscription set to FREE_TIER.`,
+          );
+          return `Subscription cancelled successfully for user ${user.id} with email ${customerEmail}.`;
+        } catch (error) {
+          if (error instanceof NotFoundException) {
+            this.logger.warn(
+              `User with email ${customerEmail} not found while processing 'subscription.cancelled' webhook (Flutterwave Subscription ID: ${flutterwaveSubscriptionId || 'N/A'}). Ignoring.`,
+            );
+            return `Webhook for 'subscription.cancelled' acknowledged: User with email ${customerEmail} not found. No action taken.`;
+          }
+
+          this.logger.error(
+            `Error processing 'subscription.cancelled' webhook for email ${customerEmail} (Flutterwave Subscription ID: ${flutterwaveSubscriptionId || 'N/A'}): ${error.message}`,
+            error.stack,
+          );
+          throw new InternalServerErrorException(
+            `Failed to process subscription cancellation for email ${customerEmail}. Please check logs for details.`,
+          );
+        }
+
+      default:
+        this.logger.warn(
+          `Received unhandled webhook event type: '${eventType}' for transaction ${transaction.id}. Payload data: ${JSON.stringify(eventData)}`,
+        );
+        return `Webhook event '${eventType}' for transaction ${transaction.id} received but not specifically handled.`;
+    }
   }
 
   async initiateTransaction(
@@ -679,5 +847,59 @@ export class TransactionsService {
     }
 
     this.logger.log('Polling Job: Finished triggering verifications.');
+  }
+
+  async cancelSubscription(userId: string) {
+    // this.logger.log(`Attempting to cancel subscription for user ${userId}`);
+    // const user = await this.userService.findOneById(userId);
+    // if (!user) {
+    //   throw new NotFoundException(`User with ID ${userId} not found`);
+    // }
+    // if (
+    //   !user.isSubscribed ||
+    //   user.subscriptionType === SubscriptionType.FREE_TIER
+    // ) {
+    //   throw new BadRequestException('No active subscription to cancel');
+    // }
+    // // Call Flutterwave API to cancel the subscription
+    // try {
+    //   const flutterwaveSecretKey = this.configService.get<string>(
+    //     'FLUTTERWAVE_SECRET_KEY',
+    //   );
+    //   const flutterwaveBaseUrl = 'https://api.flutterwave.com/v3';
+    //   // Make API call to Flutterwave to cancel subscription
+    //   // Note: This is a placeholder - you'll need to check Flutterwave's API docs
+    //   // for the exact endpoint and payload structure
+    //   const response = await firstValueFrom(
+    //     this.httpService.post(
+    //       `${flutterwaveBaseUrl}/subscriptions/cancel`,
+    //       {
+    //         transaction_reference: latestTransaction.externalReference,
+    //       },
+    //       {
+    //         headers: {
+    //           Authorization: `Bearer ${flutterwaveSecretKey}`,
+    //           'Content-Type': 'application/json',
+    //         },
+    //       },
+    //     ),
+    //   );
+    //   this.logger.log(
+    //     `Flutterwave cancellation response: ${JSON.stringify(response.data)}`,
+    //   );
+    //   // Check if cancellation was successful
+    //   if (response.data?.status !== 'success') {
+    //     this.logger.error(
+    //       `Failed to cancel subscription with Flutterwave: ${JSON.stringify(response.data)}`,
+    //     );
+    //     // Continue with local cancellation even if Flutterwave fails
+    //   }
+    // } catch (error) {
+    //   this.logger.error(
+    //     `Error calling Flutterwave API: ${error.message}`,
+    //     error.stack,
+    //   );
+    //   // Continue with local cancellation even if API call fails
+    // }
   }
 }

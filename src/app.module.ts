@@ -17,11 +17,11 @@ import { MovieModule } from './movie/movie.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { PaymentModule } from './payment/payment.module';
 import { UtilModule } from './util/util.module';
-// import { FileResolver } from './file/file.resolver';
 import { ProvidersModule } from './providers/providers.module';
 import { MyListModule } from './my-list/my-list.module';
 import { User } from './user/entities/user.entity';
 import { MailModule } from './mail/mail.module';
+import { MovieNewsModule } from './movie-news/movie-news.module';
 
 @Module({
   imports: [
@@ -59,6 +59,8 @@ import { MailModule } from './mail/mail.module';
     ScheduleModule.forRoot(),
 
     MailModule,
+
+    MovieNewsModule,
   ],
   controllers: [AppController],
   providers: [

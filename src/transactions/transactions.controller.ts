@@ -6,19 +6,14 @@ import {
   Param,
   HttpCode,
   Headers,
-  UseGuards, // Import UseGuards
   Req,
-  UnauthorizedException, // Import Req
+  UnauthorizedException,
 } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
-// Remove CreateTransactionDto and UpdateTransactionDto if not used elsewhere
-// import { CreateTransactionDto } from './dto/create-transaction.dto';
-// import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { Paginate, PaginateQuery } from 'nestjs-paginate';
 import { Public } from 'src/auth/auth.decorator';
 import { InitiateTransactionDto } from './dto/initiate-transaction.dto';
-import { AuthGuard } from 'src/auth/auth.guard'; // Import your Auth Guard
-import { Request } from 'express'; // Import Request type
+import { Request } from 'express';
 
 @Controller('transactions')
 export class TransactionsController {
@@ -26,7 +21,6 @@ export class TransactionsController {
 
   // Generate reference and register transaction in db
   @Post('initiate')
-  @UseGuards(AuthGuard)
   async initiate(
     @Body() initiateDto: InitiateTransactionDto,
     @Req() req: Request, // Inject the request object
@@ -70,6 +64,14 @@ export class TransactionsController {
     return { data };
   }
 
+  @Post('cancel-subscription')
+  async cancelSubscription(@Req() req: Request) {
+    const userId = req['user']?.sub;
+
+    const data = await this.transactionsService.cancelSubscription(userId);
+    return { data };
+  }
+
   // Flutterwave webhook
   @Public()
   @Post('webhook/flt')
@@ -87,5 +89,5 @@ export class TransactionsController {
     return { message };
   }
 
-  // TODO: Add endpoint for cancelling a subscription and for checking how many subbed users there are.
+  // TODO: Add endpoint for checking how many subbed users there are.
 }

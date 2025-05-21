@@ -47,6 +47,9 @@ export class Movie extends BaseEntity {
   @Column()
   duration: string;
 
+  @Column({ default: false })
+  isPremium: boolean;
+
   @Column('json')
   images: {
     poster: string;

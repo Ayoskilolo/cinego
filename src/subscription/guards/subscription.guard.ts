@@ -1,4 +1,3 @@
-// common/guards/subscription.guard.ts
 import {
   CanActivate,
   ExecutionContext,

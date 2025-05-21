@@ -1,17 +1,19 @@
 import {
   Controller,
   Get,
-  Post,
   Body,
   Param,
-  Delete,
-  Query,
   Req,
+  Patch,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { MovieService } from './movie.service';
-import { CreateMovieDto } from './dto/create-movie.dto';
 import { Paginate, PaginateQuery } from 'nestjs-paginate';
-// import { UpdateMovieDto } from './dto/update-movie.dto';
+import { Role } from 'src/auth/enums/role.enum';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/auth/decorators/roles.decorator';
 
 @Controller('movie')
 export class MovieController {
@@ -37,4 +39,22 @@ export class MovieController {
   findMoviesByGenre(@Param('genre') genre: string, @Req() req: Request) {
     return this.movieService.findByGenre(genre, req['user']?.sub);
   }
+
+  @Patch(':id/set-premium')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async setPremiumStatus(
+    @Param('id') movieId: string,
+    @Body('isPremium') isPremium: boolean,
+  ) {
+    const updatedMovie = await this.movieService.setMoviePremiumStatus(
+      movieId,
+      isPremium,
+    );
+    return {
+      message: 'Movie premium status updated successfully.',
+      data: updatedMovie,
+    };
+  }
 }
+import { UpdateMovieDto } from './dto/update-movie.dto';

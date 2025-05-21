@@ -10,6 +10,7 @@ import { Transaction } from '../transactions/entities/transaction.entity';
 import { MyListModule } from '../my-list/my-list.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MailModule } from 'src/mail/mail.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       useFactory: (configService: ConfigService) => configService.get('jwt'),
       inject: [ConfigService],
     }),
+    MailModule,
   ],
   controllers: [UserController],
   providers: [UserService],

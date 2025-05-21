@@ -8,8 +8,11 @@ export interface EmailTemplateData {
 }
 
 export interface OTPTemplateData {
-  otpCode: string;
-  expiryTime: string; // e.g., "10 minutes"
-  ctaLink?: string; // Optional CTA link
-  footerCopyright?: string; // Optional custom copyright text
+  title: string; // Customizable title
+  messages: string[]; // Body messages as paragraphs
+  otpCode: string; // The OTP code
+  expiryTime: string;
+  ctaText?: string;
+  ctaLink?: string;
+  footerCopyright?: string;
 }

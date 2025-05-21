@@ -23,8 +23,8 @@ import { MyListService } from '../my-list/my-list.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateWatchHistoryDto } from './dto/update-watch-history.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
-import { AuthGuard } from '../auth/auth.guard'; // Import AuthGuard
-import { Request } from 'express'; // Import Request
+import { AuthGuard } from '../auth/auth.guard';
+import { Request } from 'express';
 
 @Controller('user')
 export class UserController {

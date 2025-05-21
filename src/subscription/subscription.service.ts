@@ -1,7 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { CreateSubscriptionDto } from './dto/create-subscription.dto';
-// import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
-import { UserService } from 'src/user/user.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SubscriptionType } from '../user/enum/userType';

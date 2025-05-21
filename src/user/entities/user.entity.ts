@@ -7,6 +7,7 @@ import { PaymentPartner } from '../../payment/entities/payment-partner.entity';
 import { Genres } from '../../movie/genres.enum';
 import { Transaction } from 'src/transactions/entities/transaction.entity';
 import { MyListEntity } from 'src/my-list/entities/my-list.entity';
+import { Role } from '../../auth/enums/role.enum'; // Adjust path as needed
 
 @Entity()
 export class User extends BaseEntity {
@@ -35,6 +36,10 @@ export class User extends BaseEntity {
   @Column({ nullable: true })
   emailVerificationExpires: Date;
 
+  @Exclude()
+  @Column({ nullable: true })
+  emailVerificationSentAt: Date;
+
   @Column({ nullable: true, unique: true })
   phoneNumber: string;
 
@@ -44,11 +49,15 @@ export class User extends BaseEntity {
 
   @Exclude()
   @Column({ nullable: true })
-  passwordResetOtp: string; // Added field for OTP
+  passwordResetOtp: string;
 
   @Exclude()
   @Column({ nullable: true })
-  passwordResetExpires: Date; // Added field for OTP expiry
+  passwordResetExpires: Date;
+
+  @Exclude()
+  @Column({ nullable: true })
+  passwordResetOtpSentAt: Date;
 
   @Column({ nullable: true })
   dateOfBirth: Date;
@@ -62,14 +71,9 @@ export class User extends BaseEntity {
   @Column('text', { array: true, nullable: true })
   preferredGenres: string[];
 
-  //TODO: build out logic to implement a list of movies watched by a user or profile?
-  // @Column({ nullable: true, unique: true })
-  // List: Movie[];
-
   @Column({ nullable: true })
   displayPicture: string;
 
-  // TODO: implement the subscription logic from when someone pays to updating the subscription type
   @Column({
     default: SubscriptionType.FREE_TIER,
     type: 'enum',
@@ -83,6 +87,9 @@ export class User extends BaseEntity {
   @Column({ nullable: true })
   subscriptionExpiresAt: Date | null;
 
+  @Column({ nullable: true })
+  nextBillingDate: Date | null;
+
   @OneToMany(() => PaymentPartner, (paymentPartner) => paymentPartner.user)
   paymentMethod: PaymentPartner;
 
@@ -94,4 +101,11 @@ export class User extends BaseEntity {
 
   @OneToMany(() => MyListEntity, (myList) => myList.user)
   myList: MyListEntity[];
+
+  @Column({
+    type: 'enum',
+    enum: Role,
+    default: Role.USER,
+  })
+  role: Role;
 }

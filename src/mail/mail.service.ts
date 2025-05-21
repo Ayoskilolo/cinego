@@ -73,17 +73,29 @@ export class MailService {
     recipientEmail: string,
     otp: string,
     expiryMinutes: number,
+    details: {
+      title: string;
+      messages: string[];
+      ctaText?: string;
+      ctaLink?: string;
+      footerCopyright?: string;
+    },
   ): Promise<boolean> {
     const templateData: OTPTemplateData = {
+      title: details.title,
+      messages: details.messages,
       otpCode: otp,
       expiryTime: `${expiryMinutes} minutes`,
+      ctaText: details.ctaText,
+      ctaLink: details.ctaLink,
+      footerCopyright: details.footerCopyright,
     };
 
     try {
       const mailHtmlBody = await this._generateOTPTemplate(templateData);
       return await this._sendMail({
         recipients: [recipientEmail],
-        subject: 'Your Cinego Verification Code',
+        subject: details.title,
         htmlBody: mailHtmlBody,
       });
     } catch (error) {
@@ -250,25 +262,36 @@ export class MailService {
 
   // Kept the updated template generation logic
   private async _generateOTPTemplate(data: OTPTemplateData) {
+    // Generate HTML for all message paragraphs
+    const messageHtml = data.messages
+      .map(
+        (msg) => `
+    <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 24px; color: #ffffff; text-align: center;">
+      ${msg}
+    </p>
+  `,
+      )
+      .join('');
+
+    // Optional CTA button section -- only include if ctaLink is provided
+    const ctaButton =
+      data.ctaLink && data.ctaText
+        ? `
+    <table align="center" border="0" cellpadding="0" cellspacing="0" style="margin: 30px auto; max-width: 240px;">
+      <tr>
+        <td align="center" bgcolor="#FBBE25" style="border-radius: 8px;">
+          <a href="${data.ctaLink}" target="_blank" style="display: block; font-size: 16px; font-weight: bold; color: #333333; text-decoration: none; text-transform: uppercase; padding: 14px 20px; border-radius: 8px;" class="cta-button">
+            ${data.ctaText}
+          </a>
+        </td>
+      </tr>
+    </table>
+  `
+        : '';
+
     const currentYear = new Date().getFullYear();
     const copyright =
       data.footerCopyright || `© ${currentYear} Cinego. All rights reserved.`;
-
-    // Optional CTA button section - only include if ctaLink is provided
-    const ctaButton = data.ctaLink
-      ? `
-    <!-- Optional CTA Button -->
-    <div style="text-align: center; margin: 30px 0;">
-      <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 240px;">
-        <tr>
-          <td align="center" bgcolor="#FBBE25" style="border-radius: 8px;">
-            <a href="${data.ctaLink}" target="_blank" style="display: block; font-size: 16px; font-weight: bold; color: #333333; text-decoration: none; text-transform: uppercase; padding: 14px 20px; border-radius: 8px;" class="cta-button">Verify Now</a>
-          </td>
-        </tr>
-      </table>
-    </div>
-  `
-      : '';
 
     return `
 <!DOCTYPE html>
@@ -276,84 +299,62 @@ export class MailService {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cinego - Your Verification Code</title>
+  <title>Cinego - ${data.title}</title>
   <style type="text/css">
-    /* Reset styles */
-    body, p, td, th {
-      margin: 0;
-      padding: 0;
-      font-family: Arial, Helvetica, sans-serif;
-    }
-    
-    /* Base styles */
-    body {
-      background-color: #f5f5f5;
-      margin: 0;
-      padding: 0;
-      -webkit-text-size-adjust: none;
-      -ms-text-size-adjust: none;
-    }
-    
-    /* Responsive styles */
+    body, p, td, th { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; }
+    body { background-color: #f5f5f5; }
     @media only screen and (max-width: 600px) {
-      .email-container {
-        width: 100% !important;
-      }
-      .content-block {
-        padding: 20px !important;
-      }
-      .otp-code {
-        font-size: 32px !important;
-        letter-spacing: 3px !important;
-      }
-      .cta-button {
-        display: block !important;
-        width: 80% !important;
-        margin: 0 auto !important;
-      }
+      .email-container { width: 100% !important; }
+      .content-block { padding: 20px !important; }
+      .otp-code { font-size: 32px !important; letter-spacing: 3px !important; }
+      .cta-button { display: block !important; width: 80% !important; margin: 0 auto !important; }
     }
   </style>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f5f5f5;">
+<body style="margin:0;padding:0;background-color:#f5f5f5;">
   <center>
-    <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px;" class="email-container">
+    <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px;" class="email-container">
       <!-- Header -->
       <tr>
-        <td align="center" bgcolor="#333333" style="padding: 30px 0;">
-          <h1 style="margin: 0; font-size: 36px; font-weight: bold; color: #FBBE25; letter-spacing: 1px;">CINEGO</h1>
+        <td align="center" bgcolor="#333333" style="padding:30px 0;">
+          <h1 style="margin:0;font-size:36px;font-weight:bold;color:#FBBE25;letter-spacing:1px;">CINEGO</h1>
         </td>
       </tr>
-      
+
       <!-- Main Content -->
       <tr>
-        <td bgcolor="#333333" style="padding: 40px 30px;" class="content-block">
-          <h2 style="margin: 0 0 30px 0; font-size: 28px; line-height: 36px; color: #FBBE25; font-weight: bold; text-align: center;">Your Verification Code</h2>
-          
+        <td bgcolor="#333333" style="padding:40px 30px;" class="content-block">
+          <h2 style="margin:0 0 20px 0;font-size:28px;line-height:36px;color:#FBBE25;font-weight:bold;text-align:center;">
+            ${data.title}
+          </h2>
+
+          ${messageHtml}
+
           <!-- OTP Code Box -->
-          <div style="background-color: #444444; border-radius: 8px; padding: 25px; margin: 0 auto 30px auto; text-align: center; max-width: 400px;">
-            <p class="otp-code" style="margin: 0; font-size: 42px; font-weight: bold; letter-spacing: 5px; color: #FFFFFF; font-family: monospace;">${data.otpCode}</p>
+          <div style="background-color:#444444;border-radius:8px;padding:25px;margin:20px auto;text-align:center;max-width:400px;">
+            <p class="otp-code" style="margin:0;font-size:42px;font-weight:bold;letter-spacing:5px;color:#FFFFFF;font-family:monospace;">${data.otpCode}</p>
           </div>
-          
-          <p style="margin: 0 0 25px 0; font-size: 16px; line-height: 24px; color: #FFFFFF; text-align: center;">
-            Use this code to verify your account. It expires in <strong>${data.expiryTime}</strong>.
+
+          <p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#FFFFFF;text-align:center;">
+            It expires in <strong>${data.expiryTime}</strong>.
           </p>
-          
+
           ${ctaButton}
-          
-          <p style="margin: 30px 0 0 0; font-size: 14px; line-height: 20px; color: #FFFFFF; text-align: center;">
+
+          <p style="margin:30px 0 0 0;font-size:14px;line-height:20px;color:#FFFFFF;text-align:center;">
             Didn't request this code? Please ignore this email.
           </p>
         </td>
       </tr>
-      
+
       <!-- Footer -->
       <tr>
-        <td bgcolor="#222222" style="padding: 25px 30px;">
+        <td bgcolor="#222222" style="padding:25px 30px;">
           <table border="0" cellpadding="0" cellspacing="0" width="100%">
             <tr>
-              <td style="color: #FFFFFF; font-size: 12px; line-height: 18px; text-align: center;">
-                <p style="margin: 0 0 5px 0;">${copyright}</p>
-                <p style="margin: 0;">This is an automated message, please do not reply.</p>
+              <td style="color:#FFFFFF;font-size:12px;line-height:18px;text-align:center;">
+                <p style="margin:0 0 5px 0;">${copyright}</p>
+                <p style="margin:0;">This is an automated message, please do not reply.</p>
               </td>
             </tr>
           </table>

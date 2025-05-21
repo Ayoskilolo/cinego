@@ -1,9 +1,9 @@
 export enum PaymentReason {
   PREMIUM = 'premium',
   FREEMIUM = 'freemium',
+  CANCELLATION = 'cancellation',
 }
 
-// Assuming your enums are in this file
 export enum PaymentChannel {
   FLUTTERWAVE = 'flutterwave',
   // Add other channels if needed
