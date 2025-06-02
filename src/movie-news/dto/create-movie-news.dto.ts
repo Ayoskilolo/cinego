@@ -10,6 +10,10 @@ export class CreateMovieNewsDto {
   content: string;
 
   @IsString()
-  @IsOptional() // Author might be optional or derived from authentication later
+  @IsOptional() // Author might be optional
   author?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
 }

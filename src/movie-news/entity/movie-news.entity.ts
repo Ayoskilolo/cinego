@@ -17,8 +17,11 @@ export class MovieNews {
   @Column('text')
   content: string;
 
-  @Column({ nullable: true }) // Assuming author might be optional or handled differently later
+  @Column({ nullable: true }) // Author is optional
   author: string;
+
+  @Column({ nullable: true })
+  description: string;
 
   @CreateDateColumn()
   createdAt: Date;
