@@ -21,8 +21,5 @@ export default registerAs('database', () => ({
   autoLoadEntities: true,
   synchronize: true,
   migrations: [`${__dirname}/../database/migration/**/*.{ts,js}`],
-
-  ...(process.env.NODE_ENV !== 'development' && {
-    ssl: { rejectUnauthorized: false },
-  }),
+  ssl: { rejectUnauthorized: false },
 }));
