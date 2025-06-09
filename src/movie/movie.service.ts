@@ -159,7 +159,7 @@ export class MovieService {
     };
   }
 
-  async findOne(id: string, userId?: string) {
+  async findOne(id: string, userId: string) {
     const movie = await this.movieRepository.findOne({
       where: { id },
     });

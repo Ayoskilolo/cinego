@@ -12,6 +12,8 @@ import { ProvidersEntity } from './providers/entities/providers.entity';
 import { ProvidersSeeder } from './providers/providers.seeder';
 import { WatchHistory } from './user/entities/watch-history.entity';
 import { MyListEntity } from './my-list/entities/my-list.entity';
+import { Comment } from './comment/entities/comment.entity';
+import { Review } from './review/entities/review.entity';
 
 seeder({
   imports: [
@@ -33,6 +35,8 @@ seeder({
       ProvidersEntity,
       WatchHistory,
       MyListEntity,
+      Comment,
+      Review,
     ]),
   ],
 }).run([PaymentPartnerSeeder, ProvidersSeeder]);

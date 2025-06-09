@@ -8,6 +8,8 @@ import { Genres } from '../../movie/genres.enum';
 import { Transaction } from 'src/transactions/entities/transaction.entity';
 import { MyListEntity } from 'src/my-list/entities/my-list.entity';
 import { Role } from '../../auth/enums/role.enum'; // Adjust path as needed
+import { Comment } from '../../comment/entities/comment.entity';
+import { Review } from '../../review/entities/review.entity';
 
 @Entity()
 export class User extends BaseEntity {
@@ -101,6 +103,12 @@ export class User extends BaseEntity {
 
   @OneToMany(() => MyListEntity, (myList) => myList.user)
   myList: MyListEntity[];
+
+  @OneToMany(() => Comment, (comment) => comment.user)
+  comments: Comment[];
+
+  @OneToMany(() => Review, (review) => review.user)
+  reviews: Review[];
 
   @Column({
     type: 'enum',

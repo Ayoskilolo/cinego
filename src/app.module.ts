@@ -22,6 +22,8 @@ import { MyListModule } from './my-list/my-list.module';
 import { User } from './user/entities/user.entity';
 import { MailModule } from './mail/mail.module';
 import { MovieNewsModule } from './movie-news/movie-news.module';
+import { CommentModule } from './comment/comment.module';
+import { ReviewModule } from './review/review.module';
 
 @Module({
   imports: [
@@ -61,6 +63,10 @@ import { MovieNewsModule } from './movie-news/movie-news.module';
     MailModule,
 
     MovieNewsModule,
+
+    CommentModule,
+
+    ReviewModule,
   ],
   controllers: [AppController],
   providers: [

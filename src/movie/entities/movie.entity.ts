@@ -2,6 +2,8 @@ import { Column, Entity, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { BaseEntity } from '../../base-entity/base-entity.entity';
 import { ProvidersEntity } from 'src/providers/entities/providers.entity';
 import { MyListEntity } from 'src/my-list/entities/my-list.entity';
+import { Comment } from '../../comment/entities/comment.entity';
+import { Review } from '../../review/entities/review.entity';
 
 @Entity()
 export class Movie extends BaseEntity {
@@ -65,6 +67,12 @@ export class Movie extends BaseEntity {
   })
   @JoinColumn({ name: 'providerId' })
   provider: ProvidersEntity;
+
+  @OneToMany(() => Comment, (comment) => comment.movie)
+  comments: Comment[];
+
+  @OneToMany(() => Review, (review) => review.movie)
+  reviews: Review[];
 
   isInMyList?: boolean;
 }
