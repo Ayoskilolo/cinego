@@ -12,7 +12,7 @@ import { UserExistsDto } from '../user/dto/user-exists.dto';
 import { UserService } from '../user/user.service';
 import { LoginDto } from './dto/login.dto';
 import { User } from '../user/entities/user.entity';
-import { compare, hash } from 'bcrypt';
+import { compare, hash } from 'bcryptjs';
 import { MailService } from '../mail/mail.service';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { EmailTemplateData } from 'src/mail/interfaces';

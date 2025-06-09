@@ -6,7 +6,7 @@ import {
   NotFoundException,
   UnauthorizedException, // Added UnauthorizedException
 } from '@nestjs/common';
-import { hash, compare } from 'bcrypt';
+import { hash, compare } from 'bcryptjs';
 import { differenceInYears, addMinutes, addHours } from 'date-fns'; // Added addHours
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
