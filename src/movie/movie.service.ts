@@ -21,7 +21,7 @@ export class MovieService {
     private readonly movieRepository: Repository<Movie>,
     private readonly providersService: ProvidersService,
     private readonly myListService: MyListService,
-    private readonly userService: UserService, // Added UserService
+    private readonly userService: UserService,
   ) {}
 
   private readonly logger = new Logger(MovieService.name);
@@ -135,7 +135,6 @@ export class MovieService {
         'dateCreated',
         'isPremium', // Ensure isPremium is selected
       ],
-      where: {}, // Initialize where clause
     };
 
     if (
@@ -143,7 +142,7 @@ export class MovieService {
       (userSubscriptionType === SubscriptionType.FREEMIUM ||
         userSubscriptionType === SubscriptionType.FREE_TIER)
     ) {
-      (paginateConfig.where as any).isPremium = false; // Filter for non-premium movies
+      paginateConfig.where = { isPremium: false }; // Filter for non-premium movies
     }
 
     const result = await paginate(query, this.movieRepository, paginateConfig);

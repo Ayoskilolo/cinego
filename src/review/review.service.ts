@@ -1,14 +1,13 @@
 import {
   Injectable,
   NotFoundException,
-  ConflictException, // This might be removed if upsert handles it
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Review } from './entities/review.entity';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { MovieService } from '../movie/movie.service';
-import { User } from '../user/entities/user.entity'; // Added import for User entity
 
 @Injectable()
 export class ReviewService {
@@ -22,11 +21,15 @@ export class ReviewService {
     createReviewDto: CreateReviewDto,
     user: { sub: string; role: string },
   ): Promise<Review> {
+    if (createReviewDto.rating < 1 || createReviewDto.rating > 5) {
+      throw new BadRequestException('Rating must be between 1 and 5');
+    }
+
     const movieResponse = await this.movieService.findOne(
       createReviewDto.movieId,
       user.sub,
     );
-    // movieService.findOne returns { data: movie }:
+
     const movie = movieResponse.data;
 
     if (!movie || !movie.id) {
@@ -84,6 +87,10 @@ export class ReviewService {
   }
 
   async update(id: string, rating: number, userId: string): Promise<Review> {
+    if (rating < 1 || rating > 5) {
+      throw new BadRequestException('Rating must be between 1 and 5');
+    }
+
     const review = await this.reviewRepository.findOne({
       where: { id, userId },
     });
@@ -96,7 +103,7 @@ export class ReviewService {
     return this.reviewRepository.save(review);
   }
 
-  async remove(id: string, userId: string): Promise<void> {
+  async remove(id: string, userId: string) {
     const review = await this.reviewRepository.findOne({
       where: { id, userId },
     });
@@ -106,5 +113,6 @@ export class ReviewService {
       );
     }
     await this.reviewRepository.delete(id);
+    return { message: 'Review deleted successfully' };
   }
 }

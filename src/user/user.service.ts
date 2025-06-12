@@ -4,10 +4,9 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
-  UnauthorizedException, // Added UnauthorizedException
 } from '@nestjs/common';
 import { hash, compare } from 'bcryptjs';
-import { differenceInYears, addMinutes, addHours } from 'date-fns'; // Added addHours
+import { differenceInYears, addMinutes, addHours } from 'date-fns';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
@@ -15,21 +14,16 @@ import { Profile } from './entities/profile.entity';
 import { UserExistsDto } from './dto/user-exists.dto';
 import { SignUpDto } from '../auth/dto/sign-up.dto';
 import { SubscriptionType } from './enum/userType';
-import { PaymentService } from '../payment/payment.service';
 import { MaturityRatings } from './enum/maturityRatings';
 import { CreateProfileDto } from './dto/create-user.dto';
 import { Genres } from '../movie/genres.enum';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { JwtService } from '@nestjs/jwt';
 import { Not } from 'typeorm';
-import {
-  ProfileWithTokenResponse,
-  ProfileResponse,
-} from './interfaces/profile.interface';
 import { WatchHistory } from './entities/watch-history.entity';
 import { UpdateWatchHistoryDto } from './dto/update-watch-history.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
-import { ResetPasswordDto } from '../auth/dto/reset-password.dto'; // Assuming you create this DTO
+import { ResetPasswordDto } from '../auth/dto/reset-password.dto';
 import { EmailTemplateData } from 'src/mail/interfaces';
 import { MailService } from 'src/mail/mail.service';
 

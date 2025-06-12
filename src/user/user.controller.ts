@@ -8,22 +8,17 @@ import {
   Put,
   Req,
   Patch,
-  UseGuards, // Added UseGuards
-  HttpCode, // Added HttpCode
+  HttpCode,
   HttpStatus,
-  UnauthorizedException, // Added HttpStatus
+  UnauthorizedException,
 } from '@nestjs/common';
 import { UserService } from './user.service';
-import { SignUpDto } from '../auth/dto/sign-up.dto';
-import { AddPaymentMethodDto } from './dto/add-payment-method.dto';
-import { SubscriptionType } from './enum/userType';
 import { CreateProfileDto } from './dto/create-user.dto';
 import { Genres } from '../movie/genres.enum';
 import { MyListService } from '../my-list/my-list.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateWatchHistoryDto } from './dto/update-watch-history.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
-import { AuthGuard } from '../auth/auth.guard';
 import { Request } from 'express';
 import {
   ApiTags,
@@ -32,10 +27,10 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiBody,
-} from '@nestjs/swagger'; // Added
+} from '@nestjs/swagger';
 
-@ApiTags('User') // Added
-@ApiBearerAuth() // Added - Assuming most user endpoints require auth
+@ApiTags('User')
+@ApiBearerAuth()
 @Controller('user')
 export class UserController {
   constructor(

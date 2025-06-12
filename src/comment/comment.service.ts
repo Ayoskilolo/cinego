@@ -51,7 +51,7 @@ export class CommentService {
     });
   }
 
-  async remove(id: string, user: { sub: string; role: string }): Promise<void> {
+  async remove(id: string, user: { sub: string; role: string }) {
     const comment = await this.commentRepository.findOne({
       where: user.role === Role.ADMIN ? { id } : { id, userId: user.sub },
     });
@@ -61,5 +61,6 @@ export class CommentService {
       );
     }
     await this.commentRepository.delete(id);
+    return { message: 'Comment deleted successfully' };
   }
 }

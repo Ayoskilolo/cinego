@@ -34,8 +34,6 @@ export class ReviewController {
   constructor(private readonly reviewService: ReviewService) {}
 
   @Post()
-  @UseGuards(RolesGuard) // Assuming only authenticated users can create/update reviews
-  @Roles(Role.USER, Role.ADMIN) // Or just Role.USER if admins don't review
   @ApiOperation({ summary: 'Create or update a review for a movie' })
   @ApiBody({ type: CreateReviewDto })
   @ApiResponse({
@@ -49,11 +47,11 @@ export class ReviewController {
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 404, description: 'Movie not found.' })
-  createOrUpdate(
+  async createOrUpdate(
     @Body() createReviewDto: CreateReviewDto,
     @Req() req: Request,
   ) {
-    return this.reviewService.upsert(createReviewDto, req['user']);
+    return await this.reviewService.upsert(createReviewDto, req['user']);
   }
 
   @Get('movie/:movieId')
@@ -64,11 +62,14 @@ export class ReviewController {
     status: 404,
     description: 'Movie not found or no reviews yet.',
   })
-  findAllByMovie(
+  async findAllByMovie(
     @Param('movieId', ParseUUIDPipe) movieId: string,
     @Req() req: Request,
   ) {
-    return this.reviewService.findAllReviewsByMovie(movieId, req['user']?.sub);
+    return await this.reviewService.findAllReviewsByMovie(
+      movieId,
+      req['user']?.sub,
+    );
   }
 
   @Get('movie/:movieId/user')
@@ -87,11 +88,11 @@ export class ReviewController {
     status: 404,
     description: 'Review not found for this user and movie.',
   })
-  findByUserAndMovie(
+  async findByUserAndMovie(
     @Param('movieId', ParseUUIDPipe) movieId: string,
     @Req() req: Request,
   ) {
-    return this.reviewService.findOneReviewByUserAndMovie(
+    return await this.reviewService.findOneReviewByUserAndMovie(
       req['user']?.sub,
       movieId,
     );
@@ -115,12 +116,12 @@ export class ReviewController {
     description: 'Forbidden (user does not own this review).',
   })
   @ApiResponse({ status: 404, description: 'Review not found.' })
-  update(
+  async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateReviewDto: UpdateReviewDto,
     @Req() req: Request,
   ) {
-    return this.reviewService.update(
+    return await this.reviewService.update(
       id,
       updateReviewDto.rating,
       req['user']?.sub,
@@ -130,21 +131,20 @@ export class ReviewController {
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(Role.USER, Role.ADMIN)
-  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a review by its ID' })
   @ApiParam({
     name: 'id',
     description: 'ID of the review to delete',
     type: 'string',
   })
-  @ApiResponse({ status: 204, description: 'Review deleted successfully.' })
+  @ApiResponse({ status: 200, description: 'Review deleted successfully.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({
     status: 403,
     description: 'Forbidden (user does not own this review or not an admin).',
   })
   @ApiResponse({ status: 404, description: 'Review not found.' })
-  remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
-    return this.reviewService.remove(id, req['user']?.sub);
+  async remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    return await this.reviewService.remove(id, req['user']?.sub);
   }
 }
