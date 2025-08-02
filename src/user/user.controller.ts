@@ -170,17 +170,19 @@ export class UserController {
     };
   }
 
+  // TODO: This should be a profile specific endpoint from the path
   @Get('my-list')
-  @ApiOperation({ summary: "Get the user's movie list" })
+  @ApiOperation({ summary: "Get the active profile's movie list" })
   @ApiResponse({ status: 200, description: 'MyList retrieved successfully.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async getMyList(@Req() req: Request) {
-    const data = await this.myListService.getMyList(req['user'].sub);
+    const user = req['user'];
+    const data = await this.myListService.getMyList(user.activeProfileId);
     return { data };
   }
 
   @Post('my-list/:movieId')
-  @ApiOperation({ summary: "Add a movie to the user's list" })
+  @ApiOperation({ summary: "Add a movie to the active profile's list" })
   @ApiParam({ name: 'movieId', description: 'The ID of the movie to add' })
   @ApiResponse({
     status: 201,
@@ -189,12 +191,16 @@ export class UserController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 404, description: 'Movie not found.' })
   async addToMyList(@Req() req: Request, @Param('movieId') movieId: string) {
-    const data = await this.myListService.addToMyList(req['user'].sub, movieId);
+    const user = req['user'];
+    const data = await this.myListService.addToMyList(
+      user.activeProfileId,
+      movieId,
+    );
     return { data, message: 'Movie added to MyList' };
   }
 
   @Delete('my-list/:movieId')
-  @ApiOperation({ summary: "Remove a movie from the user's list" })
+  @ApiOperation({ summary: "Remove a movie from the active profile's list" })
   @ApiParam({ name: 'movieId', description: 'The ID of the movie to remove' })
   @ApiResponse({
     status: 200,
@@ -206,27 +212,13 @@ export class UserController {
     @Req() req: Request,
     @Param('movieId') movieId: string,
   ) {
+    const user = req['user'];
     const data = await this.myListService.removeFromMyList(
-      req['user'].sub,
+      user.activeProfileId,
       movieId,
     );
     return { data, message: 'Movie removed from MyList' };
   }
-
-  // @Get()
-  // findAll() {
-  //   return this.userService.findAll();
-  // }
-
-  // @Get(':id')
-  // findOne(@Param('id') id: string) {
-  //   return this.userService.findOne(id);
-  // }
-
-  // @Delete(':id')
-  // remove(@Param('id') id: string) {
-  //   return this.userService.remove(id);
-  // }
 
   @Post('profiles/:profileId/watch-history')
   @ApiOperation({ summary: 'Update watch history for a profile' })

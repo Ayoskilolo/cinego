@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { Review } from './entities/review.entity';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { MovieService } from '../movie/movie.service';
+import { PaginateQuery, paginate, PaginateConfig } from 'nestjs-paginate';
 
 @Injectable()
 export class ReviewService {
@@ -19,6 +20,7 @@ export class ReviewService {
 
   async upsert(
     createReviewDto: CreateReviewDto,
+    profileId: string,
     user: { sub: string; role: string },
   ): Promise<Review> {
     if (createReviewDto.rating < 1 || createReviewDto.rating > 5) {
@@ -28,6 +30,7 @@ export class ReviewService {
     const movieResponse = await this.movieService.findOne(
       createReviewDto.movieId,
       user.sub,
+      profileId,
     );
 
     const movie = movieResponse.data;
@@ -39,7 +42,7 @@ export class ReviewService {
     }
 
     let review = await this.reviewRepository.findOne({
-      where: { userId: user.sub, movieId: movie.id },
+      where: { profileId: profileId, movieId: movie.id },
     });
 
     if (review) {
@@ -49,7 +52,7 @@ export class ReviewService {
       // Create new review
       review = this.reviewRepository.create({
         ...createReviewDto,
-        userId: user.sub,
+        profileId: profileId,
         movieId: movie.id,
       });
     }
@@ -57,59 +60,121 @@ export class ReviewService {
     return this.reviewRepository.save(review);
   }
 
+  async getMovieRatingSummary(movieId: string): Promise<{
+    averageRating: number;
+    totalReviews: number;
+    ratingDistribution: { [key: number]: number };
+  }> {
+    const reviews = await this.reviewRepository.find({
+      where: { movieId },
+      select: ['rating'],
+    });
+
+    if (reviews.length === 0) {
+      return {
+        averageRating: 0,
+        totalReviews: 0,
+        ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      };
+    }
+
+    const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+    const averageRating = Math.round((totalRating / reviews.length) * 10) / 10; // Round to 1 decimal place
+
+    // Calculate rating distribution
+    const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    reviews.forEach((review) => {
+      ratingDistribution[review.rating]++;
+    });
+
+    return {
+      averageRating,
+      totalReviews: reviews.length,
+      ratingDistribution,
+    };
+  }
+
+  async getMovieReviews(query: PaginateQuery, movieId: string) {
+    const paginateConfig: PaginateConfig<Review> = {
+      sortableColumns: ['dateCreated', 'rating'],
+      defaultSortBy: [['dateCreated', 'DESC']],
+      searchableColumns: [],
+      defaultLimit: 10,
+      filterableColumns: {
+        rating: true,
+      },
+      select: [
+        'id',
+        'rating',
+        'movieId',
+        'profileId',
+        'dateCreated',
+        'dateUpdated',
+      ],
+    };
+
+    const queryBuilder = this.reviewRepository
+      .createQueryBuilder('review')
+      .leftJoinAndSelect('review.profile', 'profile')
+      .where('review.movieId = :movieId', { movieId });
+
+    return await paginate(query, queryBuilder, paginateConfig);
+  }
+
   async findAllReviewsByMovie(
     movieId: string,
     userId: string,
+    profileId: string,
   ): Promise<Review[]> {
-    const movie = await this.movieService.findOne(movieId, userId);
+    const movie = await this.movieService.findOne(movieId, userId, profileId);
     if (!movie) {
       throw new NotFoundException(`Movie with ID "${movieId}" not found`);
     }
     return this.reviewRepository.find({
       where: { movieId },
-      relations: ['user'],
+      relations: ['profile'],
     });
   }
 
   /**
-   * Finds a single review made by a specific user for a specific movie.
-   * This is useful for checking if a user has already reviewed a movie,
+   * Finds a single review made by a specific profile for a specific movie.
+   * This is useful for checking if a profile has already reviewed a movie,
    * to retrieve their specific rating, or before attempting an update/delete.
-   * @param userId The ID of the user.
+   * @param profileId The ID of the profile.
    * @param movieId The ID of the movie.
    * @returns A Promise that resolves to the Review entity if found, or null otherwise.
    */
-  async findOneReviewByUserAndMovie(
-    userId: string,
+  async findOneReviewByProfileAndMovie(
+    profileId: string,
     movieId: string,
   ): Promise<Review | null> {
-    return this.reviewRepository.findOne({ where: { userId, movieId } });
+    return this.reviewRepository.findOne({ where: { profileId, movieId } });
   }
 
-  async update(id: string, rating: number, userId: string): Promise<Review> {
+  async update(id: string, rating: number, profileId: string): Promise<Review> {
     if (rating < 1 || rating > 5) {
       throw new BadRequestException('Rating must be between 1 and 5');
     }
 
     const review = await this.reviewRepository.findOne({
-      where: { id, userId },
+      where: { id, profileId },
     });
     if (!review) {
       throw new NotFoundException(
-        `Review with ID "${id}" not found or user not authorized`,
+        `Review with ID "${id}" not found or profile not authorized`,
       );
     }
     review.rating = rating;
     return this.reviewRepository.save(review);
   }
 
-  async remove(id: string, userId: string) {
+  async remove(id: string, profileId: string) {
     const review = await this.reviewRepository.findOne({
-      where: { id, userId },
+      where: { id, profileId },
     });
     if (!review) {
       throw new NotFoundException(
-        `Review with ID "${id}" not found or user not authorized`,
+        `Review with ID "${id}" not found or profile not authorized`,
       );
     }
     await this.reviewRepository.delete(id);

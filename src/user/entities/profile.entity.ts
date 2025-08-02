@@ -11,6 +11,9 @@ import {
 import { MaturityRatings } from '../enum/maturityRatings';
 import { User } from './user.entity';
 import { WatchHistory } from './watch-history.entity';
+import { MyListEntity } from '../../my-list/entities/my-list.entity';
+import { Comment } from '../../comment/entities/comment.entity';
+import { Review } from '../../review/entities/review.entity';
 
 @Entity()
 @Unique(['userId', 'pin'])
@@ -38,11 +41,18 @@ export class Profile extends BaseEntity {
 
   @Column({ nullable: true })
   profileImageUrl?: string;
-  //TODO: build out logic to implement a list of movies watched by a user or profile?
-  // List: Movie[];
 
   @OneToMany(() => WatchHistory, (watchHistory) => watchHistory.profile)
   watchHistory: WatchHistory[];
+
+  @OneToMany(() => MyListEntity, (myList) => myList.profile)
+  myList: MyListEntity[];
+
+  @OneToMany(() => Comment, (comment) => comment.profile)
+  comments: Comment[];
+
+  @OneToMany(() => Review, (review) => review.profile)
+  reviews: Review[];
 
   @Exclude()
   @Column({ nullable: true })

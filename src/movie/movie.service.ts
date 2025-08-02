@@ -26,49 +26,97 @@ export class MovieService {
 
   private readonly logger = new Logger(MovieService.name);
 
-  private async getMyListCount(movieId: string): Promise<number> {
+  /**
+   * Get MyList counts for multiple movies in a single query
+   */
+  private async getMyListCountsBatch(
+    movieIds: string[],
+  ): Promise<Record<string, number>> {
+    if (movieIds.length === 0) return {};
+
     const result = await this.movieRepository
       .createQueryBuilder('movie')
       .leftJoin('movie.myList', 'myList')
-      .where('movie.id = :id', { id: movieId })
-      .select('COUNT(myList.id)', 'count')
-      .getRawOne();
+      .where('movie.id IN (:...movieIds)', { movieIds })
+      .select('movie.id', 'movieId')
+      .addSelect('COUNT(myList.id)', 'count')
+      .groupBy('movie.id')
+      .getRawMany();
 
-    return parseInt(result?.count || '0');
+    const counts: Record<string, number> = {};
+    result.forEach((row) => {
+      counts[row.movieId] = parseInt(row.count || '0');
+    });
+
+    // Ensure all movie IDs have a count (even if 0)
+    movieIds.forEach((id) => {
+      if (!(id in counts)) {
+        counts[id] = 0;
+      }
+    });
+
+    return counts;
   }
 
-  private async enrichMovieWithMyListData(movie: Movie, userId?: string) {
-    const myListCount = await this.getMyListCount(movie.id);
-    return {
+  /**
+   * Check if multiple movies are in a user's MyList in a single query
+   */
+  private async getUserMyListChecksBatch(
+    profileId: string,
+    movieIds: string[],
+  ): Promise<Record<string, boolean>> {
+    if (movieIds.length === 0) return {};
+
+    const result = await this.myListService.getMyListItemsBatch(
+      profileId,
+      movieIds,
+    );
+
+    const checks: Record<string, boolean> = {};
+    movieIds.forEach((id) => {
+      checks[id] = result.includes(id);
+    });
+
+    return checks;
+  }
+
+  /**
+   * Enrich multiple movies with MyList data using batch queries
+   */
+  private async enrichMoviesWithMyListDataBatch(
+    movies: Movie[],
+    profileId: string,
+  ) {
+    if (movies.length === 0) return movies;
+
+    const startTime = Date.now();
+    const movieIds = movies.map((movie) => movie.id);
+
+    // Get all counts and user checks in parallel
+    const [counts, userChecks] = await Promise.all([
+      this.getMyListCountsBatch(movieIds),
+      profileId ? this.getUserMyListChecksBatch(profileId, movieIds) : {},
+    ]);
+
+    // Enrich each movie with the batch data
+    const enrichedMovies = movies.map((movie) => ({
       ...movie,
-      myListCount,
-      isInMyList: userId
-        ? await this.myListService.isInMyList(userId, movie.id)
-        : undefined,
-    };
+      myListCount: counts[movie.id] || 0,
+      isInMyList: profileId ? userChecks[movie.id] || false : undefined,
+    }));
+
+    const endTime = Date.now();
+    this.logger.debug(
+      `Batch enrichment completed for ${movies.length} movies in ${endTime - startTime}ms`,
+    );
+
+    return enrichedMovies;
   }
 
-  async getMovies(query: PaginateQuery, userId?: string) {
+  async getMovies(query: PaginateQuery, userId: string, profileId: string) {
     const movieCheck = await this.movieRepository.count();
     if (movieCheck < 1) {
-      // call all active providers api and save to db
-      const providers = await this.providersService.getActiveProviders();
-      for (const provider of providers) {
-        const movies =
-          await this.providersService.getMoviesFromProvider(provider);
-
-        if (movies.length) {
-          for (const movie of movies) {
-            const existingMovie = await this.movieRepository.findOne({
-              where: { providerTitleId: movie.providerTitleId },
-            });
-
-            if (!existingMovie) {
-              await this.movieRepository.save(movie);
-            }
-          }
-        }
-      }
+      await this.fetchAndSaveMoviesFromProviders();
     }
     let userSubscriptionType: SubscriptionType | undefined;
     if (userId) {
@@ -87,13 +135,137 @@ export class MovieService {
         );
       }
     }
-    return await this.searchMovies(query, userId, userSubscriptionType);
+    return await this.searchMovies(
+      query,
+      profileId,
+      userSubscriptionType,
+      // userId,
+    );
+  }
+
+  /**
+   * Fetch movies from all active providers and save them to the database
+   * This method includes duplicate validation to prevent saving the same movie twice
+   */
+  async fetchAndSaveMoviesFromProviders() {
+    this.logger.log('Starting to fetch movies from providers...');
+
+    const providers = await this.providersService.getActiveProviders();
+    let totalNewMovies = 0;
+    let totalSkippedMovies = 0;
+
+    for (const provider of providers) {
+      try {
+        this.logger.log(`Fetching movies from provider: ${provider.name}`);
+        const movies =
+          await this.providersService.getMoviesFromProvider(provider);
+
+        if (movies.length) {
+          this.logger.log(
+            `Found ${movies.length} movies from ${provider.name}`,
+          );
+
+          for (const movie of movies) {
+            // Check for existing movie by providerTitleId to prevent duplicates
+            const existingMovie = await this.movieRepository.findOne({
+              where: { providerTitleId: movie.providerTitleId },
+            });
+
+            if (!existingMovie) {
+              await this.movieRepository.save(movie);
+              totalNewMovies++;
+            } else {
+              totalSkippedMovies++;
+            }
+          }
+        } else {
+          this.logger.log(`No movies found from provider: ${provider.name}`);
+        }
+      } catch (error) {
+        this.logger.error(
+          `Error fetching movies from provider ${provider.name}:`,
+          error,
+        );
+      }
+    }
+
+    this.logger.log(
+      `Provider fetch completed. New movies: ${totalNewMovies}, Skipped duplicates: ${totalSkippedMovies}`,
+    );
+    return {
+      newMovies: totalNewMovies,
+      skippedDuplicates: totalSkippedMovies,
+      message: `Successfully fetched movies from providers. Added ${totalNewMovies} new movies, skipped ${totalSkippedMovies} duplicates.`,
+    };
+  }
+
+  /**
+   * Fetch movies from a specific provider and save them to the database
+   * @param providerId - The ID of the provider to fetch from
+   */
+  async fetchMoviesFromSpecificProvider(providerId: string) {
+    this.logger.log(`Fetching movies from specific provider: ${providerId}`);
+
+    const provider = await this.providersService.findOne(providerId);
+    if (!provider) {
+      throw new NotFoundException(`Provider with ID ${providerId} not found`);
+    }
+
+    if (!provider.isActive) {
+      throw new ForbiddenException(`Provider ${provider.name} is not active`);
+    }
+
+    try {
+      const movies =
+        await this.providersService.getMoviesFromProvider(provider);
+      let newMovies = 0;
+      let skippedDuplicates = 0;
+
+      if (movies.length) {
+        this.logger.log(`Found ${movies.length} movies from ${provider.name}`);
+
+        for (const movie of movies) {
+          // Check for existing movie by providerTitleId to prevent duplicates
+          const existingMovie = await this.movieRepository.findOne({
+            where: { providerTitleId: movie.providerTitleId },
+          });
+
+          if (!existingMovie) {
+            await this.movieRepository.save(movie);
+            newMovies++;
+          } else {
+            skippedDuplicates++;
+          }
+        }
+      } else {
+        this.logger.log(`No movies found from provider: ${provider.name}`);
+      }
+
+      this.logger.log(
+        `Provider fetch completed for ${provider.name}. New movies: ${newMovies}, Skipped duplicates: ${skippedDuplicates}`,
+      );
+      return {
+        provider: provider.name,
+        newMovies,
+        skippedDuplicates,
+        message: `Successfully fetched movies from ${provider.name}. Added ${newMovies} new movies, skipped ${skippedDuplicates} duplicates.`,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error fetching movies from provider ${provider.name}:`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        `Failed to fetch movies from ${provider.name}: ${error.message}`,
+      );
+    }
   }
 
   async searchMovies(
     query: PaginateQuery,
-    userId?: string,
-    userSubscriptionType?: SubscriptionType,
+    profileId: string,
+    userSubscriptionType: SubscriptionType,
+    // userId?: string,
   ) {
     const paginateConfig: PaginateConfig<Movie> = {
       sortableColumns: ['dateCreated', 'productionYear'],
@@ -147,9 +319,10 @@ export class MovieService {
 
     const result = await paginate(query, this.movieRepository, paginateConfig);
 
-    // Enrich movies with MyList data
-    const enrichedMovies = await Promise.all(
-      result.data.map((movie) => this.enrichMovieWithMyListData(movie, userId)),
+    // Enrich movies with MyList data using batch optimization
+    const enrichedMovies = await this.enrichMoviesWithMyListDataBatch(
+      result.data,
+      profileId,
     );
 
     return {
@@ -158,7 +331,7 @@ export class MovieService {
     };
   }
 
-  async findOne(id: string, userId: string) {
+  async findOne(id: string, userId: string, profileId: string) {
     const movie = await this.movieRepository.findOne({
       where: { id },
     });
@@ -206,14 +379,18 @@ export class MovieService {
       }
     }
 
-    const enrichedMovie = await this.enrichMovieWithMyListData(movie, userId);
+    const enrichedMovies = await this.enrichMoviesWithMyListDataBatch(
+      [movie],
+      profileId,
+    );
+    const enrichedMovie = enrichedMovies[0];
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { s3ObjectKey, providerId, ...movieData } = enrichedMovie;
 
     return { data: movieData };
   }
 
-  async findByGenre(genre: string, userId?: string) {
+  async findByGenre(genre: string, userId: string, profileId: string) {
     let userSubscriptionType: SubscriptionType | undefined;
     if (userId) {
       try {
@@ -265,9 +442,10 @@ export class MovieService {
     ]);
     const result = await queryBuilder.getMany();
 
-    // Enrich movies with MyList data
-    const enrichedMovies = await Promise.all(
-      result.map((movie) => this.enrichMovieWithMyListData(movie, userId)),
+    // Enrich movies with MyList data using batch optimization
+    const enrichedMovies = await this.enrichMoviesWithMyListDataBatch(
+      result,
+      profileId,
     );
 
     return { data: enrichedMovies };

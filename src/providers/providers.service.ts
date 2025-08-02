@@ -31,6 +31,13 @@ export class ProvidersService {
     return providers;
   }
 
+  async findOne(id: string) {
+    const provider = await this.providersRepository.findOne({
+      where: { id },
+    });
+    return provider;
+  }
+
   async getMoviesFromProvider(provider: ProvidersEntity) {
     let movies = [];
     if (provider.slug === 'allrites') {

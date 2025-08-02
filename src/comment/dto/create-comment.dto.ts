@@ -3,7 +3,8 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateCommentDto {
   @ApiProperty({
-    description: 'The content of the comment',
+    description:
+      'The content of the comment (will be associated with the active profile)',
     example: 'This is a great movie!',
   })
   @IsNotEmpty()

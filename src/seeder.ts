@@ -14,6 +14,9 @@ import { WatchHistory } from './user/entities/watch-history.entity';
 import { MyListEntity } from './my-list/entities/my-list.entity';
 import { Comment } from './comment/entities/comment.entity';
 import { Review } from './review/entities/review.entity';
+import { MovieSeeder } from './movie/movie.seeder';
+import { UserSeeder } from './user/user.seeder';
+import { UserInteractionsSeeder } from './user/user-interactions.seeder';
 
 seeder({
   imports: [
@@ -39,4 +42,10 @@ seeder({
       Review,
     ]),
   ],
-}).run([PaymentPartnerSeeder, ProvidersSeeder]);
+}).run([
+  PaymentPartnerSeeder,
+  ProvidersSeeder,
+  MovieSeeder,
+  UserSeeder,
+  UserInteractionsSeeder,
+]);

@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Body,
   Param,
   Req,
@@ -23,6 +24,10 @@ import {
   ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import {
+  FetchFromProvidersResponseDto,
+  FetchFromSpecificProviderResponseDto,
+} from './dto/fetch-providers.dto';
 
 @ApiTags('Movies')
 @Controller('movie')
@@ -64,7 +69,12 @@ export class MovieController {
   @ApiResponse({ status: 200, description: 'Successfully retrieved movies.' })
   @ApiBearerAuth()
   async getMovies(@Paginate() query: PaginateQuery, @Req() req: Request) {
-    const data = await this.movieService.getMovies(query, req['user']?.sub);
+    const user = req['user'];
+    const data = await this.movieService.getMovies(
+      query,
+      user?.sub,
+      user?.activeProfileId,
+    );
     return { data };
   }
 
@@ -75,14 +85,31 @@ export class MovieController {
     return await this.movieService.findAllGenres();
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get a movie by its ID' })
-  @ApiParam({ name: 'id', description: 'ID of the movie', type: 'string' })
-  @ApiResponse({ status: 200, description: 'Successfully retrieved movie.' })
-  @ApiResponse({ status: 404, description: 'Movie not found.' })
+  @Get('fetch-from-providers')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Fetch movies from all active providers (Admin only)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully fetched movies from providers.',
+    type: FetchFromProvidersResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
   @ApiBearerAuth()
-  findOne(@Param('id') id: string, @Req() req: Request) {
-    return this.movieService.findOne(id, req['user']?.sub);
+  async fetchFromAllProviders() {
+    const result = await this.movieService.fetchAndSaveMoviesFromProviders();
+    return {
+      message: result.message,
+      data: {
+        newMovies: result.newMovies,
+        skippedDuplicates: result.skippedDuplicates,
+      },
+    };
   }
 
   @Get('/genres/:genre')
@@ -98,7 +125,12 @@ export class MovieController {
   })
   @ApiBearerAuth()
   findMoviesByGenre(@Param('genre') genre: string, @Req() req: Request) {
-    return this.movieService.findByGenre(genre, req['user']?.sub);
+    const user = req['user'];
+    return this.movieService.findByGenre(
+      genre,
+      user?.sub,
+      user?.activeProfileId,
+    );
   }
 
   @Patch(':id/set-premium')
@@ -139,5 +171,51 @@ export class MovieController {
       message: 'Movie premium status updated successfully.',
       data: updatedMovie,
     };
+  }
+
+  @Post('fetch-from-provider/:providerId')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Fetch movies from a specific provider (Admin only)',
+  })
+  @ApiParam({
+    name: 'providerId',
+    description: 'ID of the provider to fetch movies from',
+    type: 'string',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully fetched movies from the provider.',
+    type: FetchFromSpecificProviderResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({ status: 404, description: 'Provider not found.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
+  @ApiBearerAuth()
+  async fetchFromSpecificProvider(@Param('providerId') providerId: string) {
+    const result =
+      await this.movieService.fetchMoviesFromSpecificProvider(providerId);
+    return {
+      message: result.message,
+      data: {
+        provider: result.provider,
+        newMovies: result.newMovies,
+        skippedDuplicates: result.skippedDuplicates,
+      },
+    };
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a movie by its ID' })
+  @ApiParam({ name: 'id', description: 'ID of the movie', type: 'string' })
+  @ApiResponse({ status: 200, description: 'Successfully retrieved movie.' })
+  @ApiResponse({ status: 404, description: 'Movie not found.' })
+  @ApiBearerAuth()
+  findOne(@Param('id') id: string, @Req() req: Request) {
+    const user = req['user'];
+    return this.movieService.findOne(id, user?.sub, user?.activeProfileId);
   }
 }

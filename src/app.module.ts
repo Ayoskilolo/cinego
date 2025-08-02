@@ -24,6 +24,7 @@ import { MailModule } from './mail/mail.module';
 import { MovieNewsModule } from './movie-news/movie-news.module';
 import { CommentModule } from './comment/comment.module';
 import { ReviewModule } from './review/review.module';
+import { RecommendationModule } from './recommendation/recommendation.module';
 
 @Module({
   imports: [
@@ -67,6 +68,8 @@ import { ReviewModule } from './review/review.module';
     CommentModule,
 
     ReviewModule,
+
+    RecommendationModule,
   ],
   controllers: [AppController],
   providers: [

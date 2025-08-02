@@ -1,13 +1,21 @@
 import { BaseEntity } from 'src/base-entity/base-entity.entity';
 import { Movie } from 'src/movie/entities/movie.entity';
-import { User } from 'src/user/entities/user.entity';
-import { Entity, ManyToOne } from 'typeorm';
+import { Profile } from 'src/user/entities/profile.entity';
+import { Entity, ManyToOne, JoinColumn, Column } from 'typeorm';
 
 @Entity()
 export class MyListEntity extends BaseEntity {
-  @ManyToOne(() => User, (user) => user.myList)
-  user: User;
+  @Column()
+  profileId: string;
+
+  @ManyToOne(() => Profile, (profile) => profile.myList)
+  @JoinColumn({ name: 'profileId' })
+  profile: Profile;
+
+  @Column()
+  movieId: string;
 
   @ManyToOne(() => Movie, (movie) => movie.myList)
+  @JoinColumn({ name: 'movieId' })
   movie: Movie;
 }

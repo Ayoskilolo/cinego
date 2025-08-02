@@ -13,10 +13,14 @@ export class ProvidersSeeder implements Seeder {
   private readonly logger = new Logger(ProvidersSeeder.name);
 
   async seed(): Promise<any> {
-    const isAlreadySeeded = !!(await this.providersRepository.count());
+    const existingCount = await this.providersRepository.count();
+    this.logger.log(`Found ${existingCount} existing providers`);
 
     // change this to filter for duplicates when new providers are added
-    if (isAlreadySeeded) return;
+    if (existingCount > 0) {
+      this.logger.log('Providers already seeded, skipping...');
+      return;
+    }
 
     const providers = [
       {
@@ -31,7 +35,11 @@ export class ProvidersSeeder implements Seeder {
       const providerEntity = this.providersRepository.create(provider);
 
       try {
-        await this.providersRepository.save(providerEntity);
+        const savedProvider =
+          await this.providersRepository.save(providerEntity);
+        this.logger.log(
+          `Seeded provider: ${savedProvider.name} with ID: ${savedProvider.id}`,
+        );
       } catch (error) {
         this.logger.error('Unable to seed provider', error);
       }

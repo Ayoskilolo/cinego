@@ -3,7 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateReviewDto {
   @ApiProperty({
-    description: 'The rating given by the user (1-5)',
+    description: 'The rating given by the profile (1-5)',
     example: 5,
     minimum: 1,
     maximum: 5,

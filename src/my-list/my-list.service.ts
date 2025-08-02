@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { MyListEntity } from './entities/my-list.entity';
 
 @Injectable()
@@ -10,10 +10,10 @@ export class MyListService {
     private readonly myListRepository: Repository<MyListEntity>,
   ) {}
 
-  async addToMyList(userId: string, movieId: string) {
+  async addToMyList(profileId: string, movieId: string) {
     const existingItem = await this.myListRepository.findOne({
       where: {
-        user: { id: userId },
+        profile: { id: profileId },
         movie: { id: movieId },
       },
     });
@@ -23,17 +23,17 @@ export class MyListService {
     }
 
     const myListItem = this.myListRepository.create({
-      user: { id: userId },
+      profile: { id: profileId },
       movie: { id: movieId },
     });
 
     return await this.myListRepository.save(myListItem);
   }
 
-  async removeFromMyList(userId: string, movieId: string) {
+  async removeFromMyList(profileId: string, movieId: string) {
     const item = await this.myListRepository.findOne({
       where: {
-        user: { id: userId },
+        profile: { id: profileId },
         movie: { id: movieId },
       },
     });
@@ -46,23 +46,43 @@ export class MyListService {
     return { success: true };
   }
 
-  async getMyList(userId: string) {
+  async getMyList(profileId: string) {
     const items = await this.myListRepository.find({
-      where: { user: { id: userId } },
+      where: { profile: { id: profileId } },
       relations: ['movie'],
     });
 
     return items.map((item) => item.movie);
   }
 
-  async isInMyList(userId: string, movieId: string) {
+  async isInMyList(profileId: string, movieId: string) {
     const item = await this.myListRepository.findOne({
       where: {
-        user: { id: userId },
+        profile: { id: profileId },
         movie: { id: movieId },
       },
     });
 
     return !!item;
+  }
+
+  /**
+   * Get movie IDs that are in a user's MyList for multiple movies in a single query
+   */
+  async getMyListItemsBatch(
+    profileId: string,
+    movieIds: string[],
+  ): Promise<string[]> {
+    if (movieIds.length === 0) return [];
+
+    const items = await this.myListRepository.find({
+      where: {
+        profile: { id: profileId },
+        movie: { id: In(movieIds) },
+      },
+      select: ['movieId'],
+    });
+
+    return items.map((item) => item.movieId);
   }
 }

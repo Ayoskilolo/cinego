@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
 } from '@nestjs/common';
+import { Paginate, PaginateQuery } from 'nestjs-paginate';
 import { CommentService } from './comment.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import {
@@ -15,6 +16,7 @@ import {
   ApiResponse,
   ApiBody,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 
 @ApiTags('Comments')
@@ -32,18 +34,54 @@ export class CommentController {
     @Body() createCommentDto: CreateCommentDto,
     @Req() req: Request,
   ) {
-    return await this.commentService.create(createCommentDto, req['user']);
+    const user = req['user'];
+    return await this.commentService.create(
+      createCommentDto,
+      user.activeProfileId,
+      req['user'],
+    );
   }
 
   @Get('movie/:movieId')
-  @ApiOperation({ summary: 'Get all comments for a movie' })
+  @ApiOperation({ summary: 'Get paginated comments for a movie' })
   @ApiParam({ name: 'movieId', description: 'ID of the movie', type: 'string' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page',
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    type: String,
+    description: 'Sort by column:direction (e.g., dateCreated:DESC)',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search in comment content',
+  })
   @ApiResponse({ status: 200, description: 'Successfully retrieved comments.' })
   @ApiResponse({ status: 404, description: 'Movie not found.' })
-  async findAllByMovie(@Param('movieId') movieId: string, @Req() req: Request) {
+  async findAllByMovie(
+    @Param('movieId') movieId: string,
+    @Req() req: Request,
+    @Paginate() query: PaginateQuery,
+  ) {
+    const user = req['user'];
     return await this.commentService.findAllCommentsByMovie(
+      query,
       movieId,
-      req['user']?.sub,
+      user.sub,
+      user.activeProfileId,
     );
   }
 
@@ -58,10 +96,15 @@ export class CommentController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden. User cannot delete this comment.',
+    description: 'Forbidden. Profile cannot delete this comment.',
   })
   @ApiResponse({ status: 404, description: 'Comment not found.' })
   async remove(@Param('id') id: string, @Req() req: Request) {
-    return await this.commentService.remove(id, req['user']);
+    const user = req['user'];
+    return await this.commentService.remove(
+      id,
+      user.activeProfileId,
+      req['user'],
+    );
   }
 }
