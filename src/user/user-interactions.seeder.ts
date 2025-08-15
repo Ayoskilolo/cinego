@@ -10,6 +10,11 @@ import { Profile } from './entities/profile.entity';
 import { Movie } from '../movie/entities/movie.entity';
 import { faker } from '@faker-js/faker';
 
+export enum DataDensity {
+  SPARSE = 'sparse',
+  DENSE = 'dense',
+}
+
 @Injectable()
 export class UserInteractionsSeeder implements Seeder {
   constructor(
@@ -29,6 +34,10 @@ export class UserInteractionsSeeder implements Seeder {
   private readonly logger = new Logger(UserInteractionsSeeder.name);
 
   async seed(): Promise<any> {
+    // Check if data density is specified via environment variable
+    const dataDensity =
+      (process.env.DATA_DENSITY as DataDensity) || DataDensity.SPARSE;
+
     const existingWatchHistory = await this.watchHistoryRepository.count();
     const existingReviews = await this.reviewRepository.count();
     const existingComments = await this.commentRepository.count();
@@ -59,7 +68,7 @@ export class UserInteractionsSeeder implements Seeder {
     }
 
     this.logger.log(
-      `Found ${profiles.length} profiles and ${movies.length} movies`,
+      `Found ${profiles.length} profiles and ${movies.length} movies. Using ${dataDensity} data density.`,
     );
 
     // Sample comment templates for realistic content
@@ -86,144 +95,286 @@ export class UserInteractionsSeeder implements Seeder {
       "I can't stop thinking about this movie. It really made an impact on me.",
     ];
 
+    // Configure data density parameters
+    const config = this.getDataDensityConfig(dataDensity, movies.length);
+
+    // Create popular movies that many users will interact with (for dense data)
+    const popularMovies =
+      dataDensity === DataDensity.DENSE
+        ? this.createPopularMovies(movies, config.popularMovieCount)
+        : [];
+
     // Generate interactions for each profile
     for (const profile of profiles) {
-      // Each profile watches 5-15 movies
-      const numberOfWatchedMovies = faker.number.int({ min: 5, max: 15 });
-      const watchedMovies = faker.helpers.arrayElements(
+      await this.generateProfileInteractions(
+        profile,
         movies,
-        numberOfWatchedMovies,
+        popularMovies,
+        config,
+        commentTemplates,
+      );
+    }
+
+    this.logger.log(
+      `Successfully seeded user interactions with ${dataDensity} density`,
+    );
+  }
+
+  private getDataDensityConfig(density: DataDensity, totalMovies: number) {
+    switch (density) {
+      case DataDensity.SPARSE:
+        return {
+          watchedMoviesMin: 5,
+          watchedMoviesMax: 15,
+          popularMovieCount: 0,
+          reviewProbability: 0.4,
+          commentProbability: 0.25,
+          myListProbability: 0.6,
+          futureWatchingMin: 2,
+          futureWatchingMax: 8,
+        };
+      case DataDensity.DENSE:
+        return {
+          watchedMoviesMin: 25, // High minimum but realistic
+          watchedMoviesMax: 40, // Most movies but not all
+          popularMovieCount: Math.floor(totalMovies * 0.4), // 40% popular movies for overlap
+          reviewProbability: 0.85, // Higher review rate
+          commentProbability: 0.7, // Higher comment rate
+          myListProbability: 0.9, // Higher my list rate
+          futureWatchingMin: 8,
+          futureWatchingMax: 20,
+        };
+      default:
+        // Default to sparse if density is not recognized
+        return {
+          watchedMoviesMin: 5,
+          watchedMoviesMax: 15,
+          popularMovieCount: 0,
+          reviewProbability: 0.4,
+          commentProbability: 0.25,
+          myListProbability: 0.6,
+          futureWatchingMin: 2,
+          futureWatchingMax: 8,
+        };
+    }
+  }
+
+  private createPopularMovies(
+    allMovies: Movie[],
+    popularCount: number,
+  ): Movie[] {
+    // For dense data: select movies that will have high overlap
+    // Prioritize movies with broader appeal (action, drama, comedy genres)
+    const popularGenres = ['Action', 'Drama', 'Comedy', 'Romance', 'Thriller'];
+
+    const popularMovies = allMovies.filter(
+      (movie) =>
+        movie.genres &&
+        movie.genres.some((genre) => popularGenres.includes(genre)),
+    );
+
+    // If we don't have enough popular genre movies, add random ones
+    if (popularMovies.length < popularCount) {
+      const remainingMovies = allMovies.filter(
+        (movie) => !popularMovies.includes(movie),
+      );
+      const additionalMovies = faker.helpers.arrayElements(
+        remainingMovies,
+        popularCount - popularMovies.length,
+      );
+      return [...popularMovies, ...additionalMovies];
+    }
+
+    // Return the requested number of popular movies
+    return faker.helpers.arrayElements(popularMovies, popularCount);
+  }
+
+  private async generateProfileInteractions(
+    profile: Profile,
+    allMovies: Movie[],
+    popularMovies: Movie[],
+    config: any,
+    commentTemplates: string[],
+  ) {
+    let moviesToWatch: Movie[];
+
+    if (popularMovies.length > 0) {
+      // For dense data: ensure popular movies are included with high probability
+      const popularMoviesToInclude = faker.helpers.arrayElements(
+        popularMovies,
+        Math.min(
+          popularMovies.length,
+          faker.number.int({
+            min: Math.floor(popularMovies.length * 0.6), // 60% of popular movies
+            max: popularMovies.length,
+          }),
+        ),
       );
 
-      // Track which movies this profile has watched for realistic interactions
-      const profileWatchedMovies = new Set<string>();
+      const otherMovies = allMovies.filter(
+        (movie) => !popularMovies.includes(movie),
+      );
 
-      for (const movie of watchedMovies) {
-        try {
-          // Generate realistic watch data
-          const watchDurationInSeconds = faker.number.int({
-            min: 300,
-            max: 7200,
-          }); // 5 min to 2 hours
-          const watchProgress = faker.number.float({
-            min: 10,
-            max: 100,
-            fractionDigits: 1,
-          });
-          const isCompleted = watchProgress >= 90; // Consider completed if watched 90% or more
+      // Calculate remaining slots for other movies
+      const remainingMin = Math.max(
+        0,
+        config.watchedMoviesMin - popularMoviesToInclude.length,
+      );
+      const remainingMax = Math.max(
+        remainingMin,
+        config.watchedMoviesMax - popularMoviesToInclude.length,
+      );
 
-          // Generate realistic last watched date (within last 30 days)
-          const lastWatchedAt = faker.date.recent({ days: 30 });
+      const otherMoviesToWatch = faker.helpers.arrayElements(
+        otherMovies,
+        faker.number.int({
+          min: remainingMin,
+          max: Math.min(remainingMax, otherMovies.length),
+        }),
+      );
 
-          const watchHistory: Partial<WatchHistory> = {
-            profileId: profile.id,
-            movieId: movie.id,
-            lastWatchedAt,
-            watchDurationInSeconds,
-            watchProgress,
-            isCompleted,
-          };
+      moviesToWatch = [...popularMoviesToInclude, ...otherMoviesToWatch];
+    } else {
+      // For sparse data: random selection
+      const numberOfWatchedMovies = faker.number.int({
+        min: config.watchedMoviesMin,
+        max: Math.min(config.watchedMoviesMax, allMovies.length),
+      });
+      moviesToWatch = faker.helpers.arrayElements(
+        allMovies,
+        numberOfWatchedMovies,
+      );
+    }
 
-          const watchHistoryEntity =
-            this.watchHistoryRepository.create(watchHistory);
-          await this.watchHistoryRepository.save(watchHistoryEntity);
+    // Track which movies this profile has watched for realistic interactions
+    const profileWatchedMovies = new Set<string>();
 
-          profileWatchedMovies.add(movie.id);
+    for (const movie of moviesToWatch) {
+      try {
+        // Generate realistic watch data
+        const watchDurationInSeconds = faker.number.int({
+          min: 300,
+          max: 7200,
+        }); // 5 min to 2 hours
+        const watchProgress = faker.number.float({
+          min: 10,
+          max: 100,
+          fractionDigits: 1,
+        });
+        const isCompleted = watchProgress >= 90; // Consider completed if watched 90% or more
 
-          // If they completed the movie, they're more likely to interact with it
-          if (isCompleted) {
-            // 40% chance to review a completed movie
-            if (faker.datatype.boolean({ probability: 0.4 })) {
-              const rating = faker.helpers.weightedArrayElement([
-                { value: 1, weight: 5 },
-                { value: 2, weight: 10 },
-                { value: 3, weight: 25 },
-                { value: 4, weight: 40 },
-                { value: 5, weight: 20 },
-              ]);
+        // Generate realistic last watched date (within last 30 days)
+        const lastWatchedAt = faker.date.recent({ days: 30 });
 
-              const review: Partial<Review> = {
-                profileId: profile.id,
-                movieId: movie.id,
-                rating,
-              };
+        const watchHistory: Partial<WatchHistory> = {
+          profileId: profile.id,
+          movieId: movie.id,
+          lastWatchedAt,
+          watchDurationInSeconds,
+          watchProgress,
+          isCompleted,
+        };
 
-              const reviewEntity = this.reviewRepository.create(review);
-              await this.reviewRepository.save(reviewEntity);
-            }
+        const watchHistoryEntity =
+          this.watchHistoryRepository.create(watchHistory);
+        await this.watchHistoryRepository.save(watchHistoryEntity);
 
-            // 25% chance to comment on a completed movie
-            if (faker.datatype.boolean({ probability: 0.25 })) {
-              const commentContent =
-                faker.helpers.arrayElement(commentTemplates);
+        profileWatchedMovies.add(movie.id);
 
-              const comment: Partial<Comment> = {
-                profileId: profile.id,
-                movieId: movie.id,
-                content: commentContent,
-              };
+        // If they completed the movie, they're more likely to interact with it
+        if (isCompleted) {
+          // Review probability based on data density
+          if (
+            faker.datatype.boolean({ probability: config.reviewProbability })
+          ) {
+            const rating = faker.helpers.weightedArrayElement([
+              { value: 1, weight: 5 },
+              { value: 2, weight: 10 },
+              { value: 3, weight: 25 },
+              { value: 4, weight: 40 },
+              { value: 5, weight: 20 },
+            ]);
 
-              const commentEntity = this.commentRepository.create(comment);
-              await this.commentRepository.save(commentEntity);
-            }
-          }
-
-          // 60% chance to add any watched movie to their list
-          if (faker.datatype.boolean({ probability: 0.6 })) {
-            const myListItem: Partial<MyListEntity> = {
+            const review: Partial<Review> = {
               profileId: profile.id,
               movieId: movie.id,
+              rating,
             };
 
-            const myListEntity = this.myListRepository.create(myListItem);
-            await this.myListRepository.save(myListEntity);
+            const reviewEntity = this.reviewRepository.create(review);
+            await this.reviewRepository.save(reviewEntity);
           }
+
+          // Comment probability based on data density
+          if (
+            faker.datatype.boolean({ probability: config.commentProbability })
+          ) {
+            const commentContent = faker.helpers.arrayElement(commentTemplates);
+
+            const comment: Partial<Comment> = {
+              profileId: profile.id,
+              movieId: movie.id,
+              content: commentContent,
+            };
+
+            const commentEntity = this.commentRepository.create(comment);
+            await this.commentRepository.save(commentEntity);
+          }
+        }
+
+        // MyList probability based on data density
+        if (faker.datatype.boolean({ probability: config.myListProbability })) {
+          const myListItem: Partial<MyListEntity> = {
+            profileId: profile.id,
+            movieId: movie.id,
+          };
+
+          const myListEntity = this.myListRepository.create(myListItem);
+          await this.myListRepository.save(myListEntity);
+        }
+      } catch (error) {
+        this.logger.error(
+          `Unable to seed interactions for profile ${profile.profileName} and movie ${movie.title}`,
+          error,
+        );
+      }
+    }
+
+    // Add some movies to watchlist that they haven't watched yet (for future watching)
+    const unwatchedMovies = allMovies.filter(
+      (movie) => !profileWatchedMovies.has(movie.id),
+    );
+    if (unwatchedMovies.length > 0) {
+      const numberOfUnwatchedForList = faker.number.int({
+        min: config.futureWatchingMin,
+        max: Math.min(config.futureWatchingMax, unwatchedMovies.length),
+      });
+      const moviesForFutureWatching = faker.helpers.arrayElements(
+        unwatchedMovies,
+        numberOfUnwatchedForList,
+      );
+
+      for (const movie of moviesForFutureWatching) {
+        try {
+          const myListItem: Partial<MyListEntity> = {
+            profileId: profile.id,
+            movieId: movie.id,
+          };
+
+          const myListEntity = this.myListRepository.create(myListItem);
+          await this.myListRepository.save(myListEntity);
         } catch (error) {
           this.logger.error(
-            `Unable to seed interactions for profile ${profile.profileName} and movie ${movie.title}`,
+            `Unable to seed my-list entry for profile ${profile.profileName} and movie ${movie.title}`,
             error,
           );
         }
       }
-
-      // Add some movies to watchlist that they haven't watched yet (for future watching)
-      const unwatchedMovies = movies.filter(
-        (movie) => !profileWatchedMovies.has(movie.id),
-      );
-      if (unwatchedMovies.length > 0) {
-        const numberOfUnwatchedForList = faker.number.int({
-          min: 2,
-          max: Math.min(8, unwatchedMovies.length),
-        });
-        const moviesForFutureWatching = faker.helpers.arrayElements(
-          unwatchedMovies,
-          numberOfUnwatchedForList,
-        );
-
-        for (const movie of moviesForFutureWatching) {
-          try {
-            const myListItem: Partial<MyListEntity> = {
-              profileId: profile.id,
-              movieId: movie.id,
-            };
-
-            const myListEntity = this.myListRepository.create(myListItem);
-            await this.myListRepository.save(myListEntity);
-          } catch (error) {
-            this.logger.error(
-              `Unable to seed my-list entry for profile ${profile.profileName} and movie ${movie.title}`,
-              error,
-            );
-          }
-        }
-      }
-
-      this.logger.log(
-        `Seeded interactions for profile: ${profile.profileName} (${numberOfWatchedMovies} watched, interactions created)`,
-      );
     }
 
-    this.logger.log('Successfully seeded user interactions');
+    this.logger.log(
+      `Seeded interactions for profile: ${profile.profileName} (${moviesToWatch.length} watched, interactions created)`,
+    );
   }
 
   drop(): Promise<any> {

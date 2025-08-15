@@ -23,7 +23,10 @@
     "migration:generate": "pnpm run build && pnpm typeorm migration:generate",
     "migration:run": "pnpm typeorm migration:run",
     "migration:revert": "pnpm typeorm migration:revert",
-    "seed": "node dist/src/seeder"
+    "seed": "node dist/src/seeder",
+    "seed:user-interactions": "set DATA_DENSITY=sparse && node dist/src/seeder",
+    "seed:user-interactions:dense": "set DATA_DENSITY=dense && node dist/src/seeder",
+    "seed:user-interactions:drop": "node dist/src/clear-user-interactions-runner"
   },
   "dependencies": {
     "@faker-js/faker": "^9.9.0",

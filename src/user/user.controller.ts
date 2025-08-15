@@ -220,23 +220,20 @@ export class UserController {
     return { data, message: 'Movie removed from MyList' };
   }
 
-  @Post('profiles/:profileId/watch-history')
-  @ApiOperation({ summary: 'Update watch history for a profile' })
-  @ApiParam({ name: 'profileId', description: 'The ID of the profile' })
+  @Post('watch-history')
+  @ApiOperation({ summary: 'Update watch history for the active profile' })
   @ApiResponse({
     status: 201,
     description: 'Watch history updated successfully.',
   })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 404, description: 'Profile not found.' })
   async updateWatchHistory(
     @Req() req: Request,
-    @Param('profileId') profileId: string,
     @Body() updateWatchHistoryDto: UpdateWatchHistoryDto,
   ) {
+    const user = req['user'];
     const watchHistory = await this.userService.updateWatchHistory(
-      req['user'].sub,
-      profileId,
+      user.activeProfileId,
       updateWatchHistoryDto,
     );
     return {
@@ -245,22 +242,17 @@ export class UserController {
     };
   }
 
-  @Get('profiles/:profileId/watch-history')
-  @ApiOperation({ summary: 'Get watch history for a profile' })
-  @ApiParam({ name: 'profileId', description: 'The ID of the profile' })
+  @Get('watch-history')
+  @ApiOperation({ summary: 'Get watch history for the active profile' })
   @ApiResponse({
     status: 200,
     description: 'Watch history retrieved successfully.',
   })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 404, description: 'Profile not found.' })
-  async getWatchHistory(
-    @Req() req: Request,
-    @Param('profileId') profileId: string,
-  ) {
+  async getWatchHistory(@Req() req: Request) {
+    const user = req['user'];
     const watchHistory = await this.userService.getWatchHistory(
-      req['user'].sub,
-      profileId,
+      user.activeProfileId,
     );
     return {
       data: watchHistory,
@@ -268,22 +260,17 @@ export class UserController {
     };
   }
 
-  @Delete('profiles/:profileId/watch-history')
-  @ApiOperation({ summary: 'Clear watch history for a profile' })
-  @ApiParam({ name: 'profileId', description: 'The ID of the profile' })
+  @Delete('watch-history')
+  @ApiOperation({ summary: 'Clear watch history for the active profile' })
   @ApiResponse({
     status: 200,
     description: 'Watch history cleared successfully.',
   })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 404, description: 'Profile not found.' })
-  async clearWatchHistory(
-    @Req() req: Request,
-    @Param('profileId') profileId: string,
-  ) {
+  async clearWatchHistory(@Req() req: Request) {
+    const user = req['user'];
     const result = await this.userService.clearWatchHistory(
-      req['user'].sub,
-      profileId,
+      user.activeProfileId,
     );
     return {
       data: result,
@@ -291,9 +278,8 @@ export class UserController {
     };
   }
 
-  @Delete('profiles/:profileId/watch-history/:movieId')
+  @Delete('watch-history/:movieId')
   @ApiOperation({ summary: 'Delete a specific movie from watch history' })
-  @ApiParam({ name: 'profileId', description: 'The ID of the profile' })
   @ApiParam({
     name: 'movieId',
     description: 'The ID of the movie to remove from history',
@@ -303,15 +289,17 @@ export class UserController {
     description: 'Watch history entry deleted successfully.',
   })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 404, description: 'Profile or movie not found.' })
+  @ApiResponse({
+    status: 404,
+    description: 'Movie not found in watch history.',
+  })
   async deleteWatchHistoryEntry(
     @Req() req: Request,
-    @Param('profileId') profileId: string,
     @Param('movieId') movieId: string,
   ) {
+    const user = req['user'];
     const result = await this.userService.deleteWatchHistoryEntry(
-      req['user'].sub,
-      profileId,
+      user.activeProfileId,
       movieId,
     );
     return {

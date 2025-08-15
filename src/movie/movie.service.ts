@@ -105,11 +105,6 @@ export class MovieService {
       isInMyList: profileId ? userChecks[movie.id] || false : undefined,
     }));
 
-    const endTime = Date.now();
-    this.logger.debug(
-      `Batch enrichment completed for ${movies.length} movies in ${endTime - startTime}ms`,
-    );
-
     return enrichedMovies;
   }
 

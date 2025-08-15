@@ -680,22 +680,10 @@ export class UserService {
   }
 
   async updateWatchHistory(
-    userId: string,
     profileId: string,
     updateWatchHistoryDto: UpdateWatchHistoryDto,
   ) {
     try {
-      // First verify that the profile belongs to the user
-      const profile = await this.profileRepository.findOne({
-        where: { id: profileId, userId },
-      });
-
-      if (!profile) {
-        throw new NotFoundException(
-          'Profile not found or does not belong to user',
-        );
-      }
-
       let watchHistory = await this.watchHistoryRepository.findOne({
         where: {
           profileId,
@@ -719,9 +707,6 @@ export class UserService {
 
       return await this.watchHistoryRepository.save(watchHistory);
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
       throw new InternalServerErrorException(
         'Something went wrong in updating watch history.',
         error,
@@ -729,19 +714,8 @@ export class UserService {
     }
   }
 
-  async getWatchHistory(userId: string, profileId: string) {
+  async getWatchHistory(profileId: string) {
     try {
-      // Verify profile ownership
-      const profile = await this.profileRepository.findOne({
-        where: { id: profileId, userId },
-      });
-
-      if (!profile) {
-        throw new NotFoundException(
-          'Profile not found or does not belong to user',
-        );
-      }
-
       const watchHistory = await this.watchHistoryRepository.find({
         where: { profileId },
         order: {
@@ -752,9 +726,6 @@ export class UserService {
 
       return watchHistory;
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
       throw new InternalServerErrorException(
         'Something went wrong in fetching watch history.',
         error,
@@ -762,25 +733,11 @@ export class UserService {
     }
   }
 
-  async clearWatchHistory(userId: string, profileId: string) {
+  async clearWatchHistory(profileId: string) {
     try {
-      // Verify profile ownership
-      const profile = await this.profileRepository.findOne({
-        where: { id: profileId, userId },
-      });
-
-      if (!profile) {
-        throw new NotFoundException(
-          'Profile not found or does not belong to user',
-        );
-      }
-
       await this.watchHistoryRepository.delete({ profileId });
       return { message: 'Watch history cleared successfully' };
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
       throw new InternalServerErrorException(
         'Something went wrong in clearing watch history.',
         error,
@@ -788,23 +745,8 @@ export class UserService {
     }
   }
 
-  async deleteWatchHistoryEntry(
-    userId: string,
-    profileId: string,
-    movieId: string,
-  ) {
+  async deleteWatchHistoryEntry(profileId: string, movieId: string) {
     try {
-      // Verify profile ownership
-      const profile = await this.profileRepository.findOne({
-        where: { id: profileId, userId },
-      });
-
-      if (!profile) {
-        throw new NotFoundException(
-          'Profile not found or does not belong to user',
-        );
-      }
-
       const result = await this.watchHistoryRepository.delete({
         profileId,
         movieId,

@@ -6,18 +6,14 @@ import { Movie } from './movie/entities/movie.entity';
 import { PaymentPartner } from './payment/entities/payment-partner.entity';
 import { Profile } from './user/entities/profile.entity';
 import { User } from './user/entities/user.entity';
-import { PaymentPartnerSeeder } from './payment/payment.method.seeder';
 import { Transaction } from './transactions/entities/transaction.entity';
 import { ProvidersEntity } from './providers/entities/providers.entity';
-import { ProvidersSeeder } from './providers/providers.seeder';
 import { WatchHistory } from './user/entities/watch-history.entity';
 import { MyListEntity } from './my-list/entities/my-list.entity';
 import { Comment } from './comment/entities/comment.entity';
 import { Review } from './review/entities/review.entity';
-import { MovieSeeder } from './movie/movie.seeder';
-import { UserSeeder } from './user/user.seeder';
-import { UserInteractionsSeeder } from './user/user-interactions.seeder';
 import { ItemSimilarity } from './recommendation/entities/item-similarity.entity';
+import { ClearUserInteractionsSeeder } from './clear-user-interactions-seeder';
 
 seeder({
   imports: [
@@ -44,10 +40,4 @@ seeder({
       ItemSimilarity,
     ]),
   ],
-}).run([
-  PaymentPartnerSeeder,
-  ProvidersSeeder,
-  MovieSeeder,
-  UserSeeder,
-  UserInteractionsSeeder,
-]);
+}).run([ClearUserInteractionsSeeder]);

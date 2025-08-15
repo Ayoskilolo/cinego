@@ -98,7 +98,7 @@ export class ReviewController {
     return await this.reviewService.getMovieRatingSummary(movieId);
   }
 
-  @Get('movie/:movieId/reviews')
+  @Get('movie/:movieId')
   @ApiOperation({
     summary: 'Get paginated individual reviews for a specific movie',
   })
@@ -139,28 +139,28 @@ export class ReviewController {
     return await this.reviewService.getMovieReviews(query, movieId);
   }
 
-  @Get('movie/:movieId')
-  @ApiOperation({
-    summary:
-      'Get all reviews for a specific movie (deprecated - use /reviews endpoint)',
-  })
-  @ApiParam({ name: 'movieId', description: 'ID of the movie', type: 'string' })
-  @ApiResponse({ status: 200, description: 'Successfully retrieved reviews.' })
-  @ApiResponse({
-    status: 404,
-    description: 'Movie not found or no reviews yet.',
-  })
-  async findAllByMovie(
-    @Param('movieId', ParseUUIDPipe) movieId: string,
-    @Req() req: Request,
-  ) {
-    const user = req['user'];
-    return await this.reviewService.findAllReviewsByMovie(
-      movieId,
-      user.sub,
-      user.activeProfileId,
-    );
-  }
+  // @Get('movie/:movieId')
+  // @ApiOperation({
+  //   summary:
+  //     'Get all reviews for a specific movie (deprecated - use /reviews endpoint)',
+  // })
+  // @ApiParam({ name: 'movieId', description: 'ID of the movie', type: 'string' })
+  // @ApiResponse({ status: 200, description: 'Successfully retrieved reviews.' })
+  // @ApiResponse({
+  //   status: 404,
+  //   description: 'Movie not found or no reviews yet.',
+  // })
+  // async findAllByMovie(
+  //   @Param('movieId', ParseUUIDPipe) movieId: string,
+  //   @Req() req: Request,
+  // ) {
+  //   const user = req['user'];
+  //   return await this.reviewService.findAllReviewsByMovie(
+  //     movieId,
+  //     user.sub,
+  //     user.activeProfileId,
+  //   );
+  // }
 
   @Get('movie/:movieId/profile')
   @UseGuards(RolesGuard)
@@ -183,10 +183,12 @@ export class ReviewController {
     @Req() req: Request,
   ) {
     const user = req['user'];
-    return await this.reviewService.findOneReviewByProfileAndMovie(
+    const data = await this.reviewService.findOneReviewByProfileAndMovie(
       user.activeProfileId,
       movieId,
     );
+    console.log(data);
+    return { data };
   }
 
   @Patch(':id')

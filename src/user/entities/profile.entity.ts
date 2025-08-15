@@ -42,6 +42,16 @@ export class Profile extends BaseEntity {
   @Column({ nullable: true })
   profileImageUrl?: string;
 
+  @Exclude()
+  @Column('jsonb', { nullable: true })
+  contentProfileJSON?: Record<string, any>;
+
+  @Exclude()
+  @Column({ type: 'timestamp', nullable: true })
+  contentProfileUpdatedAt?: Date;
+
+  // Relations
+
   @OneToMany(() => WatchHistory, (watchHistory) => watchHistory.profile)
   watchHistory: WatchHistory[];
 
