@@ -6,6 +6,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UserModule } from '../user/user.module';
 import { AuthGuard } from './auth.guard';
 import { MailModule } from '../mail/mail.module';
+import { SessionEntity } from './entities/session.entity';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
 @Module({
   imports: [
@@ -16,6 +18,7 @@ import { MailModule } from '../mail/mail.module';
     }),
     UserModule,
     MailModule,
+    TypeOrmModule.forFeature([SessionEntity]),
   ],
   controllers: [AuthController],
   providers: [AuthService, AuthGuard],

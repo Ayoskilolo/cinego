@@ -11,10 +11,17 @@ import { MyListModule } from '../my-list/my-list.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MailModule } from 'src/mail/mail.module';
+import { SessionEntity } from '../auth/entities/session.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Profile, WatchHistory, Transaction]),
+    TypeOrmModule.forFeature([
+      User,
+      Profile,
+      WatchHistory,
+      Transaction,
+      SessionEntity,
+    ]),
     PaymentModule,
     MyListModule,
     JwtModule.registerAsync({

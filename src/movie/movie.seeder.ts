@@ -76,26 +76,26 @@ export class MovieSeeder implements Seeder {
       'Thunder and Lightning',
     ];
 
-    // Realistic genres
+    // Realistic genres (lowercase to match provider data)
     const genres = [
-      'Action',
-      'Adventure',
-      'Comedy',
-      'Drama',
-      'Horror',
-      'Romance',
-      'Sci-Fi',
-      'Thriller',
-      'Mystery',
-      'Fantasy',
-      'Documentary',
-      'Animation',
-      'Crime',
-      'War',
-      'Western',
-      'Musical',
-      'Biography',
-      'History',
+      'action',
+      'adventure',
+      'comedy',
+      'drama',
+      'horror',
+      'romance',
+      'sci-fi',
+      'thriller',
+      'mystery',
+      'fantasy',
+      'documentary',
+      'animation',
+      'crime',
+      'war',
+      'western',
+      'musical',
+      'biography',
+      'history',
     ];
 
     // Realistic languages

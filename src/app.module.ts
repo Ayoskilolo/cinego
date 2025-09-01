@@ -25,6 +25,8 @@ import { MovieNewsModule } from './movie-news/movie-news.module';
 import { CommentModule } from './comment/comment.module';
 import { ReviewModule } from './review/review.module';
 import { RecommendationModule } from './recommendation/recommendation.module';
+import { SessionEntity } from './auth/entities/session.entity';
+import { AwsServicesModule } from './aws-services/aws-services.module';
 
 @Module({
   imports: [
@@ -39,7 +41,7 @@ import { RecommendationModule } from './recommendation/recommendation.module';
       inject: [ConfigService],
     }),
 
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, SessionEntity]),
 
     AuthModule,
 
@@ -70,6 +72,8 @@ import { RecommendationModule } from './recommendation/recommendation.module';
     ReviewModule,
 
     RecommendationModule,
+
+    AwsServicesModule,
   ],
   controllers: [AppController],
   providers: [

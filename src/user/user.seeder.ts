@@ -78,10 +78,10 @@ export class UserSeeder implements Seeder {
           `Seeded admin profile: ${savedAdminProfile.profileName}`,
         );
 
-        // Set admin profile as active
-        await this.userRepository.update(savedAdmin.id, {
-          activeProfileId: savedAdminProfile.id,
-        });
+        // // Set admin profile as active
+        // await this.userRepository.update(savedAdmin.id, {
+        //   activeProfileId: savedAdminProfile.id,
+        // });
       } catch (error) {
         this.logger.error('Unable to seed admin user', error);
       }
@@ -179,11 +179,11 @@ export class UserSeeder implements Seeder {
           const firstProfile = await this.profileRepository.findOne({
             where: { userId: savedUser.id },
           });
-          if (firstProfile) {
-            await this.userRepository.update(savedUser.id, {
-              activeProfileId: firstProfile.id,
-            });
-          }
+          // if (firstProfile) {
+          //   await this.userRepository.update(savedUser.id, {
+          //     activeProfileId: firstProfile.id,
+          //   });
+          // }
         } catch (error) {
           this.logger.error(`Unable to seed user ${i + 1}`, error);
         }

@@ -165,7 +165,7 @@ export class UserInteractionsSeeder implements Seeder {
   ): Movie[] {
     // For dense data: select movies that will have high overlap
     // Prioritize movies with broader appeal (action, drama, comedy genres)
-    const popularGenres = ['Action', 'Drama', 'Comedy', 'Romance', 'Thriller'];
+    const popularGenres = ['action', 'drama', 'comedy', 'romance', 'thriller'];
 
     const popularMovies = allMovies.filter(
       (movie) =>

@@ -6,7 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { hash, compare } from 'bcryptjs';
-import { differenceInYears, addMinutes, addHours } from 'date-fns';
+import { v4 as uuidv4 } from 'uuid';
+import { differenceInYears, addMinutes, addHours, addDays } from 'date-fns';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
@@ -26,6 +27,7 @@ import { UpdateAccountDto } from './dto/update-account.dto';
 import { ResetPasswordDto } from '../auth/dto/reset-password.dto';
 import { EmailTemplateData } from 'src/mail/interfaces';
 import { MailService } from 'src/mail/mail.service';
+import { SessionEntity } from '../auth/entities/session.entity';
 
 @Injectable()
 export class UserService {
@@ -39,6 +41,8 @@ export class UserService {
     private readonly watchHistoryRepository: Repository<WatchHistory>,
     private readonly mailService: MailService,
     private readonly jwtService: JwtService,
+    @InjectRepository(SessionEntity)
+    private readonly sessionRepository: Repository<SessionEntity>,
   ) {}
 
   async createUser(createUserDto: SignUpDto) {
@@ -109,8 +113,6 @@ export class UserService {
       await this.profileRepository.save(userProfile);
       await this.profileRepository.save(kidsProfile);
 
-      // Set this profile as active
-      user.activeProfileId = userProfile.id;
       await this.userRepository.save(user);
 
       return user;
@@ -223,10 +225,13 @@ export class UserService {
     }
   }
 
-  async deleteProfile(userId: string, profileId: string) {
+  async deleteProfile(userId: string, profileId: string, sessionId: string) {
     try {
-      const user = await this.findOneById(userId);
-      if (user.activeProfileId === profileId) {
+      const session = await this.sessionRepository.findOneOrFail({
+        where: { id: sessionId, isActive: true, userId },
+      });
+
+      if (session.currentProfileId === profileId) {
         throw new BadRequestException(
           'Cannot delete the active profile. Switch profiles first.',
         );
@@ -252,10 +257,10 @@ export class UserService {
     }
   }
 
-  async switchProfile(userId: string, profileId: string) {
+  async switchProfile(userId: string, newProfileId: string, sessionId: string) {
     try {
       const profile = await this.profileRepository.findOne({
-        where: { id: profileId, userId },
+        where: { id: newProfileId, userId },
         relations: ['user'],
       });
 
@@ -265,24 +270,37 @@ export class UserService {
         );
       }
 
-      // Update the user's active profile
-      await this.userRepository.update(userId, { activeProfileId: profileId });
+      const session = await this.sessionRepository.findOneOrFail({
+        where: { id: sessionId, isActive: true, userId },
+      });
+
+      session.currentProfileId = newProfileId;
 
       // Generate a new JWT token with the profile information
       const user = await this.findOneById(userId);
       const payload = {
         sub: user.id,
+        sessionId: session.id,
+        profileId: session.currentProfileId,
         email: user.email,
         phoneNumber: user.phoneNumber,
-        activeProfileId: profileId,
+        isVerified: user.isEmailVerified,
       };
 
-      // Note: You'll need to inject JwtService in the constructor
+      // Generate a new refresh token
+      const newRawRefreshToken = uuidv4();
+      session.refreshTokenHash = await hash(newRawRefreshToken, 10);
+      session.refreshTokenExpiresAt = addDays(new Date(), 30);
+
+      // Save the session
+      await this.sessionRepository.save(session);
+
       const accessToken = await this.jwtService.signAsync(payload);
 
       return {
         profile,
         accessToken,
+        refreshToken: `${session.id}.${newRawRefreshToken}`,
       };
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -292,6 +310,25 @@ export class UserService {
         'Something went wrong in switching profiles.',
         error,
       );
+    }
+  }
+
+  async getCurrentProfile(user: any) {
+    try {
+      const profile = await this.profileRepository.findOne({
+        where: { id: user.profileId, userId: user.sub },
+      });
+
+      if (!profile) {
+        throw new NotFoundException('Profile not found');
+      }
+
+      return profile;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to get current profile');
     }
   }
 
@@ -613,16 +650,7 @@ export class UserService {
 
   async findOne(id: string) {
     try {
-      const user = await this.ensureActiveProfile(id);
-      // Get the active profile
-      const activeProfile = user.profiles.find(
-        (profile) => profile.id === user.activeProfileId,
-      );
-
-      if (activeProfile) {
-        user['activeProfile'] = activeProfile;
-      }
-
+      const user = await this.ensureUserProfile(id);
       return user;
     } catch (error) {
       throw new NotFoundException('User not found');
@@ -633,7 +661,7 @@ export class UserService {
     return `This action removes user with id ${id}`;
   }
 
-  async ensureActiveProfile(userId: string) {
+  async ensureUserProfile(userId: string) {
     try {
       const user = await this.userRepository.findOne({
         where: { id: userId },
@@ -642,12 +670,6 @@ export class UserService {
 
       if (!user) {
         throw new NotFoundException('User not found');
-      }
-
-      // If no active profile is set, set the first profile as active
-      if (!user.activeProfileId && user.profiles.length > 0) {
-        user.activeProfileId = user.profiles[0].id;
-        await this.userRepository.save(user);
       }
 
       // If no profiles exist, create a default one and a kids one
@@ -661,19 +683,18 @@ export class UserService {
         });
         const defaultKidsProfile = await this.createProfile(userId, {
           userId: user.id,
-          profileName: user.lastName + 'Kids',
+          profileName: user.lastName + ' Kids',
           maturityRatings: MaturityRatings.PG,
         });
         user.profiles.push(defaultProfile);
         user.profiles.push(defaultKidsProfile);
-        user.activeProfileId = defaultProfile.id;
         await this.userRepository.save(user);
       }
 
       return user;
     } catch (error) {
       throw new InternalServerErrorException(
-        'Problem occurred while processing active profile.',
+        'Problem occurred while processing user profiles.',
         error,
       );
     }
@@ -683,6 +704,7 @@ export class UserService {
     profileId: string,
     updateWatchHistoryDto: UpdateWatchHistoryDto,
   ) {
+    // console.log(profileId, updateWatchHistoryDto);
     try {
       let watchHistory = await this.watchHistoryRepository.findOne({
         where: {
@@ -707,6 +729,7 @@ export class UserService {
 
       return await this.watchHistoryRepository.save(watchHistory);
     } catch (error) {
+      console.log(error);
       throw new InternalServerErrorException(
         'Something went wrong in updating watch history.',
         error,

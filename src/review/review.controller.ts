@@ -56,7 +56,7 @@ export class ReviewController {
     const user = req['user'];
     return await this.reviewService.upsert(
       createReviewDto,
-      user.activeProfileId,
+      user.profileId,
       req['user'],
     );
   }
@@ -139,29 +139,6 @@ export class ReviewController {
     return await this.reviewService.getMovieReviews(query, movieId);
   }
 
-  // @Get('movie/:movieId')
-  // @ApiOperation({
-  //   summary:
-  //     'Get all reviews for a specific movie (deprecated - use /reviews endpoint)',
-  // })
-  // @ApiParam({ name: 'movieId', description: 'ID of the movie', type: 'string' })
-  // @ApiResponse({ status: 200, description: 'Successfully retrieved reviews.' })
-  // @ApiResponse({
-  //   status: 404,
-  //   description: 'Movie not found or no reviews yet.',
-  // })
-  // async findAllByMovie(
-  //   @Param('movieId', ParseUUIDPipe) movieId: string,
-  //   @Req() req: Request,
-  // ) {
-  //   const user = req['user'];
-  //   return await this.reviewService.findAllReviewsByMovie(
-  //     movieId,
-  //     user.sub,
-  //     user.activeProfileId,
-  //   );
-  // }
-
   @Get('movie/:movieId/profile')
   @UseGuards(RolesGuard)
   @Roles(Role.USER, Role.ADMIN)
@@ -184,7 +161,7 @@ export class ReviewController {
   ) {
     const user = req['user'];
     const data = await this.reviewService.findOneReviewByProfileAndMovie(
-      user.activeProfileId,
+      user.profileId,
       movieId,
     );
     console.log(data);
@@ -218,7 +195,7 @@ export class ReviewController {
     return await this.reviewService.update(
       id,
       updateReviewDto.rating,
-      user.activeProfileId,
+      user.profileId,
     );
   }
 
@@ -241,6 +218,6 @@ export class ReviewController {
   @ApiResponse({ status: 404, description: 'Review not found.' })
   async remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     const user = req['user'];
-    return await this.reviewService.remove(id, user.activeProfileId);
+    return await this.reviewService.remove(id, user.profileId);
   }
 }

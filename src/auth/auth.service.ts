@@ -17,10 +17,19 @@ import { MailService } from '../mail/mail.service';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { EmailTemplateData } from 'src/mail/interfaces';
 import { ConfigService } from '@nestjs/config';
-import { addMinutes, differenceInMinutes } from 'date-fns';
+import { addDays, addMinutes, differenceInMinutes } from 'date-fns';
+import * as bcrypt from 'bcryptjs';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { ValidateOtpDto } from './dto/validate-otp.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
+import { SessionEntity } from './entities/session.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { LessThan, MoreThan, Not, Repository } from 'typeorm';
+import { UtilService } from '../util/util.service';
+import { v4 as uuidv4 } from 'uuid';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { SessionType } from './entities/session.enum';
 
 @Injectable()
 export class AuthService {
@@ -31,6 +40,9 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
+    @InjectRepository(SessionEntity)
+    private readonly sessionRepository: Repository<SessionEntity>,
+    private readonly utilService: UtilService,
   ) {}
 
   async checkIfUserExists(userExistsDto: UserExistsDto) {
@@ -139,15 +151,7 @@ export class AuthService {
     // Fetch the user's profiles to include in the response
     const userWithProfiles = await this.userService.findOne(user.id);
 
-    const payload = {
-      sub: user.id,
-      email: user.email,
-      phoneNumber: user.phoneNumber,
-      activeProfileId: user.activeProfileId, // Use activeProfileId from the created user
-      isVerified: user.isEmailVerified, // Include verification status in token? Optional.
-    };
-
-    const accessToken = await this.jwtService.signAsync(payload);
+    // const accessToken = await this.jwtService.signAsync(payload);
     // Exclude sensitive fields before returning
     const {
       password,
@@ -157,10 +161,14 @@ export class AuthService {
       emailVerificationExpires,
       ...safeUser
     } = userWithProfiles;
-    return { accessToken, user: safeUser };
+    return { user: safeUser };
   }
 
-  async login({ email, phoneNumber, password }: LoginDto) {
+  async login(
+    { email, phoneNumber, password }: LoginDto,
+    userAgent: string,
+    ip: string,
+  ) {
     if (!email && !phoneNumber) {
       throw new BadRequestException('Email or phone number is required');
     }
@@ -180,19 +188,78 @@ export class AuthService {
     const passwordsMatch = await compare(password, user.password);
 
     if (passwordsMatch) {
-      const userWithProfile = await this.userService.findOne(user.id);
+      const preProfileSession = await this.createPreProfileSession(user.id, {
+        ipAddress: ip,
+        userAgent,
+      });
+
       const payload = {
         sub: user.id,
+        sessionId: preProfileSession.id,
         email: user.email,
         phoneNumber: user.phoneNumber,
-        activeProfileId: userWithProfile.activeProfileId,
+        isVerified: user.isEmailVerified,
       };
 
       const accessToken = await this.jwtService.signAsync(payload);
-      return { accessToken, user: userWithProfile };
+
+      const userWithProfileInfo = await this.userService.findOne(user.id);
+      return {
+        user: userWithProfileInfo,
+        tempAccessToken: accessToken,
+        message: 'Select a profile to continue',
+      };
     }
 
     throw new UnauthorizedException('Invalid Credentials');
+  }
+
+  async loginWithProfile(
+    userId: string,
+    profileId: string,
+    deviceInfo: { ipAddress: string; userAgent: string },
+  ) {
+    const user = await this.userService.findOne(userId);
+    const profile = user.profiles.find((profile) => profile.id === profileId);
+    if (!profile) {
+      throw new BadRequestException('Invalid profile');
+    }
+
+    const rawRefreshToken = uuidv4();
+    const session = await this.createSession(
+      userId,
+      profileId,
+      deviceInfo,
+      rawRefreshToken,
+    );
+
+    const payload = {
+      sub: user.id,
+      sessionId: session.id,
+      profileId: session.currentProfileId,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      isVerified: user.isEmailVerified, // Include verification status in token? Optional.
+    };
+
+    const accessToken = await this.jwtService.signAsync(payload);
+    const {
+      password,
+      passwordResetOtp,
+      passwordResetExpires,
+      emailVerificationToken,
+      emailVerificationExpires,
+      ...safeUser
+    } = user;
+
+    return {
+      user: safeUser,
+      message: 'Login successful',
+      accessToken,
+      refreshToken: `${session.id}.${rawRefreshToken}`,
+      profile,
+      deviceInfo: this.utilService.getSimpleDeviceInfo(deviceInfo.userAgent),
+    };
   }
 
   async forgotPassword(
@@ -552,5 +619,198 @@ export class AuthService {
       );
       throw new InternalServerErrorException('Failed to process your request');
     }
+  }
+
+  async refreshToken(refreshToken: string) {
+    const [sessionId, rawRefreshToken] = refreshToken.split('.');
+
+    const sessions = await this.sessionRepository.find({
+      where: {
+        id: sessionId,
+        isActive: true,
+        refreshTokenExpiresAt: MoreThan(new Date()),
+      },
+      relations: ['user'],
+    });
+
+    if (!sessions.length) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    let session = null;
+
+    for (let i = 0; i < sessions.length; i++) {
+      let currentSession = sessions[i];
+      const isMatch = await bcrypt.compare(
+        rawRefreshToken,
+        currentSession.refreshTokenHash,
+      );
+      if (isMatch) {
+        session = currentSession;
+        break;
+      }
+    }
+
+    if (!session) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    // Refresh token rotation
+
+    const newRawRefreshToken = uuidv4();
+    session.refreshTokenHash = await bcrypt.hash(newRawRefreshToken, 10);
+    session.refreshTokenExpiresAt = addDays(new Date(), 30);
+    await this.sessionRepository.save(session);
+
+    const user = session.user;
+
+    const payload = {
+      sub: user.id,
+      sessionId: session.id,
+      profileId: session.currentProfileId,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      isVerified: user.isEmailVerified,
+    };
+
+    const accessToken = await this.jwtService.signAsync(payload);
+
+    return { accessToken, refreshToken: `${session.id}.${newRawRefreshToken}` };
+  }
+
+  async getUserActiveSessions(userId: string) {
+    const sessions = await this.sessionRepository.find({
+      where: { userId, isActive: true },
+      relations: ['currentProfile'],
+    });
+
+    const mappedSessions = sessions.map((session) => {
+      const { refreshTokenHash, refreshTokenExpiresAt, ...sessionData } =
+        session;
+      return {
+        ...sessionData,
+        deviceInfo: this.utilService.getSimpleDeviceInfo(session.userAgent),
+      };
+    });
+
+    return mappedSessions;
+  }
+
+  async logout(sessionId: string) {
+    await this.sessionRepository.update(sessionId, {
+      isActive: false,
+      loggedOutAt: new Date(),
+      refreshTokenHash: null,
+      refreshTokenExpiresAt: null,
+    });
+    return { message: 'User successfully logged out.' };
+  }
+
+  async logoutAll(userId: string) {
+    await this.sessionRepository.update(
+      { userId, isActive: true },
+      {
+        isActive: false,
+        loggedOutAt: new Date(),
+        refreshTokenHash: null,
+        refreshTokenExpiresAt: null,
+      },
+    );
+    return { message: 'All sessions logged out.' };
+  }
+
+  async logoutSpecificSession(userId: string, sessionId: string) {
+    const session = await this.sessionRepository.findOne({
+      where: { id: sessionId, userId, isActive: true },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found or already inactive.');
+    }
+
+    await this.sessionRepository.update(sessionId, {
+      isActive: false,
+      loggedOutAt: new Date(),
+      refreshTokenHash: null,
+      refreshTokenExpiresAt: null,
+    });
+
+    return {
+      message: `Session on ${this.utilService.getSimpleDeviceInfo(session.userAgent)} logged out successfully.`,
+    };
+  }
+
+  async logoutAllExceptCurrent(userId: string, currentSessionId: string) {
+    try {
+      const result = await this.sessionRepository.update(
+        { userId, isActive: true, id: Not(currentSessionId) },
+        {
+          isActive: false,
+          loggedOutAt: new Date(),
+          refreshTokenHash: null,
+          refreshTokenExpiresAt: null,
+        },
+      );
+
+      return {
+        message: `Logged out other active sessions.`,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error during logoutAllExceptCurrent for user ${userId}: ${error.message}`,
+      );
+      throw new InternalServerErrorException('Failed to process your request');
+    }
+  }
+
+  async createSession(
+    userId: string,
+    profileId: string,
+    deviceInfo: { ipAddress: string; userAgent: string },
+    rawRefreshToken: string,
+  ) {
+    const session = new SessionEntity();
+    session.userId = userId;
+    session.currentProfileId = profileId;
+    session.ipAddress = deviceInfo.ipAddress;
+    session.userAgent = deviceInfo.userAgent;
+    session.isActive = true;
+    session.expiresAt = addDays(new Date(), 30); // 30 days
+
+    const refreshTokenHash = await bcrypt.hash(rawRefreshToken, 10);
+
+    session.refreshTokenHash = refreshTokenHash;
+    session.refreshTokenExpiresAt = addDays(new Date(), 30);
+
+    return this.sessionRepository.save(session);
+  }
+
+  async createPreProfileSession(
+    userId: string,
+    deviceInfo: { ipAddress: string; userAgent: string },
+  ) {
+    const session = new SessionEntity();
+    session.userId = userId;
+    session.ipAddress = deviceInfo.ipAddress;
+    session.userAgent = deviceInfo.userAgent;
+    session.isActive = true;
+    session.sessionType = SessionType.PRE_PROFILE;
+    session.expiresAt = addMinutes(new Date(), 10);
+
+    return this.sessionRepository.save(session);
+  }
+
+  @Cron(CronExpression.EVERY_WEEK)
+  async cleanUpExpiredSessions() {
+    await this.sessionRepository.delete({
+      isActive: false,
+      refreshTokenExpiresAt: LessThan(new Date()),
+    });
+
+    await this.sessionRepository.delete({
+      refreshTokenExpiresAt: LessThan(new Date()),
+    });
+
+    this.logger.log('WEEKLY CRON JOB:Expired sessions cleaned up');
   }
 }

@@ -73,7 +73,7 @@ export class MovieController {
     const data = await this.movieService.getMovies(
       query,
       user?.sub,
-      user?.activeProfileId,
+      user?.profileId,
     );
     return { data };
   }
@@ -126,11 +126,7 @@ export class MovieController {
   @ApiBearerAuth()
   findMoviesByGenre(@Param('genre') genre: string, @Req() req: Request) {
     const user = req['user'];
-    return this.movieService.findByGenre(
-      genre,
-      user?.sub,
-      user?.activeProfileId,
-    );
+    return this.movieService.findByGenre(genre, user?.sub, user?.profileId);
   }
 
   @Patch(':id/set-premium')
@@ -216,6 +212,6 @@ export class MovieController {
   @ApiBearerAuth()
   findOne(@Param('id') id: string, @Req() req: Request) {
     const user = req['user'];
-    return this.movieService.findOne(id, user?.sub, user?.activeProfileId);
+    return this.movieService.findOne(id, user?.sub, user?.profileId);
   }
 }

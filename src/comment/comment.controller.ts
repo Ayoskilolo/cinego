@@ -37,7 +37,7 @@ export class CommentController {
     const user = req['user'];
     return await this.commentService.create(
       createCommentDto,
-      user.activeProfileId,
+      user.profileId,
       req['user'],
     );
   }
@@ -81,7 +81,7 @@ export class CommentController {
       query,
       movieId,
       user.sub,
-      user.activeProfileId,
+      user.profileId,
     );
   }
 
@@ -101,10 +101,6 @@ export class CommentController {
   @ApiResponse({ status: 404, description: 'Comment not found.' })
   async remove(@Param('id') id: string, @Req() req: Request) {
     const user = req['user'];
-    return await this.commentService.remove(
-      id,
-      user.activeProfileId,
-      req['user'],
-    );
+    return await this.commentService.remove(id, user.profileId, req['user']);
   }
 }

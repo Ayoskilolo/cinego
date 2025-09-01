@@ -18,6 +18,8 @@ import { MovieSeeder } from './movie/movie.seeder';
 import { UserSeeder } from './user/user.seeder';
 import { UserInteractionsSeeder } from './user/user-interactions.seeder';
 import { ItemSimilarity } from './recommendation/entities/item-similarity.entity';
+import { SessionEntity } from './auth/entities/session.entity';
+import { SessionSeeder } from './auth/session.seeder';
 
 seeder({
   imports: [
@@ -42,6 +44,7 @@ seeder({
       Comment,
       Review,
       ItemSimilarity,
+      SessionEntity,
     ]),
   ],
 }).run([
@@ -49,5 +52,6 @@ seeder({
   ProvidersSeeder,
   MovieSeeder,
   UserSeeder,
+  SessionSeeder,
   UserInteractionsSeeder,
 ]);

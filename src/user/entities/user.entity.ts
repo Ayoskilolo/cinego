@@ -7,6 +7,7 @@ import { PaymentPartner } from '../../payment/entities/payment-partner.entity';
 import { Genres } from '../../movie/genres.enum';
 import { Transaction } from 'src/transactions/entities/transaction.entity';
 import { Role } from '../../auth/enums/role.enum'; // Adjust path as needed
+import { SessionEntity } from 'src/auth/entities/session.entity';
 
 @Entity()
 export class User extends BaseEntity {
@@ -64,8 +65,8 @@ export class User extends BaseEntity {
   @OneToMany(() => Profile, (profile) => profile.user)
   profiles: Profile[];
 
-  @Column({ nullable: true })
-  activeProfileId: string;
+  @OneToMany(() => SessionEntity, (session) => session.user)
+  sessions: SessionEntity[];
 
   @Column('text', { array: true, nullable: true })
   preferredGenres: string[];

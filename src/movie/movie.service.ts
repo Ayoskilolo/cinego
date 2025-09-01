@@ -386,6 +386,7 @@ export class MovieService {
   }
 
   async findByGenre(genre: string, userId: string, profileId: string) {
+    console.log('FINDING BY GENRE', genre, userId, profileId);
     let userSubscriptionType: SubscriptionType | undefined;
     if (userId) {
       try {
@@ -436,6 +437,7 @@ export class MovieService {
       'movie.isPremium',
     ]);
     const result = await queryBuilder.getMany();
+    console.log('RESULT', result);
 
     // Enrich movies with MyList data using batch optimization
     const enrichedMovies = await this.enrichMoviesWithMyListDataBatch(

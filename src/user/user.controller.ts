@@ -95,6 +95,15 @@ export class UserController {
     return { data, message: 'Profile created successfully' };
   }
 
+  @Get('current-profile')
+  @ApiOperation({ summary: 'Get the current profile for the user' })
+  @ApiResponse({ status: 200, description: 'Profile retrieved successfully.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async getCurrentProfile(@Req() req: Request) {
+    const data = await this.userService.getCurrentProfile(req['user']);
+    return { data };
+  }
+
   @Get('profiles')
   @ApiOperation({ summary: 'Get all profiles for the user' })
   @ApiResponse({ status: 200, description: 'Profiles retrieved successfully.' })
@@ -142,6 +151,7 @@ export class UserController {
     const data = await this.userService.deleteProfile(
       req['user'].sub,
       profileId,
+      req['user'].sessionId,
     );
     return { data };
   }
@@ -159,13 +169,14 @@ export class UserController {
     @Req() req: Request,
     @Param('profileId') profileId: string,
   ) {
-    const { profile, accessToken } = await this.userService.switchProfile(
-      req['user'].sub,
-      profileId,
-    );
+    const { profile, accessToken, refreshToken } =
+      await this.userService.switchProfile(
+        req['user'].sub,
+        profileId,
+        req['user'].sessionId,
+      );
     return {
-      data: profile,
-      accessToken,
+      data: { profile, accessToken, refreshToken },
       message: 'Profile switched successfully',
     };
   }
@@ -177,7 +188,7 @@ export class UserController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async getMyList(@Req() req: Request) {
     const user = req['user'];
-    const data = await this.myListService.getMyList(user.activeProfileId);
+    const data = await this.myListService.getMyList(user.profileId);
     return { data };
   }
 
@@ -192,10 +203,7 @@ export class UserController {
   @ApiResponse({ status: 404, description: 'Movie not found.' })
   async addToMyList(@Req() req: Request, @Param('movieId') movieId: string) {
     const user = req['user'];
-    const data = await this.myListService.addToMyList(
-      user.activeProfileId,
-      movieId,
-    );
+    const data = await this.myListService.addToMyList(user.profileId, movieId);
     return { data, message: 'Movie added to MyList' };
   }
 
@@ -214,7 +222,7 @@ export class UserController {
   ) {
     const user = req['user'];
     const data = await this.myListService.removeFromMyList(
-      user.activeProfileId,
+      user.profileId,
       movieId,
     );
     return { data, message: 'Movie removed from MyList' };
@@ -232,8 +240,9 @@ export class UserController {
     @Body() updateWatchHistoryDto: UpdateWatchHistoryDto,
   ) {
     const user = req['user'];
+    console.log(user);
     const watchHistory = await this.userService.updateWatchHistory(
-      user.activeProfileId,
+      user.profileId,
       updateWatchHistoryDto,
     );
     return {
@@ -251,9 +260,7 @@ export class UserController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async getWatchHistory(@Req() req: Request) {
     const user = req['user'];
-    const watchHistory = await this.userService.getWatchHistory(
-      user.activeProfileId,
-    );
+    const watchHistory = await this.userService.getWatchHistory(user.profileId);
     return {
       data: watchHistory,
       message: 'Watch history retrieved successfully',
@@ -269,9 +276,7 @@ export class UserController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async clearWatchHistory(@Req() req: Request) {
     const user = req['user'];
-    const result = await this.userService.clearWatchHistory(
-      user.activeProfileId,
-    );
+    const result = await this.userService.clearWatchHistory(user.profileId);
     return {
       data: result,
       message: 'Watch history cleared successfully',
@@ -299,7 +304,7 @@ export class UserController {
   ) {
     const user = req['user'];
     const result = await this.userService.deleteWatchHistoryEntry(
-      user.activeProfileId,
+      user.profileId,
       movieId,
     );
     return {
@@ -323,6 +328,7 @@ export class UserController {
     @Param('profileId') profileId: string,
     @Body('pin') pin: string,
   ) {
+    console.log('VALIDATING PIN', req['user'], profileId, pin);
     const isValid = await this.userService.validateProfilePin(
       req['user'].sub,
       profileId,

@@ -26,9 +26,13 @@
     "seed": "node dist/src/seeder",
     "seed:user-interactions": "set DATA_DENSITY=sparse && node dist/src/seeder",
     "seed:user-interactions:dense": "set DATA_DENSITY=dense && node dist/src/seeder",
-    "seed:user-interactions:drop": "node dist/src/clear-user-interactions-runner"
+    "seed:user-interactions:drop": "node dist/src/clear-user-interactions-runner",
+    "db:truncate": "node dist/src/truncate.js",
+    "db:reset-and-seed": "pnpm build && pnpm db:truncate && pnpm seed"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.879.0",
+    "@aws-sdk/credential-providers": "^3.879.0",
     "@faker-js/faker": "^9.9.0",
     "@nestjs/axios": "^4.0.0",
     "@nestjs/common": "^11.0.11",
@@ -54,6 +58,7 @@
     "rxjs": "^7.8.2",
     "swagger-ui-express": "^5.0.1",
     "typeorm": "^0.3.21",
+    "ua-parser-js": "^2.0.4",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
