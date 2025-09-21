@@ -34,6 +34,7 @@ import {
 import { ProfileSelectionDto } from './dto/profile-selection.dto';
 import { Request } from 'express';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -56,6 +57,22 @@ export class AuthController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     const data = await this.authService.signUp(createAuthDto, file);
+    return { data };
+  }
+
+  @Public()
+  @Post('admin/login')
+  @ApiOperation({ summary: 'Admin login (direct session and tokens)' })
+  @ApiBody({ type: LoginDto })
+  @ApiResponse({ status: 200, description: 'Admin successfully logged in.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async adminLogin(
+    @Body() loginDto: LoginDto,
+    @Req() request: Request,
+    @Ip() ip: string,
+  ) {
+    const userAgent = request.headers['user-agent'];
+    const data = await this.authService.adminLogin(loginDto, userAgent, ip);
     return { data };
   }
 

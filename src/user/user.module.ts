@@ -12,6 +12,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MailModule } from 'src/mail/mail.module';
 import { SessionEntity } from '../auth/entities/session.entity';
+import { AdminUsersController } from './admin-users.controller';
 
 @Module({
   imports: [
@@ -31,7 +32,7 @@ import { SessionEntity } from '../auth/entities/session.entity';
     }),
     MailModule,
   ],
-  controllers: [UserController],
+  controllers: [UserController, AdminUsersController],
   providers: [UserService],
   exports: [UserService],
 })

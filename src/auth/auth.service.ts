@@ -30,6 +30,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { SessionType } from './entities/session.enum';
+import { Role } from './enums/role.enum';
 
 @Injectable()
 export class AuthService {
@@ -772,8 +773,11 @@ export class AuthService {
     const session = new SessionEntity();
     session.userId = userId;
     session.currentProfileId = profileId;
-    session.ipAddress = deviceInfo.ipAddress;
-    session.userAgent = deviceInfo.userAgent;
+    // Ensure safe fallbacks for environments/tests where headers may be missing
+    const safeIp = deviceInfo?.ipAddress ?? '0.0.0.0';
+    const safeUserAgent = deviceInfo?.userAgent ?? 'unknown';
+    session.ipAddress = safeIp;
+    session.userAgent = safeUserAgent;
     session.isActive = true;
     session.expiresAt = addDays(new Date(), 30); // 30 days
 
@@ -791,8 +795,11 @@ export class AuthService {
   ) {
     const session = new SessionEntity();
     session.userId = userId;
-    session.ipAddress = deviceInfo.ipAddress;
-    session.userAgent = deviceInfo.userAgent;
+    // Ensure safe fallbacks for environments/tests where headers may be missing
+    const safeIp = deviceInfo?.ipAddress ?? '0.0.0.0';
+    const safeUserAgent = deviceInfo?.userAgent ?? 'unknown';
+    session.ipAddress = safeIp;
+    session.userAgent = safeUserAgent;
     session.isActive = true;
     session.sessionType = SessionType.PRE_PROFILE;
     session.expiresAt = addMinutes(new Date(), 10);
@@ -812,5 +819,85 @@ export class AuthService {
     });
 
     this.logger.log('WEEKLY CRON JOB:Expired sessions cleaned up');
+  }
+
+  // Admin login: verify credentials, ensure ADMIN role, pick a profile, create full session and return tokens
+  async adminLogin(
+    { email, phoneNumber, password }: LoginDto,
+    userAgent: string,
+    ip: string,
+  ) {
+    if (!email && !phoneNumber) {
+      throw new BadRequestException('Email or phone number is required');
+    }
+
+    let user: User;
+
+    try {
+      if (email) {
+        user = await this.userService.findOneByEmail(email);
+      } else if (phoneNumber) {
+        user = await this.userService.findOneByPhoneNumber(phoneNumber);
+      }
+    } catch (error) {
+      throw new UnauthorizedException('Invalid Credentials');
+    }
+
+    const passwordsMatch = await compare(password, user.password);
+
+    if (!passwordsMatch) {
+      throw new UnauthorizedException('Invalid Credentials');
+    }
+
+    if (user.role !== Role.ADMIN) {
+      throw new UnauthorizedException('Access denied. Admins only.');
+    }
+
+    // Ensure user has profiles and pick one
+    const userWithProfiles = await this.userService.findOne(user.id);
+    const profile = userWithProfiles.profiles?.[0];
+    if (!profile) {
+      throw new UnauthorizedException('No profile available for admin user');
+    }
+
+    // Fallbacks for missing headers in certain environments/tests
+    const safeUserAgent = userAgent ?? 'unknown';
+    const safeIp = ip ?? '0.0.0.0';
+
+    const rawRefreshToken = uuidv4();
+    const session = await this.createSession(
+      user.id,
+      profile.id,
+      { ipAddress: safeIp, userAgent: safeUserAgent },
+      rawRefreshToken,
+    );
+
+    const payload = {
+      sub: user.id,
+      sessionId: session.id,
+      profileId: session.currentProfileId,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      isVerified: user.isEmailVerified,
+    };
+
+    const accessToken = await this.jwtService.signAsync(payload);
+
+    const {
+      password: _password,
+      passwordResetOtp,
+      passwordResetExpires,
+      emailVerificationToken,
+      emailVerificationExpires,
+      ...safeUser
+    } = userWithProfiles;
+
+    return {
+      user: safeUser,
+      message: 'Admin login successful',
+      accessToken,
+      refreshToken: `${session.id}.${rawRefreshToken}`,
+      profile,
+    };
   }
 }

@@ -28,6 +28,7 @@ import { ResetPasswordDto } from '../auth/dto/reset-password.dto';
 import { EmailTemplateData } from 'src/mail/interfaces';
 import { MailService } from 'src/mail/mail.service';
 import { SessionEntity } from '../auth/entities/session.entity';
+import { PaginateQuery, paginate, PaginateConfig } from 'nestjs-paginate';
 
 @Injectable()
 export class UserService {
@@ -867,6 +868,10 @@ export class UserService {
       const { password, ...userWithoutPassword } = updatedUser;
       return userWithoutPassword;
     } catch (error) {
+      if (error instanceof NotFoundException) {
+        // Propagate 404 when user does not exist
+        throw error;
+      }
       throw new InternalServerErrorException(
         'Failed to update account details.',
       );
@@ -879,11 +884,58 @@ export class UserService {
       await this.userRepository.remove(user);
       return { message: 'Account deleted successfully' };
     } catch (error) {
+      if (error instanceof NotFoundException) {
+        // Propagate 404 when user does not exist
+        throw error;
+      }
       throw new InternalServerErrorException('Failed to delete account.');
     }
   }
 
   async updateUser(userId, updateObj: Partial<User>) {
-    return await this.userRepository.update(userId, updateObj);
+    try {
+      // Ensure user exists to return proper 404 instead of silent update
+      await this.findOneById(userId);
+      return await this.userRepository.update(userId, updateObj);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to update user.');
+    }
+  }
+
+  async findAllPaginated(query: PaginateQuery) {
+    const paginateConfig: PaginateConfig<User> = {
+      sortableColumns: ['dateCreated', 'firstName', 'lastName', 'email', 'phoneNumber', 'role', 'isActive'],
+      defaultSortBy: [['dateCreated', 'DESC']],
+      searchableColumns: ['firstName', 'lastName', 'email', 'phoneNumber'],
+      defaultLimit: 10,
+      filterableColumns: {
+        role: true,
+        isActive: true,
+      },
+      select: [
+        'id',
+        'firstName',
+        'lastName',
+        'email',
+        'phoneNumber',
+        'dateOfBirth',
+        'subscriptionType',
+        'isSubscribed',
+        'subscriptionExpiresAt',
+        'nextBillingDate',
+        'hasUsedFreeTrial',
+        'preferredGenres',
+        'displayPicture',
+        'isActive',
+        'role',
+        'dateCreated',
+        'dateUpdated',
+      ],
+    };
+
+    return await paginate(query, this.userRepository, paginateConfig);
   }
 }
