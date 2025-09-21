@@ -162,12 +162,12 @@ export class MovieSeeder implements Seeder {
       );
 
       const selectedProvider = faker.helpers.arrayElement(validProviders);
+      const providerTitleId = faker.string.uuid();
 
       const movie: Partial<Movie> = {
         title: title,
-        s3ObjectKey: `movies/${faker.string.alphanumeric(10)}.mp4`,
         providerId: selectedProvider.id,
-        providerTitleId: faker.string.uuid(),
+        providerTitleId: providerTitleId,
         programType: faker.helpers.arrayElement(programTypes),
         synopsis: faker.lorem.paragraph(3),
         productionYear: year,
@@ -184,6 +184,10 @@ export class MovieSeeder implements Seeder {
           posterLandscape: `https://picsum.photos/800/450?random=${i + 1000}`,
           thumbnail: `https://picsum.photos/200/150?random=${i + 2000}`,
         },
+        mediaKeys: this._generateTestMediaKeys(
+          selectedProvider.slug,
+          providerTitleId,
+        ),
       };
 
       try {
@@ -196,6 +200,41 @@ export class MovieSeeder implements Seeder {
     }
 
     this.logger.log(`Successfully seeded ${numberOfMovies} movies`);
+  }
+
+  /**
+   * Generate test media keys for seeding purposes
+   * This uses predefined test keys for consistent testing
+   */
+  private _generateTestMediaKeys(
+    providerSlug: string,
+    providerTitleId: string,
+  ) {
+    // Use predefined test content keys for consistent testing
+    const testContent = [
+      {
+        main: 'fast-6/trailer/fast6_master.m3u8',
+        trailer: 'fast-6/trailer/fast6_master.m3u8',
+      },
+      {
+        main: 'simpsons/trailer/simpsons_master.m3u8',
+        trailer: 'simpsons/trailer/simpsons_master.m3u8',
+      },
+      {
+        main: 'the-batman/trailer/batman_master.m3u8',
+        trailer: 'the-batman/trailer/batman_master.m3u8',
+      },
+    ];
+
+    // Select a random test key from the predefined set
+    const testKeys = faker.helpers.arrayElement(testContent);
+
+    this.logger.debug(`Generated test mediaKeys for ${providerTitleId}:`, {
+      providerSlug,
+      selectedKeys: testKeys,
+    });
+
+    return testKeys;
   }
 
   drop(): Promise<any> {

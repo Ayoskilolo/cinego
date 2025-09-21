@@ -1,4 +1,162 @@
-import { Injectable } from '@nestjs/common';
+import {
+  GetObjectCommand,
+  GetObjectCommandInput,
+  ListBucketsCommand,
+  ListObjectsCommand,
+  ListObjectsCommandInput,
+  ListObjectsV2Command,
+  ListObjectsV2CommandInput,
+  S3Client,
+} from '@aws-sdk/client-s3';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectAws } from 'aws-sdk-v3-nest';
+import { ConfigService } from '@nestjs/config';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 @Injectable()
-export class AwsServicesService {}
+export class AwsServicesService {
+  private readonly logger = new Logger(AwsServicesService.name);
+
+  constructor(
+    @InjectAws(S3Client) private readonly s3Client: S3Client,
+    private readonly configService: ConfigService,
+  ) {}
+
+  async listBuckets() {
+    try {
+      // Validate AWS configuration
+      const region = this.configService.get('aws.region');
+      const roleArn = this.configService.get('aws.roleArn');
+
+      if (!region || !roleArn) {
+        this.logger.error('AWS configuration is incomplete', {
+          region,
+          roleArn,
+        });
+        throw new InternalServerErrorException(
+          'AWS configuration is incomplete. Please check AWS_REGION and AWS_ROLE_ARN environment variables.',
+        );
+      }
+
+      const command = new ListBucketsCommand({});
+      const response = await this.s3Client.send(command);
+
+      this.logger.log('Successfully retrieved S3 buckets', {
+        bucketCount: response.Buckets?.length || 0,
+      });
+
+      return response.Buckets;
+    } catch (error) {
+      this.logger.error('Failed to list S3 buckets', error);
+
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        `Failed to list S3 buckets: ${error.message}`,
+      );
+    }
+  }
+
+  async getPresignedUrl(bucketName: string, key: string, duration: number) {
+    try {
+      const params: GetObjectCommandInput = {
+        Bucket: bucketName,
+        Key: key, //path to the movie on s3
+      };
+      const command = new GetObjectCommand(params);
+      const expiresInSeconds = duration; // Duration of the movie
+
+      const presignedUrl = await getSignedUrl(this.s3Client, command, {
+        expiresIn: expiresInSeconds,
+      });
+
+      return presignedUrl;
+    } catch (error) {
+      console.error('Failed to get presigned url', error);
+      throw new InternalServerErrorException(error);
+    }
+  }
+
+  async listObjects(bucketName: string, options?: Record<string, any>) {
+    try {
+      const command = new ListObjectsCommand({
+        Bucket: bucketName,
+        ...options,
+      });
+      const response = await this.s3Client.send(command);
+      const { Contents, ...rest } = response;
+      console.log(rest, 'response');
+      return response.Contents;
+    } catch (error) {
+      this.logger.error('Failed to list S3 objects', error);
+      throw new InternalServerErrorException(error);
+    }
+  }
+
+  async listTopLevel(bucketName: string, prefix = '') {
+    const params: ListObjectsV2CommandInput = {
+      Bucket: bucketName,
+      //   Delimiter: '/', // collapse children
+      //   Prefix: prefix, // "" for bucket root, or e.g. "movies/" to scope
+      MaxKeys: 1000,
+    };
+
+    const res = await this.s3Client.send(new ListObjectsV2Command(params));
+
+    console.log(res, 'res');
+    // In v3, these can be absent (undefined) depending on input/result.
+    const filesAtThisLevel = (res.Contents ?? [])
+      // Filter out any “directory markers” that end with “/”
+      .filter((o) => o.Key && !o.Key.endsWith('/'))
+      .map((o) => o.Key!);
+
+    const foldersAtThisLevel = (res.CommonPrefixes ?? []).map((p) =>
+      (p.Prefix ?? '').replace(/\/$/, ''),
+    ); // strip trailing slash
+
+    return {
+      files: filesAtThisLevel,
+      folders: foldersAtThisLevel,
+      isTruncated: !!res.IsTruncated,
+      next: res.NextContinuationToken ?? null,
+      raw: res, // keep if you want to inspect full response
+    };
+  }
+
+  // temporary endpoint
+  async showMoviesInBucket() {
+    const buckets = await this.listBuckets();
+    const bucket = buckets.find((bucket) => bucket.Name === 'test-cinego');
+    if (!bucket) {
+      throw new NotFoundException('Bucket not found');
+    }
+    // const options = {
+    //   Delimiter: '/',
+    //   Prefix: '',
+    //   //   Bucket: bucket.Name,
+    // };
+    // const objects = await this.listObjects(bucket.Name); //, options);
+    // // console.log(objects, 'objects');
+
+    const objects = await this.listTopLevel(bucket.Name);
+    return objects;
+  }
+
+  async getPresignedUrlForMovie() {
+    // const objects = await this.listTopLevel('test-cinego');
+
+    const url = await this.getPresignedUrl(
+      'test-cinego',
+      'fast-6/trailer/fast6_master.m3u8',
+      3600,
+    );
+    return url;
+  }
+}

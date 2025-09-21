@@ -13,6 +13,8 @@ import { ProvidersService } from 'src/providers/providers.service';
 import { MyListService } from '../my-list/my-list.service';
 import { UserService } from '../user/user.service';
 import { SubscriptionType } from '../user/enum/userType';
+import { AwsServicesService } from '../aws-services/aws-services.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class MovieService {
@@ -22,6 +24,8 @@ export class MovieService {
     private readonly providersService: ProvidersService,
     private readonly myListService: MyListService,
     private readonly userService: UserService,
+    private readonly awsServicesService: AwsServicesService,
+    private readonly configService: ConfigService,
   ) {}
 
   private readonly logger = new Logger(MovieService.name);
@@ -81,7 +85,127 @@ export class MovieService {
   }
 
   /**
-   * Enrich multiple movies with MyList data using batch queries
+   * Generate presigned URLs for a movie's media content
+   */
+  private async generateMoviePresignedUrls(movie: Movie) {
+    try {
+      const bucketName =
+        this.configService.get('aws.bucketName') || 'test-cinego';
+
+      const mediaUrls: { mainUrl?: string; trailerUrl?: string } = {};
+
+      // Generate presigned URL for main content
+      if (movie.mediaKeys?.main) {
+        try {
+          // Calculate expiration time: movie duration + 1 hour
+          const movieDurationInSeconds = this.parseDurationToSeconds(
+            movie.duration,
+          );
+          const mainExpirationTime = movieDurationInSeconds + 3600; // duration + 1 hour
+
+          this.logger.debug(`Generating presigned URL for movie ${movie.id}:`, {
+            duration: movie.duration,
+            durationInSeconds: movieDurationInSeconds,
+            expirationTime: mainExpirationTime,
+            expirationTimeFormatted: `${Math.floor(mainExpirationTime / 3600)}h ${Math.floor((mainExpirationTime % 3600) / 60)}m`,
+          });
+
+          mediaUrls.mainUrl = await this.awsServicesService.getPresignedUrl(
+            bucketName,
+            movie.mediaKeys.main,
+            mainExpirationTime,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `Failed to generate presigned URL for main content of movie ${movie.id}:`,
+            error,
+          );
+        }
+      }
+
+      // Generate presigned URL for trailer
+      if (movie.mediaKeys?.trailer) {
+        try {
+          // Trailer URLs expire after 1 hour
+          const trailerExpirationTime = 3600; // 1 hour
+
+          this.logger.debug(
+            `Generating presigned URL for trailer of movie ${movie.id}:`,
+            {
+              expirationTime: trailerExpirationTime,
+              expirationTimeFormatted: '1h 0m',
+            },
+          );
+
+          mediaUrls.trailerUrl = await this.awsServicesService.getPresignedUrl(
+            bucketName,
+            movie.mediaKeys.trailer,
+            trailerExpirationTime,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `Failed to generate presigned URL for trailer of movie ${movie.id}:`,
+            error,
+          );
+        }
+      }
+
+      return mediaUrls;
+    } catch (error) {
+      this.logger.error(
+        `Error generating presigned URLs for movie ${movie.id}:`,
+        error,
+      );
+      return {};
+    }
+  }
+
+  /**
+   * Parse movie duration string to seconds
+   * Handles formats like "120 min", "2h 30m", etc.
+   */
+  private parseDurationToSeconds(duration: string): number {
+    if (!duration) return 3600; // Default to 1 hour if no duration
+
+    const durationStr = duration.toLowerCase().trim();
+
+    // Handle "120 min" format
+    if (durationStr.includes('min')) {
+      const minutes = parseInt(durationStr.replace('min', '').trim());
+      return isNaN(minutes) ? 3600 : minutes * 60;
+    }
+
+    // Handle "2h 30m" format
+    if (durationStr.includes('h') || durationStr.includes('m')) {
+      let totalSeconds = 0;
+
+      // Extract hours
+      const hourMatch = durationStr.match(/(\d+)h/);
+      if (hourMatch) {
+        totalSeconds += parseInt(hourMatch[1]) * 3600;
+      }
+
+      // Extract minutes
+      const minuteMatch = durationStr.match(/(\d+)m/);
+      if (minuteMatch) {
+        totalSeconds += parseInt(minuteMatch[1]) * 60;
+      }
+
+      return totalSeconds || 3600;
+    }
+
+    // Handle numeric only (assume minutes)
+    const numericValue = parseInt(durationStr);
+    if (!isNaN(numericValue)) {
+      return numericValue * 60;
+    }
+
+    // Default fallback
+    return 3600;
+  }
+
+  /**
+   * Enrich multiple movies with MyList data and presigned URLs using batch queries
    */
   private async enrichMoviesWithMyListDataBatch(
     movies: Movie[],
@@ -98,12 +222,22 @@ export class MovieService {
       profileId ? this.getUserMyListChecksBatch(profileId, movieIds) : {},
     ]);
 
-    // Enrich each movie with the batch data
-    const enrichedMovies = movies.map((movie) => ({
-      ...movie,
-      myListCount: counts[movie.id] || 0,
-      isInMyList: profileId ? userChecks[movie.id] || false : undefined,
-    }));
+    // Enrich each movie with the batch data and presigned URLs
+    const enrichedMovies = await Promise.all(
+      movies.map(async (movie) => {
+        const mediaUrls = await this.generateMoviePresignedUrls(movie);
+
+        // Extract movie data, excluding sensitive fields
+        const { mediaKeys, providerId, ...movieData } = movie as any;
+
+        return {
+          ...movieData,
+          myListCount: counts[movie.id] || 0,
+          isInMyList: profileId ? userChecks[movie.id] || false : undefined,
+          mediaUrls,
+        };
+      }),
+    );
 
     return enrichedMovies;
   }
@@ -380,7 +514,7 @@ export class MovieService {
     );
     const enrichedMovie = enrichedMovies[0];
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { s3ObjectKey, providerId, ...movieData } = enrichedMovie;
+    const { mediaKeys, providerId, ...movieData } = enrichedMovie;
 
     return { data: movieData };
   }
@@ -417,7 +551,7 @@ export class MovieService {
       });
     }
 
-    // Select specific fields to avoid exposing sensitive ones like s3ObjectKey by default
+    // Select specific fields to avoid exposing sensitive ones like mediaKeys by default
     queryBuilder.select([
       'movie.id',
       'movie.title',
@@ -473,7 +607,7 @@ export class MovieService {
 
   //   const params = {
   //     Bucket: process.env.S3_BUCKET_NAME,
-  //     Key: movie.s3ObjectKey,
+  //     Key: movie.mediaKeys.main,
   //     Expires: 3600, // URL expires in 1 hour
   //   };
 
@@ -497,7 +631,7 @@ export class MovieService {
     movie.isPremium = isPremium;
     await this.movieRepository.save(movie);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { s3ObjectKey, providerId, ...movieData } = movie; // Exclude sensitive fields
+    const { mediaKeys, providerId, ...movieData } = movie; // Exclude sensitive fields
     return movieData as Movie; // Ensure the returned type matches, adjust if necessary
   }
 }

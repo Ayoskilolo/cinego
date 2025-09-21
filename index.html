@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HLS Video Player</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        font-family: Arial, sans-serif;
+        background: #f0f0f0;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .input-group {
+        margin-bottom: 20px;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      input[type='url'] {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+        box-sizing: border-box;
+      }
+      button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      video {
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        border-radius: 4px;
+        margin-top: 20px;
+      }
+      .status {
+        margin-top: 10px;
+        padding: 10px;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      .status.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+      .status.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+      .status.info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>HLS Video Player</h1>
+
+      <div class="input-group">
+        <label for="videoUrl">HLS Stream URL (.m3u8):</label>
+        <input
+          type="url"
+          id="videoUrl"
+          placeholder="https://example.com/stream.m3u8"
+          value=""
+        />
+      </div>
+
+      <button onclick="loadVideo()" id="loadBtn">Load Video</button>
+      <button onclick="stopVideo()" id="stopBtn" disabled>Stop Video</button>
+
+      <div id="status" class="status info">
+        Enter an HLS stream URL and click "Load Video"
+      </div>
+
+      <video id="video" controls></video>
+    </div>
+
+    <script>
+      let hls = null;
+      const video = document.getElementById('video');
+      const videoUrlInput = document.getElementById('videoUrl');
+      const loadBtn = document.getElementById('loadBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const statusDiv = document.getElementById('status');
+
+      function updateStatus(message, type = 'info') {
+        statusDiv.textContent = message;
+        statusDiv.className = `status ${type}`;
+      }
+
+      function loadVideo() {
+        const url = videoUrlInput.value.trim();
+
+        if (!url) {
+          updateStatus('Please enter a valid URL', 'error');
+          return;
+        }
+
+        if (!url.includes('.m3u8')) {
+          updateStatus('URL should contain .m3u8 file', 'error');
+          return;
+        }
+
+        updateStatus('Loading video stream...', 'info');
+        loadBtn.disabled = true;
+        stopBtn.disabled = false;
+
+        // Destroy existing HLS instance if it exists
+        if (hls) {
+          hls.destroy();
+          hls = null;
+        }
+
+        // Check if HLS is supported natively
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          // Native HLS support (Safari)
+          video.src = url;
+          video.addEventListener('loadedmetadata', () => {
+            updateStatus('Video loaded successfully (native HLS)', 'success');
+          });
+          video.addEventListener('error', (e) => {
+            updateStatus(`Error loading video: ${e.message}`, 'error');
+            loadBtn.disabled = false;
+            stopBtn.disabled = true;
+          });
+        } else if (Hls.isSupported()) {
+          // HLS.js support
+          hls = new Hls({
+            debug: false,
+            enableWorker: true,
+            lowLatencyMode: true,
+          });
+
+          hls.loadSource(url);
+          hls.attachMedia(video);
+
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            updateStatus('Video loaded successfully (HLS.js)', 'success');
+            video.play();
+          });
+
+          hls.on(Hls.Events.ERROR, (event, data) => {
+            if (data.fatal) {
+              updateStatus(`HLS Error: ${data.details}`, 'error');
+              loadBtn.disabled = false;
+              stopBtn.disabled = true;
+            }
+          });
+        } else {
+          updateStatus('HLS is not supported in this browser', 'error');
+          loadBtn.disabled = false;
+          stopBtn.disabled = true;
+        }
+      }
+
+      function stopVideo() {
+        if (hls) {
+          hls.destroy();
+          hls = null;
+        }
+        video.pause();
+        video.src = '';
+        video.load();
+        updateStatus('Video stopped', 'info');
+        loadBtn.disabled = false;
+        stopBtn.disabled = true;
+      }
+
+      // Handle video errors
+      video.addEventListener('error', (e) => {
+        updateStatus(`Video error: ${e.message}`, 'error');
+        loadBtn.disabled = false;
+        stopBtn.disabled = true;
+      });
+
+      // Handle video load events
+      video.addEventListener('loadstart', () => {
+        updateStatus('Loading video...', 'info');
+      });
+
+      video.addEventListener('canplay', () => {
+        updateStatus('Video ready to play', 'success');
+      });
+
+      // Enter key support for URL input
+      videoUrlInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          loadVideo();
+        }
+      });
+    </script>
+  </body>
+</html>

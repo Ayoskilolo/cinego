@@ -40,20 +40,79 @@ export class ProvidersService {
 
   async getMoviesFromProvider(provider: ProvidersEntity) {
     let movies = [];
-    if (provider.slug === 'allrites') {
-      const response = await this._fetchAllritesMetadata(provider.baseUrl, {
-        month: 'January',
-        year: '2025',
-      });
 
-      movies = this._extractAllritesMoviesMetadata(response).map((movie) => ({
-        ...movie,
-        providerId: provider.id,
-        s3ObjectKey: '', // TODO: add s3 object key as this is a placeholder
-      }));
+    try {
+      if (provider.slug === 'allrites') {
+        const response = await this._fetchAllritesMetadata(provider.baseUrl, {
+          month: 'January',
+          year: '2025',
+        });
+
+        movies = this._extractAllritesMoviesMetadata(response).map((movie) => {
+          const s3Keys = this._getMovieS3Key(
+            movie.providerTitleId,
+            provider.slug,
+          );
+
+          this.logger.debug(
+            `Generated S3 keys for movie ${movie.providerTitleId}:`,
+            {
+              main: s3Keys.main,
+              trailer: s3Keys.trailer,
+            },
+          );
+
+          return {
+            ...movie,
+            providerId: provider.id,
+            mediaKeys: {
+              main: s3Keys.main,
+              trailer: s3Keys.trailer,
+            },
+          };
+        });
+      } else {
+        this.logger.warn(`Provider ${provider.slug} is not yet implemented`);
+        return [];
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error fetching movies from provider ${provider.slug}:`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        `Failed to fetch movies from provider ${provider.name}: ${error.message}`,
+      );
     }
 
     return movies;
+  }
+
+  // Get presigned url from s3 bucket
+  // The path how allrites stores the movies is like this:
+  // allrites_movie_id/main/play-allrites_movie_id.m3u8
+  // allrites_movie_id/trailer/play-allrites_movie_id.m3u8
+
+  private _getMovieS3Key(providerTitleId: string, slug: string) {
+    let keys;
+
+    if (slug === 'allrites') {
+      keys = {
+        main: `${providerTitleId}/main/play-${providerTitleId}.m3u8`,
+        trailer: `${providerTitleId}/trailer/play-${providerTitleId}.m3u8`,
+      };
+    } else {
+      // Default case for unknown providers
+      this.logger.warn(
+        `Unknown provider slug: ${slug}, using default S3 key format`,
+      );
+      keys = {
+        main: `${providerTitleId}/main/play-${providerTitleId}.m3u8`,
+        trailer: `${providerTitleId}/trailer/play-${providerTitleId}.m3u8`,
+      };
+    }
+
+    return keys;
   }
 
   private async _fetchAllritesMetadata(
@@ -170,5 +229,13 @@ export class ProvidersService {
 
     // Construct new URL with thumbnail transformations
     return `${cloudinaryBase}q_auto:low/c_crop,h_768,w_537,x_5,y_0/c_scale,w_250/${filename}`;
+  }
+
+  /**
+   * Generate S3 keys for a movie based on provider and title ID
+   * This can be used to update existing movies or generate keys for new ones
+   */
+  generateS3KeysForMovie(providerTitleId: string, providerSlug: string) {
+    return this._getMovieS3Key(providerTitleId, providerSlug);
   }
 }

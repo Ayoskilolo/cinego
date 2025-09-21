@@ -11,9 +11,6 @@ export class Movie extends BaseEntity {
   title: string;
 
   @Column()
-  s3ObjectKey: string;
-
-  @Column()
   providerId: string;
 
   @Column()
@@ -57,6 +54,13 @@ export class Movie extends BaseEntity {
     poster: string;
     posterLandscape: string;
     thumbnail: string;
+  };
+
+  @Column('json', { nullable: true })
+  // s3 keys for the movie and trailer
+  mediaKeys: {
+    main: string;
+    trailer?: string;
   };
 
   @OneToMany(() => MyListEntity, (myList) => myList.movie)
