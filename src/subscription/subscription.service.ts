@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { LessThan, Repository } from 'typeorm';
 import { SubscriptionType } from '../user/enum/userType';
 import { Cron } from '@nestjs/schedule';
 import { User } from 'src/user/entities/user.entity';
@@ -19,28 +19,20 @@ export class SubscriptionService {
     this.logger.log('Downgrading expired premiums...');
     const now = new Date();
 
-    // Find users to be downgraded first
-    const usersToDowngrade = await this.userRepo
-      .createQueryBuilder()
-      .where('subscriptionType = :premium AND subscriptionExpiresAt < :now', {
-        premium: SubscriptionType.PREMIUM,
-        now,
-      })
-      .getCount();
+    // Build typed conditions to avoid alias/case issues in SQL
+    const where = {
+      subscriptionType: SubscriptionType.PREMIUM,
+      subscriptionExpiresAt: LessThan(now),
+    } as const;
 
-    // Perform the update
-    await this.userRepo
-      .createQueryBuilder()
-      .update(User)
-      .set({
-        subscriptionType: SubscriptionType.FREE_TIER,
-        subscriptionExpiresAt: null,
-      })
-      .where('subscriptionType = :premium AND subscriptionExpiresAt < :now', {
-        premium: SubscriptionType.PREMIUM,
-        now,
-      })
-      .execute();
+    // Count users to be downgraded first (for logging)
+    const usersToDowngrade = await this.userRepo.count({ where });
+
+    // Perform the update using repository API (safe column mapping)
+    await this.userRepo.update(where, {
+      subscriptionType: SubscriptionType.FREE_TIER,
+      subscriptionExpiresAt: null,
+    });
 
     this.logger.log(
       `Downgraded ${usersToDowngrade} expired premium subscriptions`,

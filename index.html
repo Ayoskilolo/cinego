@@ -28,7 +28,9 @@
         margin-bottom: 5px;
         font-weight: bold;
       }
-      input[type='url'] {
+      input[type='url'],
+      input[type='text'],
+      input[type='number'] {
         width: 100%;
         padding: 10px;
         border: 1px solid #ddd;
@@ -80,6 +82,21 @@
         color: #0c5460;
         border: 1px solid #bee5eb;
       }
+      .debug {
+        margin-top: 20px;
+        background: #f7f7f7;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 10px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        height: 350px; /* fixed height so content is always scrollable */
+        overflow-y: auto; /* ensure vertical scroll */
+        resize: vertical; /* allow user to resize for longer logs */
+      }
     </style>
   </head>
   <body>
@@ -87,36 +104,196 @@
       <h1>HLS Video Player</h1>
 
       <div class="input-group">
+        <label for="apiBaseUrl">API Base URL:</label>
+        <input
+          type="url"
+          id="apiBaseUrl"
+          placeholder="http://localhost:3000"
+          value="http://localhost:3000"
+        />
+      </div>
+
+      <div class="input-group">
         <label for="videoUrl">HLS Stream URL (.m3u8):</label>
         <input
           type="url"
           id="videoUrl"
           placeholder="https://example.com/stream.m3u8"
+          value="https://d40j34cd2njxc.cloudfront.net/fast-6/trailer/fast6_master.m3u8"
+        />
+      </div>
+
+      <div class="input-group">
+        <label for="scope">CloudFront Path/Scope (e.g., / or /protected/*):</label>
+        <input
+          type="text"
+          id="scope"
+          placeholder="/"
+          value="/"
+        />
+      </div>
+
+      <div class="input-group">
+        <label for="ttlSeconds">TTL (seconds):</label>
+        <input
+          type="number"
+          id="ttlSeconds"
+          placeholder="900"
+          value="900"
+          min="60"
+          max="3600"
+        />
+      </div>
+
+      <div class="input-group">
+        <label for="accessToken">Access Token (Bearer):</label>
+        <input
+          type="text"
+          id="accessToken"
+          placeholder="Paste your JWT access token here (optional for public testing)"
           value=""
         />
       </div>
 
+      <button onclick="getSignedCookies()" id="cookiesBtn">Get Signed Cookies</button>
       <button onclick="loadVideo()" id="loadBtn">Load Video</button>
       <button onclick="stopVideo()" id="stopBtn" disabled>Stop Video</button>
+      <button onclick="testManifestFetch()" id="testManifestBtn">Test Manifest Fetch</button>
 
       <div id="status" class="status info">
         Enter an HLS stream URL and click "Load Video"
       </div>
 
       <video id="video" controls></video>
+      <div id="debug" class="debug" aria-live="polite"></div>
     </div>
 
     <script>
       let hls = null;
       const video = document.getElementById('video');
+      const apiBaseUrlInput = document.getElementById('apiBaseUrl');
       const videoUrlInput = document.getElementById('videoUrl');
+      const scopeInput = document.getElementById('scope');
+      const ttlInput = document.getElementById('ttlSeconds');
+      const tokenInput = document.getElementById('accessToken');
       const loadBtn = document.getElementById('loadBtn');
       const stopBtn = document.getElementById('stopBtn');
+      const cookiesBtn = document.getElementById('cookiesBtn');
       const statusDiv = document.getElementById('status');
+      const debugDiv = document.getElementById('debug');
 
       function updateStatus(message, type = 'info') {
         statusDiv.textContent = message;
         statusDiv.className = `status ${type}`;
+      }
+
+      function appendDebug(message) {
+        const time = new Date().toISOString();
+        debugDiv.textContent += `\n[${time}] ${message}`;
+        debugDiv.scrollTop = debugDiv.scrollHeight;
+      }
+
+      async function getSignedCookies() {
+        const scope = scopeInput.value.trim() || '/';
+        const ttlSeconds = parseInt(ttlInput.value, 10) || 900;
+        const token = tokenInput.value.trim();
+        const apiBaseUrl = (apiBaseUrlInput.value || '').trim().replace(/\/$/, '');
+        const endpoint = `${apiBaseUrl}/aws-services/cloudfront/signed-cookies`;
+
+        if (!apiBaseUrl) {
+          updateStatus('Please provide API Base URL (e.g., http://localhost:3000)', 'error');
+          return;
+        }
+
+        try {
+          updateStatus(`Requesting CloudFront signed cookies...\nPOST ${endpoint}`, 'info');
+          appendDebug(`POST ${endpoint}`);
+          cookiesBtn.disabled = true;
+
+          const headers = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers,
+            credentials: 'include', // ensure cookies are set when same-site/cross-site with credentials
+            body: JSON.stringify({ scope, ttlSeconds }),
+          });
+
+          appendDebug(`Cookies response: ${res.status} ${res.statusText}`);
+          const isJson = (res.headers.get('content-type') || '').includes('application/json');
+          let payload = null;
+          if (isJson) {
+            payload = await res.json();
+          } else {
+            const text = await res.text();
+            appendDebug(`Non-JSON response body (first 200 chars):\n${text.slice(0, 200)}`);
+          }
+
+          if (!res.ok) {
+            const msg = payload?.message || `Failed to set cookies (HTTP ${res.status})`;
+            updateStatus(msg, 'error');
+            cookiesBtn.disabled = false;
+            return;
+          }
+
+          const message = payload?.message || 'CloudFront signed cookies set';
+          updateStatus(message, 'success');
+        } catch (err) {
+          updateStatus(`Error setting cookies: ${err?.message || err}`, 'error');
+          appendDebug(`Error setting cookies: ${err?.stack || err}`);
+        } finally {
+          cookiesBtn.disabled = false;
+        }
+      }
+
+      async function testManifestFetch() {
+        const url = videoUrlInput.value.trim();
+        if (!url) {
+          updateStatus('Please enter a valid HLS manifest URL', 'error');
+          return;
+        }
+        appendDebug(`Fetching manifest: GET ${url}`);
+        try {
+          const res = await fetch(url, {
+            method: 'GET',
+            credentials: 'include',
+            mode: 'cors',
+          });
+          const ct = res.headers.get('content-type') || '';
+          const bodyText = await res.text();
+          const snippet = bodyText.slice(0, 1000);
+          appendDebug(`Manifest response: ${res.status} ${res.statusText}, content-type: ${ct}`);
+          appendDebug(`Body snippet (first 1000 chars):\n${snippet}`);
+          if (/xml|text\/xml/.test(ct) || /<Error>|<AccessDenied>|<Code>AccessDenied<\/Code>/.test(bodyText)) {
+            updateStatus('Manifest request returned an XML error (likely AccessDenied). See debug below.', 'error');
+          } else if (ct.includes('application/vnd.apple.mpegurl') || snippet.includes('#EXTM3U')) {
+            updateStatus('Manifest appears valid. If playback still fails, check segment requests.', 'info');
+          } else {
+            updateStatus('Manifest fetch completed, but content-type does not look like HLS playlist.', 'error');
+          }
+        } catch (err) {
+          updateStatus(`Manifest fetch error: ${err?.message || err}`, 'error');
+          appendDebug(`Manifest fetch error: ${err?.stack || err}`);
+          // Fallback: try without credentials to capture error body (e.g., XML AccessDenied)
+          try {
+            const res2 = await fetch(url, {
+              method: 'GET',
+              credentials: 'omit',
+              mode: 'cors',
+            });
+            const ct2 = res2.headers.get('content-type') || '';
+            const bodyText2 = await res2.text();
+            const snippet2 = bodyText2.slice(0, 1000);
+            appendDebug(`Fallback (no credentials) manifest response: ${res2.status} ${res2.statusText}, content-type: ${ct2}`);
+            appendDebug(`Fallback body snippet (first 1000 chars):\n${snippet2}`);
+            if (/xml|text\/xml/.test(ct2) || /<Error>|<AccessDenied>|<Code>AccessDenied<\/Code>/.test(bodyText2)) {
+              updateStatus('Fallback manifest fetch returned XML error (likely due to missing CloudFront cookies).', 'error');
+            }
+          } catch (err2) {
+            appendDebug(`Fallback manifest fetch also failed: ${err2?.stack || err2}`);
+          }
+        }
       }
 
       function loadVideo() {
@@ -136,15 +313,12 @@
         loadBtn.disabled = true;
         stopBtn.disabled = false;
 
-        // Destroy existing HLS instance if it exists
         if (hls) {
           hls.destroy();
           hls = null;
         }
 
-        // Check if HLS is supported natively
         if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          // Native HLS support (Safari)
           video.src = url;
           video.addEventListener('loadedmetadata', () => {
             updateStatus('Video loaded successfully (native HLS)', 'success');
@@ -153,9 +327,9 @@
             updateStatus(`Error loading video: ${e.message}`, 'error');
             loadBtn.disabled = false;
             stopBtn.disabled = true;
+            testManifestFetch();
           });
         } else if (Hls.isSupported()) {
-          // HLS.js support
           hls = new Hls({
             debug: false,
             enableWorker: true,
@@ -171,10 +345,12 @@
           });
 
           hls.on(Hls.Events.ERROR, (event, data) => {
+            appendDebug(`HLS.js error: fatal=${!!data.fatal}, type=${data.type}, details=${data.details}`);
             if (data.fatal) {
               updateStatus(`HLS Error: ${data.details}`, 'error');
               loadBtn.disabled = false;
               stopBtn.disabled = true;
+              testManifestFetch();
             }
           });
         } else {
@@ -197,14 +373,13 @@
         stopBtn.disabled = true;
       }
 
-      // Handle video errors
       video.addEventListener('error', (e) => {
         updateStatus(`Video error: ${e.message}`, 'error');
         loadBtn.disabled = false;
         stopBtn.disabled = true;
+        testManifestFetch();
       });
 
-      // Handle video load events
       video.addEventListener('loadstart', () => {
         updateStatus('Loading video...', 'info');
       });
@@ -213,7 +388,6 @@
         updateStatus('Video ready to play', 'success');
       });
 
-      // Enter key support for URL input
       videoUrlInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
           loadVideo();

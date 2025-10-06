@@ -7,6 +7,7 @@ import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
 import { UserModule } from 'src/user/user.module';
 import { AuthModule } from 'src/auth/auth.module';
+import { AdminTransactionsController } from './admin-transactions.controller';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { AuthModule } from 'src/auth/auth.module';
     UserModule,
     AuthModule,
   ],
-  controllers: [TransactionsController],
+  controllers: [TransactionsController, AdminTransactionsController],
   providers: [TransactionsService],
   exports: [TransactionsService],
 })

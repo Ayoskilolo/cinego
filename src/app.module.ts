@@ -27,6 +27,7 @@ import { ReviewModule } from './review/review.module';
 import { RecommendationModule } from './recommendation/recommendation.module';
 import { SessionEntity } from './auth/entities/session.entity';
 import { AwsServicesModule } from './aws-services/aws-services.module';
+import { BlogsModule } from './blogs/blogs.module'
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { AwsServicesModule } from './aws-services/aws-services.module';
 
     MailModule,
 
+    BlogsModule,
     MovieNewsModule,
 
     CommentModule,

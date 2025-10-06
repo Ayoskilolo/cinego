@@ -2,6 +2,8 @@ import {
   Injectable,
   Logger,
   InternalServerErrorException,
+  NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -9,6 +11,7 @@ import { ProvidersEntity } from './entities/providers.entity';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '@nestjs/config';
+import { PaginateQuery, paginate, PaginateConfig, FilterOperator } from 'nestjs-paginate';
 
 @Injectable()
 export class ProvidersService {
@@ -237,5 +240,95 @@ export class ProvidersService {
    */
   generateS3KeysForMovie(providerTitleId: string, providerSlug: string) {
     return this._getMovieS3Key(providerTitleId, providerSlug);
+  }
+
+  // Admin-only helpers for Providers CRUD
+  async adminFindAllPaginated(query: PaginateQuery) {
+    const paginateConfig: PaginateConfig<ProvidersEntity> = {
+      sortableColumns: ['dateCreated', 'dateUpdated', 'name', 'slug', 'isActive'],
+      defaultSortBy: [['dateCreated', 'DESC']],
+      searchableColumns: ['name', 'slug'],
+      defaultLimit: 10,
+      filterableColumns: {
+        isActive: true,
+        slug: true,
+        dateCreated: [FilterOperator.GTE, FilterOperator.LTE],
+      },
+      select: [
+        'id',
+        'name',
+        'slug',
+        'baseUrl',
+        'isActive',
+        'dateCreated',
+        'dateUpdated',
+      ],
+    };
+
+    return await paginate(query, this.providersRepository, paginateConfig);
+  }
+
+  async adminFindOne(id: string) {
+    const provider = await this.providersRepository.findOne({ where: { id } });
+    if (!provider) {
+      throw new NotFoundException('Provider not found');
+    }
+    return provider;
+  }
+
+  async adminCreate(create: {
+    name: string;
+    slug: string;
+    baseUrl: string;
+    isActive: boolean;
+  }) {
+    const entity = this.providersRepository.create(create);
+    try {
+      return await this.providersRepository.save(entity);
+    } catch (e: any) {
+      // Postgres unique violation
+      if (e && (e.code === '23505' || /duplicate key value/.test(e.message))) {
+        throw new ConflictException('Provider slug already exists');
+      }
+      throw e;
+    }
+  }
+
+  async adminUpdate(
+    id: string,
+    update: Partial<{ name: string; slug: string; baseUrl: string; isActive: boolean }>,
+  ) {
+    const provider = await this.providersRepository.findOne({ where: { id } });
+    if (!provider) {
+      throw new NotFoundException('Provider not found');
+    }
+
+    const allowedKeys: Array<keyof ProvidersEntity | keyof typeof update> = [
+      'name',
+      'slug',
+      'baseUrl',
+      'isActive',
+    ];
+
+    for (const key of allowedKeys) {
+      if (Object.prototype.hasOwnProperty.call(update, key)) {
+        // @ts-expect-error dynamic assignment within allowed keys
+        provider[key] = update[key as keyof typeof update] as any;
+      }
+    }
+
+    try {
+      return await this.providersRepository.save(provider);
+    } catch (e: any) {
+      if (e && (e.code === '23505' || /duplicate key value/.test(e.message))) {
+        throw new ConflictException('Provider slug already exists');
+      }
+      throw e;
+    }
+  }
+
+  async adminDelete(id: string) {
+    const result = await this.providersRepository.delete({ id });
+    return result.affected ?? 0;
   }
 }

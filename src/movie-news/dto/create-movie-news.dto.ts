@@ -1,36 +1,26 @@
-import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger'
+import { IsString, IsOptional, IsUUID } from 'class-validator'
 
 export class CreateMovieNewsDto {
-  @ApiProperty({
-    description: 'The title of the movie news article',
-    example: 'Upcoming Blockbuster Release',
-  })
+  @ApiProperty({ description: 'Title of the movie news' })
   @IsString()
-  @IsNotEmpty()
-  title: string;
+  title: string
 
-  @ApiProperty({
-    description: 'The main content of the movie news article',
-    example: 'Lorem ipsum dolor sit amet...',
-  })
+  @ApiProperty({ description: 'Content of the movie news' })
   @IsString()
-  @IsNotEmpty()
-  content: string;
+  content: string
 
-  @ApiPropertyOptional({
-    description: 'The author of the movie news article',
-    example: 'Jane Doe',
-  })
-  @IsString()
-  @IsOptional() // Author might be optional
-  author?: string;
-
-  @ApiPropertyOptional({
-    description: 'A short description or summary of the news article',
-    example: 'A new movie is set to release next month.',
-  })
-  @IsString()
+  @ApiProperty({ description: 'Author of the movie news', required: false })
   @IsOptional()
-  description?: string;
+  @IsString()
+  author?: string
+
+  @ApiProperty({ description: 'Short description of the movie news', required: false })
+  @IsOptional()
+  @IsString()
+  description?: string
+
+  @ApiProperty({ description: 'ID of the related movie' })
+  @IsUUID()
+  movieId: string
 }

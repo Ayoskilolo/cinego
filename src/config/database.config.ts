@@ -19,7 +19,11 @@ export default registerAs('database', () => ({
   password: env.POSTGRES_PASSWORD,
   database: env.POSTGRES_DB,
   autoLoadEntities: true,
+  // Explicitly include all entity files to avoid missing metadata issues during DataSource initialization
+  entities: [`${__dirname}/../**/*.entity.{ts,js}`],
   synchronize: true,
   migrations: [`${__dirname}/../database/migration/**/*.{ts,js}`],
-  ssl: { rejectUnauthorized: false },
+  ssl: {
+    rejectUnauthorized: false,
+  },
 }));

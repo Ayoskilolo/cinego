@@ -19,27 +19,19 @@ import { Paginate, PaginateQuery } from 'nestjs-paginate';
 import { SignUpDto } from '../auth/dto/sign-up.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
+import { IsEnum, IsOptional } from 'class-validator';
 
 // Admin-only DTOs (scoped to this controller to avoid extra files)
 class AdminCreateUserDto extends SignUpDto {
   @IsOptional()
   @IsEnum(Role)
   role?: Role;
-
-  @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
 }
 
 class AdminUpdateUserDto extends UpdateAccountDto {
   @IsOptional()
   @IsEnum(Role)
   role?: Role;
-
-  @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
 }
 
 @ApiTags('Admin Users')
@@ -75,11 +67,10 @@ export class AdminUsersController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   async create(@Body() dto: AdminCreateUserDto) {
     const user = await this.userService.createUser(dto);
-    // If admin supplied role/isActive, apply them post-creation
-    if (dto.role !== undefined || dto.isActive !== undefined) {
+    // If admin supplied role, apply it post-creation
+    if (dto.role !== undefined) {
       await this.userService.updateUser(user.id, {
         role: dto.role ?? user.role,
-        isActive: dto.isActive ?? user.isActive,
       });
     }
     // Return the fresh user state
@@ -109,7 +100,7 @@ export class AdminUsersController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'User not found.' })
   async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AdminUpdateUserDto) {
-    const { role, isActive, ...accountFields } = dto;
+    const { role, ...accountFields } = dto;
 
     // Handle password hashing and account fields using existing service method
     if (Object.keys(accountFields).length > 0) {
@@ -117,35 +108,14 @@ export class AdminUsersController {
     }
 
     // Apply admin-specific fields
-    if (role !== undefined || isActive !== undefined) {
+    if (role !== undefined) {
       await this.userService.updateUser(id, {
         ...(role !== undefined ? { role } : {}),
-        ...(isActive !== undefined ? { isActive } : {}),
       });
     }
 
     const data = await this.userService.findOneById(id);
     return { message: 'User updated successfully', data };
-  }
-
-  @Patch(':id/activate')
-  @ApiOperation({ summary: 'Activate a user (Admin only)' })
-  @ApiParam({ name: 'id', description: 'User ID', type: 'string' })
-  @ApiResponse({ status: 200, description: 'User activated successfully.' })
-  async activate(@Param('id', ParseUUIDPipe) id: string) {
-    await this.userService.updateUser(id, { isActive: true });
-    const data = await this.userService.findOneById(id);
-    return { message: 'User activated successfully', data };
-  }
-
-  @Patch(':id/deactivate')
-  @ApiOperation({ summary: 'Deactivate a user (Admin only)' })
-  @ApiParam({ name: 'id', description: 'User ID', type: 'string' })
-  @ApiResponse({ status: 200, description: 'User deactivated successfully.' })
-  async deactivate(@Param('id', ParseUUIDPipe) id: string) {
-    await this.userService.updateUser(id, { isActive: false });
-    const data = await this.userService.findOneById(id);
-    return { message: 'User deactivated successfully', data };
   }
 
   @Delete(':id')

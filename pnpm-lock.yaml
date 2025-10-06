@@ -11,6 +11,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.879.0
         version: 3.879.0
+      '@aws-sdk/cloudfront-signer':
+        specifier: ^3.893.0
+        version: 3.893.0
       '@aws-sdk/credential-providers':
         specifier: ^3.879.0
         version: 3.879.0
@@ -242,6 +245,10 @@ packages:
 
   '@aws-sdk/client-sso@3.879.0':
     resolution: {integrity: sha512-+Pc3OYFpRYpKLKRreovPM63FPPud1/SF9vemwIJfz6KwsBCJdvg7vYD1xLSIp5DVZLeetgf4reCyAA5ImBfZuw==}
+    engines: {node: '>=18.0.0'}
+
+  '@aws-sdk/cloudfront-signer@3.893.0':
+    resolution: {integrity: sha512-SL2z8C9tRgZaqwJ1pbxQaBrUTb1DnFzqLEOJzYGrV9BWk5+LYm6KCK5XmBXzHICaKQL4YtigO7lNUU8SGEaw9Q==}
     engines: {node: '>=18.0.0'}
 
   '@aws-sdk/core@3.879.0':
@@ -1170,6 +1177,10 @@ packages:
     resolution: {integrity: sha512-6SV7md2CzNG/WUeTjVe6Dj8noH32r4MnUeFKZrnVYsQxpGSIcphAanQMayi8jJLZAWm6pdM9ZXvKCpWOsIGg0w==}
     engines: {node: '>=18.0.0'}
 
+  '@smithy/querystring-parser@4.1.1':
+    resolution: {integrity: sha512-63TEp92YFz0oQ7Pj9IuI3IgnprP92LrZtRAkE3c6wLWJxfy/yOPRt39IOKerVr0JS770olzl0kGafXlAXZ1vng==}
+    engines: {node: '>=18.0.0'}
+
   '@smithy/service-error-classification@4.0.7':
     resolution: {integrity: sha512-XvRHOipqpwNhEjDf2L5gJowZEm5nsxC16pAZOeEcsygdjv9A2jdOh3YoDQvOXBGTsaJk6mNWtzWalOB9976Wlg==}
     engines: {node: '>=18.0.0'}
@@ -1190,8 +1201,16 @@ packages:
     resolution: {integrity: sha512-QO4zghLxiQ5W9UZmX2Lo0nta2PuE1sSrXUYDoaB6HMR762C0P7v/HEPHf6ZdglTVssJG1bsrSBxdc3quvDSihw==}
     engines: {node: '>=18.0.0'}
 
+  '@smithy/types@4.5.0':
+    resolution: {integrity: sha512-RkUpIOsVlAwUIZXO1dsz8Zm+N72LClFfsNqf173catVlvRZiwPy0x2u0JLEA4byreOPKDZPGjmPDylMoP8ZJRg==}
+    engines: {node: '>=18.0.0'}
+
   '@smithy/url-parser@4.0.5':
     resolution: {integrity: sha512-j+733Um7f1/DXjYhCbvNXABV53NyCRRA54C7bNEIxNPs0YjfRxeMKjjgm2jvTYrciZyCjsicHwQ6Q0ylo+NAUw==}
+    engines: {node: '>=18.0.0'}
+
+  '@smithy/url-parser@4.1.1':
+    resolution: {integrity: sha512-bx32FUpkhcaKlEoOMbScvc93isaSiRM75pQ5IgIBaMkT7qMlIibpPRONyx/0CvrXHzJLpOn/u6YiDX2hcvs7Dg==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/util-base64@4.0.0':
@@ -4329,6 +4348,11 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
+  '@aws-sdk/cloudfront-signer@3.893.0':
+    dependencies:
+      '@smithy/url-parser': 4.1.1
+      tslib: 2.8.1
+
   '@aws-sdk/core@3.879.0':
     dependencies:
       '@aws-sdk/types': 3.862.0
@@ -5718,6 +5742,11 @@ snapshots:
       '@smithy/types': 4.3.2
       tslib: 2.8.1
 
+  '@smithy/querystring-parser@4.1.1':
+    dependencies:
+      '@smithy/types': 4.5.0
+      tslib: 2.8.1
+
   '@smithy/service-error-classification@4.0.7':
     dependencies:
       '@smithy/types': 4.3.2
@@ -5752,10 +5781,20 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  '@smithy/types@4.5.0':
+    dependencies:
+      tslib: 2.8.1
+
   '@smithy/url-parser@4.0.5':
     dependencies:
       '@smithy/querystring-parser': 4.0.5
       '@smithy/types': 4.3.2
+      tslib: 2.8.1
+
+  '@smithy/url-parser@4.1.1':
+    dependencies:
+      '@smithy/querystring-parser': 4.1.1
+      '@smithy/types': 4.5.0
       tslib: 2.8.1
 
   '@smithy/util-base64@4.0.0':
@@ -8296,7 +8335,7 @@ snapshots:
 
   rxjs@7.8.1:
     dependencies:
-      tslib: 2.6.3
+      tslib: 2.8.1
 
   rxjs@7.8.2:
     dependencies:

@@ -13,7 +13,9 @@ const AppDataSource = new DataSource({
   entities: [`${__dirname}/**/*.entity.{ts,js}`],
   migrations: [`${__dirname}/database/migrations/**/*.{ts,js}`],
   synchronize: true,
-  ssl: { rejectUnauthorized: false },
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
 
 AppDataSource.initialize()

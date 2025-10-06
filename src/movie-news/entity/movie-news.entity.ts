@@ -1,31 +1,33 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  CreateDateColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm'
+import { Movie } from '../../movie/entities/movie.entity'
 
 @Entity('movie_news')
 export class MovieNews {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id: string
 
   @Column()
-  title: string;
+  title: string
 
   @Column('text')
-  content: string;
-
-  @Column({ nullable: true }) // Author is optional
-  author: string;
+  content: string
 
   @Column({ nullable: true })
-  description: string;
+  author: string
+
+  @Column({ nullable: true })
+  description: string
+
+  @Column()
+  movieId: string
+
+  @ManyToOne(() => Movie, (movie) => movie.news, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'movieId' })
+  movie: Movie
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt: Date
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt: Date
 }

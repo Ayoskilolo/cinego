@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
 import { AppModule } from './../src/app.module';
+import { SchedulerRegistry } from '@nestjs/schedule';
 
 async function adminLogin(httpServer: any): Promise<string> {
   const res = await request(httpServer)
@@ -82,6 +83,16 @@ describe('Admin Users (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe());
     await app.init();
+
+    // Stop scheduled cron jobs to avoid interference in tests
+    const scheduler = app.get(SchedulerRegistry);
+    try {
+      const cronJobs = scheduler.getCronJobs();
+      cronJobs.forEach((job) => job.stop());
+    } catch (e) {
+      // ignore if none
+    }
+
     httpServer = app.getHttpServer();
   });
 
@@ -113,7 +124,7 @@ describe('Admin Users (e2e)', () => {
     expect(res.body?.data).toBeDefined();
   });
 
-  it('should require auth for create/get/update/activate/deactivate/delete', async () => {
+  it('should require auth for create/get/update/delete', async () => {
     const someId = '00000000-0000-0000-0000-000000000000';
 
     await request(httpServer)
@@ -134,18 +145,10 @@ describe('Admin Users (e2e)', () => {
       .send({ firstName: 'Hacker' })
       .expect(401);
 
-    await request(httpServer)
-      .patch(`/admin/users/${someId}/activate`)
-      .expect(401);
-
-    await request(httpServer)
-      .patch(`/admin/users/${someId}/deactivate`)
-      .expect(401);
-
     await request(httpServer).delete(`/admin/users/${someId}`).expect(401);
   });
 
-  it('should forbid non-admin for create/get/update/activate/deactivate/delete', async () => {
+  it('should forbid non-admin for create/get/update/delete', async () => {
     const userToken = await createAndLoginNonAdmin(httpServer);
     const someId = '00000000-0000-0000-0000-000000000000';
 
@@ -170,16 +173,6 @@ describe('Admin Users (e2e)', () => {
       .patch(`/admin/users/${someId}`)
       .set('Authorization', `Bearer ${userToken}`)
       .send({ firstName: 'Nope' })
-      .expect(403);
-
-    await request(httpServer)
-      .patch(`/admin/users/${someId}/activate`)
-      .set('Authorization', `Bearer ${userToken}`)
-      .expect(403);
-
-    await request(httpServer)
-      .patch(`/admin/users/${someId}/deactivate`)
-      .set('Authorization', `Bearer ${userToken}`)
       .expect(403);
 
     await request(httpServer)
@@ -252,7 +245,7 @@ describe('Admin Users (e2e)', () => {
     expect(ascDate).toBeLessThanOrEqual(descDate);
   });
 
-  it('should support filter by role and isActive', async () => {
+  it('should support filter by role', async () => {
     const token = await adminLogin(httpServer);
 
     // Filter by role admin (nestjs-paginate syntax uses dotted keys)
@@ -265,18 +258,6 @@ describe('Admin Users (e2e)', () => {
     const roleItems = byRole.body?.data?.items ?? [];
     for (const it of roleItems) {
       expect(it.role).toBe('admin');
-    }
-
-    // Filter by isActive true
-    const byActive = await request(httpServer)
-      .get('/admin/users')
-      .set('Authorization', `Bearer ${token}`)
-      .query({ 'filter.isActive': '$eq:true' })
-      .expect(200);
-
-    const activeItems = byActive.body?.data?.items ?? [];
-    for (const it of activeItems) {
-      expect(it.isActive).toBe(true);
     }
   });
 
@@ -310,7 +291,7 @@ describe('Admin Users (e2e)', () => {
     }
   });
 
-  it('should return 400 for invalid UUID params on get/update/activate/deactivate/delete', async () => {
+  it('should return 400 for invalid UUID params on get/update/delete', async () => {
     const token = await adminLogin(httpServer);
     const badId = 'not-a-uuid';
 
@@ -326,22 +307,12 @@ describe('Admin Users (e2e)', () => {
       .expect(400);
 
     await request(httpServer)
-      .patch(`/admin/users/${badId}/activate`)
-      .set('Authorization', `Bearer ${token}`)
-      .expect(400);
-
-    await request(httpServer)
-      .patch(`/admin/users/${badId}/deactivate`)
-      .set('Authorization', `Bearer ${token}`)
-      .expect(400);
-
-    await request(httpServer)
       .delete(`/admin/users/${badId}`)
       .set('Authorization', `Bearer ${token}`)
       .expect(400);
   });
 
-  it('should return 404 for non-existent user id on get/update/activate/deactivate/delete', async () => {
+  it('should return 404 for non-existent user id on get/update/delete', async () => {
     const token = await adminLogin(httpServer);
     const missingId = '00000000-0000-0000-0000-000000000000';
 
@@ -354,16 +325,6 @@ describe('Admin Users (e2e)', () => {
       .patch(`/admin/users/${missingId}`)
       .set('Authorization', `Bearer ${token}`)
       .send({ firstName: 'Nobody' })
-      .expect(404);
-
-    await request(httpServer)
-      .patch(`/admin/users/${missingId}/activate`)
-      .set('Authorization', `Bearer ${token}`)
-      .expect(404);
-
-    await request(httpServer)
-      .patch(`/admin/users/${missingId}/deactivate`)
-      .set('Authorization', `Bearer ${token}`)
       .expect(404);
 
     await request(httpServer)
@@ -381,7 +342,7 @@ describe('Admin Users (e2e)', () => {
       .expect(400);
   });
 
-  it('should allow admin to create, get, update, activate/deactivate and delete a user', async () => {
+  it('should allow admin to create, get, update, and delete a user', async () => {
     const token = await adminLogin(httpServer);
 
     // Create
@@ -407,25 +368,13 @@ describe('Admin Users (e2e)', () => {
       .expect(200);
     expect(getRes.body?.data?.id).toBe(createdId);
 
-    // Update (make inactive)
+    // Update
     const updateRes = await request(httpServer)
       .patch(`/admin/users/${createdId}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ isActive: false })
+      .send({ firstName: 'UpdatedName' })
       .expect(200);
-    expect(updateRes.body?.data?.isActive).toBe(false);
-
-    // Activate
-    await request(httpServer)
-      .patch(`/admin/users/${createdId}/activate`)
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
-
-    // Deactivate
-    await request(httpServer)
-      .patch(`/admin/users/${createdId}/deactivate`)
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
+    expect(updateRes.body?.data?.firstName).toBe('UpdatedName');
 
     // Delete
     await request(httpServer)

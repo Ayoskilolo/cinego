@@ -1,74 +1,52 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { CreateMovieNewsDto } from './dto/create-movie-news.dto';
-import { UpdateMovieNewsDto } from './dto/update-movie-news.dto';
-import { MovieNews } from './entity/movie-news.entity';
-import { PaginateQuery, paginate, PaginateConfig } from 'nestjs-paginate';
+import { Injectable, NotFoundException } from '@nestjs/common'
+import { InjectRepository } from '@nestjs/typeorm'
+import { Repository } from 'typeorm'
+import { CreateMovieNewsDto } from './dto/create-movie-news.dto'
+import { UpdateMovieNewsDto } from './dto/update-movie-news.dto'
+import { MovieNews } from './entity/movie-news.entity'
+import { PaginateQuery, paginate, PaginateConfig } from 'nestjs-paginate'
 
 @Injectable()
 export class MovieNewsService {
   constructor(
     @InjectRepository(MovieNews)
-    private readonly movieNewsRepository: Repository<MovieNews>,
+    private readonly repo: Repository<MovieNews>,
   ) {}
 
-  private readonly logger = new Logger(MovieNewsService.name);
-
-  async create(createMovieNewsDto: CreateMovieNewsDto): Promise<MovieNews> {
-    const newsItem = this.movieNewsRepository.create(createMovieNewsDto);
-    return this.movieNewsRepository.save(newsItem);
+  async create(dto: CreateMovieNewsDto): Promise<MovieNews> {
+    const entity = this.repo.create(dto)
+    return this.repo.save(entity)
   }
 
   async findAll(query: PaginateQuery) {
-    const paginateConfig: PaginateConfig<MovieNews> = {
+    const config: PaginateConfig<MovieNews> = {
       sortableColumns: ['createdAt', 'title'],
       defaultSortBy: [['createdAt', 'DESC']],
       searchableColumns: ['title', 'content', 'author', 'description'],
       defaultLimit: 10,
       filterableColumns: {
         author: true,
+        movieId: true,
       },
-      select: [
-        'id',
-        'title',
-        'content',
-        'author',
-        'description',
-        'createdAt',
-        'updatedAt',
-      ],
-    };
-
-    return await paginate(query, this.movieNewsRepository, paginateConfig);
+      select: ['id', 'title', 'content', 'author', 'description', 'movieId', 'createdAt', 'updatedAt'],
+    }
+    return paginate(query, this.repo, config)
   }
 
   async findOne(id: string): Promise<MovieNews> {
-    const newsItem = await this.movieNewsRepository.findOne({ where: { id } });
-    if (!newsItem) {
-      throw new NotFoundException(`Movie news with ID "${id}" not found`);
-    }
-    return newsItem;
+    const entity = await this.repo.findOne({ where: { id } })
+    if (!entity) throw new NotFoundException(`MovieNews with ID "${id}" not found`)
+    return entity
   }
 
-  async update(
-    id: string,
-    updateMovieNewsDto: UpdateMovieNewsDto,
-  ): Promise<MovieNews> {
-    const newsItem = await this.movieNewsRepository.preload({
-      id: id,
-      ...updateMovieNewsDto,
-    });
-    if (!newsItem) {
-      throw new NotFoundException(`Movie news with ID "${id}" not found`);
-    }
-    return this.movieNewsRepository.save(newsItem);
+  async update(id: string, dto: UpdateMovieNewsDto): Promise<MovieNews> {
+    const entity = await this.repo.preload({ id, ...dto })
+    if (!entity) throw new NotFoundException(`MovieNews with ID "${id}" not found`)
+    return this.repo.save(entity)
   }
 
   async remove(id: string): Promise<void> {
-    const result = await this.movieNewsRepository.delete(id);
-    if (result.affected === 0) {
-      throw new NotFoundException(`Movie news with ID "${id}" not found`);
-    }
+    const result = await this.repo.delete(id)
+    if (result.affected === 0) throw new NotFoundException(`MovieNews with ID "${id}" not found`)
   }
 }

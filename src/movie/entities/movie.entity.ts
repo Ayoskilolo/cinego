@@ -4,6 +4,7 @@ import { ProvidersEntity } from 'src/providers/entities/providers.entity';
 import { MyListEntity } from 'src/my-list/entities/my-list.entity';
 import { Comment } from '../../comment/entities/comment.entity';
 import { Review } from '../../review/entities/review.entity';
+import { MovieNews } from '../../movie-news/entity/movie-news.entity'
 
 @Entity()
 export class Movie extends BaseEntity {
@@ -76,7 +77,10 @@ export class Movie extends BaseEntity {
   comments: Comment[];
 
   @OneToMany(() => Review, (review) => review.movie)
-  reviews: Review[];
+  reviews: Review[]
 
-  isInMyList?: boolean;
+  @OneToMany(() => MovieNews, (news) => news.movie)
+  news: MovieNews[]
+
+  isInMyList?: boolean
 }

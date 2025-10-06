@@ -17,6 +17,8 @@ import {
 import { InjectAws } from 'aws-sdk-v3-nest';
 import { ConfigService } from '@nestjs/config';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { getSignedCookies } from '@aws-sdk/cloudfront-signer';
+import { readFileSync } from 'node:fs';
 
 @Injectable()
 export class AwsServicesService {
@@ -158,5 +160,80 @@ export class AwsServicesService {
       3600,
     );
     return url;
+  }
+
+  async getCloudFrontSignedCookies(
+    scope: string = '/',
+    ttlSeconds: number = 900,
+  ) {
+    try {
+      // Prefer namespaced config, fallback to direct env keys
+      const cfDomain =
+        this.configService.get<string>('aws.cfDomain') ||
+        this.configService.get<string>('AWS_CF_DOMAIN');
+      const keyPairId =
+        this.configService.get<string>('aws.cfKeyPairId') ||
+        this.configService.get<string>('AWS_CF_KEY_PAIR_ID');
+
+      let privateKey; // =
+      //   this.configService.get<string>('aws.privateKey') ||
+      //   this.configService.get<string>('PRIVATE_KEY');
+
+      // Support reading private key from file path if provided
+      if (!privateKey) {
+        const privateKeyPath =
+          this.configService.get<string>('aws.privateKeyPath') ||
+          this.configService.get<string>('PRIVATE_KEY_PATH');
+        if (privateKeyPath) {
+          try {
+            privateKey = readFileSync(privateKeyPath, 'utf8');
+          } catch (err) {
+            this.logger.error('Failed to read PRIVATE_KEY_PATH file', {
+              privateKeyPath,
+              error: (err as Error)?.message,
+            });
+          }
+        }
+      }
+
+      // Normalize escaped newlines if key is provided via environment variable
+      const normalizedPrivateKey = privateKey?.includes('\\n')
+        ? privateKey.replace(/\\n/g, '\n')
+        : privateKey;
+
+      if (!cfDomain || !keyPairId || !normalizedPrivateKey) {
+        this.logger.error('Missing CloudFront signing configuration', {
+          cfDomain,
+          keyPairId,
+          hasPrivateKey: !!normalizedPrivateKey,
+        });
+        throw new InternalServerErrorException(
+          'CloudFront signing configuration is missing. Ensure AWS_CF_DOMAIN, AWS_CF_KEY_PAIR_ID and PRIVATE_KEY are set (or PRIVATE_KEY_PATH).',
+        );
+      }
+
+      // Basic sanity check on key format
+      if (!normalizedPrivateKey.trim().startsWith('-----BEGIN')) {
+        this.logger.error('PRIVATE_KEY does not appear to be a valid PEM key');
+        throw new InternalServerErrorException(
+          'Invalid PRIVATE_KEY format. Expected a PEM string (-----BEGIN ... KEY-----).',
+        );
+      }
+
+      const ttl = Math.min(3600, Number(ttlSeconds ?? 900));
+      const expires = new Date(Date.now() + ttl * 1000);
+
+      const cookies = getSignedCookies({
+        url: `https://${cfDomain}${scope}`,
+        keyPairId,
+        privateKey: normalizedPrivateKey,
+        dateLessThan: expires,
+      });
+
+      return { cookies, expires };
+    } catch (error) {
+      this.logger.error('Failed to generate CloudFront signed cookies', error);
+      throw new InternalServerErrorException(error);
+    }
   }
 }

@@ -45,7 +45,7 @@ export class TransactionsService {
   ) {}
 
   async findAll(query: PaginateQuery) {
-    return paginate(query, this.transactionRepository, {
+    const result = await paginate(query, this.transactionRepository, {
       sortableColumns: ['dateCreated', 'amount', 'paymentReason'],
       defaultSortBy: [['dateCreated', 'DESC']],
       searchableColumns: ['reference', 'externalReference', 'paymentReason'],
@@ -55,6 +55,7 @@ export class TransactionsService {
         amount: [FilterOperator.GTE, FilterOperator.LTE],
         dateCreated: [FilterOperator.GTE, FilterOperator.LTE],
       },
+      relations: ['user'],
       select: [
         'id',
         'amount',
@@ -67,10 +68,20 @@ export class TransactionsService {
         'dateCreated',
       ],
     });
+
+    // Ensure user relation is a minimal object: { id, email, firstName, lastName }
+    result.data = result.data.map((tx: any) => {
+      if (tx.user) {
+        tx.user = this.toMinimalUser(tx.user as User);
+      }
+      return tx;
+    });
+
+    return result;
   }
 
   async findByUser(userId: string, query: PaginateQuery) {
-    return paginate(query, this.transactionRepository, {
+    const result = await paginate(query, this.transactionRepository, {
       sortableColumns: ['dateCreated', 'amount', 'paymentReason'],
       defaultSortBy: [['dateCreated', 'DESC']],
       searchableColumns: ['reference', 'externalReference', 'paymentReason'],
@@ -81,6 +92,7 @@ export class TransactionsService {
         dateCreated: [FilterOperator.GTE, FilterOperator.LTE],
       },
       where: { userId },
+      relations: ['user'],
       select: [
         'id',
         'amount',
@@ -92,6 +104,16 @@ export class TransactionsService {
         'dateCreated',
       ],
     });
+
+    // Ensure user relation is a minimal object: { id, email, firstName, lastName }
+    result.data = result.data.map((tx: any) => {
+      if (tx.user) {
+        tx.user = this.toMinimalUser(tx.user as User);
+      }
+      return tx;
+    });
+
+    return result;
   }
 
   async findOne(id: string) {
@@ -104,7 +126,23 @@ export class TransactionsService {
       throw new NotFoundException(`Transaction with ID ${id} not found`);
     }
 
-    return { data: transaction };
+    const shaped = Object.assign({}, transaction, {
+      user: transaction.user
+        ? this.toMinimalUser(transaction.user as User)
+        : undefined,
+    });
+
+    return { data: shaped };
+  }
+
+  // Helper to shape user object in transaction responses
+  private toMinimalUser(user: User) {
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+    };
   }
 
   // Define retry constants (consider moving to config)
@@ -631,7 +669,7 @@ export class TransactionsService {
 
       case 'subscription.cancelled':
         const customerEmail = eventData?.customer?.email;
-        const flutterwaveSubscriptionId = eventData?.id?.toString(); // Flutterwave's subscription ID
+        const flutterwaveSubscriptionId = eventData?.id?.toString();
 
         if (!customerEmail) {
           this.logger.error(
@@ -901,5 +939,159 @@ export class TransactionsService {
     //   );
     //   // Continue with local cancellation even if API call fails
     // }
+  }
+
+  // Aggregated stats for charting
+  async getAggregatedStats(params: {
+    from?: string;
+    to?: string;
+    interval?: 'day' | 'week' | 'month';
+    status?: string; // accepts enum labels like SUCCESS, SUCCESSFUL, PENDING, FAILED, ERROR
+    timezone?: string; // currently standardized to UTC
+  }): Promise<{
+    series: { date: string; revenue: number; transactions: number }[];
+  }> {
+    const interval = (params.interval ?? 'day') as 'day' | 'week' | 'month';
+    if (!['day', 'week', 'month'].includes(interval)) {
+      throw new BadRequestException(
+        `Invalid interval '${params.interval}'. Use day|week|month.`,
+      );
+    }
+
+    // Parse dates (default last 30 days)
+    const nowUtc = new Date();
+    const defaultFrom = new Date(nowUtc.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const from = params.from ? new Date(params.from) : defaultFrom;
+    const to = params.to ? new Date(params.to) : nowUtc;
+
+    if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+      throw new BadRequestException(
+        'Invalid from/to datetime. Provide ISO 8601 strings.',
+      );
+    }
+    if (from > to) {
+      throw new BadRequestException('`from` must be <= `to`.');
+    }
+
+    // Map status string (if provided) to enum value
+    let statusFilter: TransactionStatus | undefined;
+    if (params.status) {
+      const normalized = params.status.toUpperCase();
+      if (normalized === 'SUCCESS') {
+        statusFilter = TransactionStatus.SUCCESSFUL;
+      } else if (normalized in TransactionStatus) {
+        statusFilter = (TransactionStatus as any)[normalized];
+      } else {
+        // Also try enum values string match (e.g., 'successful')
+        const foundKey = Object.keys(TransactionStatus).find(
+          (k) => (TransactionStatus as any)[k] === params.status,
+        );
+        if (foundKey) statusFilter = (TransactionStatus as any)[foundKey];
+      }
+      if (!statusFilter) {
+        throw new BadRequestException(
+          `Invalid status '${params.status}'. Use one of: ${Object.keys(TransactionStatus).join(', ')}`,
+        );
+      }
+    }
+
+    // Build aggregation query (UTC standardization)
+    const qb = this.transactionRepository.createQueryBuilder('t');
+
+    const dateTruncUnit = interval; // 'day' | 'week' | 'month' (whitelisted)
+    // Group by UTC-truncated bucket
+    qb.select(`date_trunc('${dateTruncUnit}', t."dateCreated")`, 'bucket')
+      .addSelect('COUNT(*)', 'transactions')
+      .addSelect('COALESCE(SUM(t.amount), 0)', 'revenue_major')
+      .where('t."dateCreated" >= :from AND t."dateCreated" <= :to', {
+        from: from.toISOString(),
+        to: to.toISOString(),
+      });
+
+    if (statusFilter) {
+      qb.andWhere('t.status = :status', { status: statusFilter });
+    }
+
+    qb.groupBy('bucket').orderBy('bucket', 'ASC');
+
+    type RawRow = { bucket: Date; transactions: string; revenue_major: string };
+    const raw: RawRow[] = await qb.getRawMany();
+
+    // Map results by bucket ISO date (YYYY-MM-DD)
+    const fmt = (d: Date) => {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
+    const trunc = (d: Date): Date => {
+      const dt = new Date(d.getTime());
+      if (interval === 'day') {
+        return new Date(
+          Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()),
+        );
+      }
+      if (interval === 'week') {
+        // Align to Monday (to match Postgres date_trunc('week', ...))
+        const dow = dt.getUTCDay(); // 0=Sun..6=Sat
+        const delta = (dow + 6) % 7; // days since Monday
+        const monday = new Date(
+          Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()),
+        );
+        monday.setUTCDate(monday.getUTCDate() - delta);
+        return monday;
+      }
+      // month
+      return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), 1));
+    };
+
+    const step = (d: Date): Date => {
+      const nd = new Date(d.getTime());
+      if (interval === 'day') {
+        nd.setUTCDate(nd.getUTCDate() + 1);
+      } else if (interval === 'week') {
+        nd.setUTCDate(nd.getUTCDate() + 7);
+      } else {
+        nd.setUTCMonth(nd.getUTCMonth() + 1);
+      }
+      return nd;
+    };
+
+    const startBucket = trunc(from);
+    const endBucket = trunc(to);
+
+    const map = new Map<
+      string,
+      { revenueMajor: number; transactions: number }
+    >();
+    for (const r of raw) {
+      const b = new Date(r.bucket);
+      const key = fmt(trunc(b));
+      map.set(key, {
+        revenueMajor: Number(r.revenue_major) || 0,
+        transactions: Number(r.transactions) || 0,
+      });
+    }
+
+    const series: { date: string; revenue: number; transactions: number }[] =
+      [];
+    for (
+      let cur = startBucket;
+      cur.getTime() <= endBucket.getTime();
+      cur = step(cur)
+    ) {
+      const key = fmt(cur);
+      const entry = map.get(key) ?? { revenueMajor: 0, transactions: 0 };
+      // Convert to smallest unit (assume stored major units)
+      const revenueMinor = Math.round(entry.revenueMajor * 100);
+      series.push({
+        date: key,
+        revenue: revenueMinor,
+        transactions: entry.transactions,
+      });
+    }
+
+    return { series };
   }
 }

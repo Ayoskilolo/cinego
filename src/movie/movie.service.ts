@@ -634,4 +634,122 @@ export class MovieService {
     const { mediaKeys, providerId, ...movieData } = movie; // Exclude sensitive fields
     return movieData as Movie; // Ensure the returned type matches, adjust if necessary
   }
+
+  // Admin-only helpers (no subscription gating, sanitized fields)
+  async adminFindAllPaginated(query: PaginateQuery) {
+    const paginateConfig: PaginateConfig<Movie> = {
+      sortableColumns: ['dateCreated', 'productionYear', 'title'],
+      defaultSortBy: [['dateCreated', 'DESC']],
+      searchableColumns: [
+        'title',
+        'director',
+        'cast',
+        'synopsis',
+        'genres',
+        'languages',
+      ],
+      defaultLimit: 10,
+      filterableColumns: {
+        isHD: true,
+        programType: true,
+        productionYear: true,
+        marketRating: true,
+        director: true,
+        genres: true,
+        languages: true,
+        isPremium: true,
+        providerId: true,
+      },
+      select: [
+        'id',
+        'title',
+        // providerId intentionally excluded from select for admin listing responses
+        'providerTitleId',
+        'programType',
+        'synopsis',
+        'productionYear',
+        'marketRating',
+        'isHD',
+        'director',
+        'cast',
+        'genres',
+        'languages',
+        'duration',
+        'images',
+        'dateCreated',
+        'isPremium',
+      ],
+    };
+
+    return await paginate(query, this.movieRepository, paginateConfig);
+  }
+
+  async adminFindOne(id: string) {
+    const movie = await this.movieRepository.findOne({ where: { id } });
+    if (!movie) {
+      throw new NotFoundException('Movie not found');
+    }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { mediaKeys, providerId, ...movieData } = movie as any;
+    return movieData;
+  }
+
+  async adminUpdate(
+    id: string,
+    update: Partial<{
+      title: string;
+      synopsis: string;
+      productionYear: string;
+      marketRating: string;
+      isHD: boolean;
+      director: string;
+      cast: string[];
+      genres: string[];
+      languages: string[];
+      duration: string;
+      isPremium: boolean;
+      images: Movie['images'];
+      programType: string;
+      providerId: string;
+      providerTitleId: string;
+    }>,
+  ) {
+    const movie = await this.movieRepository.findOne({ where: { id } });
+    if (!movie) {
+      throw new NotFoundException('Movie not found');
+    }
+    // Only assign allowed fields
+    const allowedKeys: Array<keyof Movie | keyof typeof update> = [
+      'title',
+      'synopsis',
+      'productionYear',
+      'marketRating',
+      'isHD',
+      'director',
+      'cast',
+      'genres',
+      'languages',
+      'duration',
+      'isPremium',
+      'images',
+      'programType',
+      'providerId',
+      'providerTitleId',
+    ];
+    for (const key of allowedKeys) {
+      if (Object.prototype.hasOwnProperty.call(update, key)) {
+        // @ts-expect-error intentional dynamic assignment within allowed keys
+        movie[key] = update[key as keyof typeof update] as any;
+      }
+    }
+    const saved = await this.movieRepository.save(movie);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { mediaKeys, providerId, ...movieData } = saved as any;
+    return movieData;
+  }
+
+  async adminDelete(id: string) {
+    const result = await this.movieRepository.delete({ id });
+    return result.affected ?? 0;
+  }
 }

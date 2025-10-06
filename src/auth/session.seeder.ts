@@ -25,8 +25,8 @@ export class SessionSeeder implements Seeder {
   async seed(): Promise<any> {
     const users = await this.userRepository.find({ relations: ['profiles'] });
 
-    // Reset existing sessions to avoid unbounded growth
-    await this.sessionRepository.delete({});
+    // Remove destructive reset; we now preserve existing sessions and only seed for users without any sessions
+    // await this.sessionRepository.delete({});
 
     let totalSessions = 0;
     const sessionsToCreate: Partial<SessionEntity>[] = [];
@@ -35,6 +35,15 @@ export class SessionSeeder implements Seeder {
       if (!user.profiles || user.profiles.length === 0) {
         this.logger.warn(
           `User ${user.email || user.id} has no profiles; skipping session creation.`,
+        );
+        continue;
+      }
+
+      // Skip seeding if user already has 1 or more sessions
+      const existingCount = await this.sessionRepository.count({ where: { userId: user.id } });
+      if (existingCount >= 1) {
+        this.logger.log(
+          `Skipping user ${user.email || user.id}: already has ${existingCount} session(s).`,
         );
         continue;
       }
@@ -95,7 +104,7 @@ export class SessionSeeder implements Seeder {
     }
 
     this.logger.log(
-      `Created ${totalSessions} sessions across ${users.length} users.`,
+      `Created ${totalSessions} sessions across users without existing sessions.`,
     );
   }
 

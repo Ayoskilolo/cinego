@@ -28,7 +28,7 @@ import { ResetPasswordDto } from '../auth/dto/reset-password.dto';
 import { EmailTemplateData } from 'src/mail/interfaces';
 import { MailService } from 'src/mail/mail.service';
 import { SessionEntity } from '../auth/entities/session.entity';
-import { PaginateQuery, paginate, PaginateConfig } from 'nestjs-paginate';
+import { PaginateQuery, paginate, PaginateConfig, FilterOperator } from 'nestjs-paginate';
 
 @Injectable()
 export class UserService {
@@ -907,13 +907,17 @@ export class UserService {
 
   async findAllPaginated(query: PaginateQuery) {
     const paginateConfig: PaginateConfig<User> = {
-      sortableColumns: ['dateCreated', 'firstName', 'lastName', 'email', 'phoneNumber', 'role', 'isActive'],
+      sortableColumns: ['dateCreated', 'dateUpdated', 'firstName', 'lastName', 'email', 'phoneNumber', 'role', 'subscriptionType', 'isSubscribed'],
       defaultSortBy: [['dateCreated', 'DESC']],
       searchableColumns: ['firstName', 'lastName', 'email', 'phoneNumber'],
       defaultLimit: 10,
       filterableColumns: {
         role: true,
-        isActive: true,
+        subscriptionType: true,
+        isSubscribed: true,
+        hasUsedFreeTrial: true,
+        // Support date range filtering
+        dateCreated: [FilterOperator.GTE, FilterOperator.LTE],
       },
       select: [
         'id',
@@ -929,7 +933,6 @@ export class UserService {
         'hasUsedFreeTrial',
         'preferredGenres',
         'displayPicture',
-        'isActive',
         'role',
         'dateCreated',
         'dateUpdated',
