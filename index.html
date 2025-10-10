@@ -3,361 +3,550 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HLS Video Player</title>
+    <title>HLS Player (CloudFront Cookies)</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
+      :root {
+        --bg: #f5f7fb;
+        --card: #fff;
+        --ink: #101828;
+        --muted: #667085;
+        --brand: #2563eb;
+        --ok: #0f766e;
+        --warn: #93370d;
+      }
+      * {
+        box-sizing: border-box;
+      }
       body {
         margin: 0;
-        padding: 20px;
-        font-family: Arial, sans-serif;
-        background: #f0f0f0;
+        padding: 24px;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Ubuntu,
+          Cantarell,
+          Noto Sans,
+          Arial,
+          'Apple Color Emoji',
+          'Segoe UI Emoji';
+        background: var(--bg);
+        color: var(--ink);
       }
-      .container {
-        max-width: 800px;
+      .wrap {
+        max-width: 900px;
         margin: 0 auto;
-        background: white;
+        background: var(--card);
         padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+        box-shadow: 0 6px 24px rgba(16, 24, 40, 0.06);
       }
-      .input-group {
-        margin-bottom: 20px;
+      h1 {
+        margin: 0 0 16px;
+        font-size: 20px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .row > .col {
+        display: flex;
+        flex-direction: column;
       }
       label {
-        display: block;
-        margin-bottom: 5px;
-        font-weight: bold;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px;
       }
       input[type='url'],
       input[type='text'],
       input[type='number'] {
-        width: 100%;
-        padding: 10px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
+        padding: 10px 12px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
         font-size: 14px;
-        box-sizing: border-box;
+        width: 100%;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        margin: 12px 0 8px;
+        flex-wrap: wrap;
       }
       button {
-        background: #007bff;
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 4px;
+        background: var(--brand);
+        color: #fff;
+        border: 0;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-weight: 600;
         cursor: pointer;
-        font-size: 14px;
       }
-      button:hover {
-        background: #0056b3;
+      button.secondary {
+        background: #475569;
       }
       button:disabled {
-        background: #ccc;
+        opacity: 0.6;
         cursor: not-allowed;
       }
       video {
         width: 100%;
-        max-width: 100%;
-        height: auto;
-        border-radius: 4px;
-        margin-top: 20px;
+        border-radius: 10px;
+        background: #000;
+        margin: 12px 0;
       }
       .status {
-        margin-top: 10px;
+        font-size: 13px;
         padding: 10px;
-        border-radius: 4px;
-        font-size: 14px;
+        border-radius: 8px;
+        background: #eef2ff;
+        color: #1e293b;
+        border: 1px solid #e2e8f0;
       }
-      .status.success {
-        background: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
+      .status.ok {
+        background: #ecfdf5;
+        border-color: #d1fae5;
+        color: #064e3b;
       }
-      .status.error {
-        background: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
+      .status.err {
+        background: #fef2f2;
+        border-color: #fee2e2;
+        color: #7f1d1d;
       }
-      .status.info {
-        background: #d1ecf1;
-        color: #0c5460;
-        border: 1px solid #bee5eb;
-      }
-      .debug {
-        margin-top: 20px;
-        background: #f7f7f7;
-        border: 1px solid #ddd;
-        border-radius: 4px;
+      .log {
+        margin-top: 12px;
+        background: #0b1020;
+        color: #e6e8f0;
+        border-radius: 8px;
         padding: 10px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font:
+          12px/1.45 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Monaco,
+          Consolas,
+          'Liberation Mono',
+          'Courier New',
+          monospace;
+        height: 280px;
+        overflow: auto;
+      }
+      .hint {
         font-size: 12px;
-        white-space: pre-wrap;
-        word-break: break-word;
-        overflow-wrap: anywhere;
-        height: 350px; /* fixed height so content is always scrollable */
-        overflow-y: auto; /* ensure vertical scroll */
-        resize: vertical; /* allow user to resize for longer logs */
+        color: var(--muted);
+        margin-top: 4px;
+      }
+      @media (max-width: 720px) {
+        .row {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
   <body>
-    <div class="container">
-      <h1>HLS Video Player</h1>
+    <div class="wrap">
+      <h1>HLS Player (CloudFront Signed Cookies)</h1>
 
-      <div class="input-group">
-        <label for="apiBaseUrl">API Base URL:</label>
-        <input
-          type="url"
-          id="apiBaseUrl"
-          placeholder="http://localhost:3000"
-          value="http://localhost:3000"
-        />
+      <div class="row">
+        <div class="col">
+          <label for="apiBaseUrl">API Base URL</label>
+          <input
+            id="apiBaseUrl"
+            type="url"
+            placeholder="https://api.example.com"
+            value="https://api.cinego.live:3000"
+          />
+          <div class="hint">
+            Endpoint: <code>/aws-services/cloudfront/signed-cookies</code>
+          </div>
+        </div>
+        <div class="col">
+          <label for="ttl">TTL (seconds, 60–3600)</label>
+          <input id="ttl" type="number" min="60" max="3600" value="900" />
+          <div class="hint">Keep short (10–30 min). Refresh on demand.</div>
+        </div>
       </div>
 
-      <div class="input-group">
-        <label for="videoUrl">HLS Stream URL (.m3u8):</label>
-        <input
-          type="url"
-          id="videoUrl"
-          placeholder="https://example.com/stream.m3u8"
-          value="https://d40j34cd2njxc.cloudfront.net/fast-6/trailer/fast6_master.m3u8"
-        />
+      <div class="row" style="margin-top: 12px">
+        <div class="col" style="grid-column: 1 / -1">
+          <label for="videoUrl">HLS Manifest URL (.m3u8)</label>
+          <input
+            id="videoUrl"
+            type="url"
+            value="https://media.cinego.live/fast-6/trailer/variants/fast6_master.m3u8"
+            placeholder="https://media.cinego.live/path/to/master.m3u8"
+          />
+          <div class="hint">
+            Cookie scope is derived from this URL (folder wildcard).
+          </div>
+        </div>
       </div>
 
-      <div class="input-group">
-        <label for="scope">CloudFront Path/Scope (e.g., / or /protected/*):</label>
-        <input
-          type="text"
-          id="scope"
-          placeholder="/"
-          value="/"
-        />
+      <div class="actions">
+        <button id="btnCookies">1) Get Signed Cookies</button>
+        <button id="btnLoad">2) Load Video</button>
+        <button id="btnStop" class="secondary" disabled>Stop</button>
+        <button id="btnProbe" class="secondary">Probe Manifest</button>
       </div>
 
-      <div class="input-group">
-        <label for="ttlSeconds">TTL (seconds):</label>
-        <input
-          type="number"
-          id="ttlSeconds"
-          placeholder="900"
-          value="900"
-          min="60"
-          max="3600"
-        />
+      <!-- Quality selector (Hls.js only; Safari uses Auto) -->
+      <div class="row" style="margin-top: 12px">
+        <div class="col" style="grid-column: 1 / -1">
+          <label for="quality">Quality</label>
+          <select id="quality" disabled>
+            <option value="-1" selected>Auto</option>
+          </select>
+          <div class="hint">Available after manifest loads (Hls.js). Safari uses Auto.</div>
+        </div>
       </div>
 
-      <div class="input-group">
-        <label for="accessToken">Access Token (Bearer):</label>
-        <input
-          type="text"
-          id="accessToken"
-          placeholder="Paste your JWT access token here (optional for public testing)"
-          value=""
-        />
+      <div id="status" class="status">
+        Enter the manifest URL and click “Get Signed Cookies”
       </div>
 
-      <button onclick="getSignedCookies()" id="cookiesBtn">Get Signed Cookies</button>
-      <button onclick="loadVideo()" id="loadBtn">Load Video</button>
-      <button onclick="stopVideo()" id="stopBtn" disabled>Stop Video</button>
-      <button onclick="testManifestFetch()" id="testManifestBtn">Test Manifest Fetch</button>
+      <!-- Important for native Safari to send cookies -->
+      <video
+        id="video"
+        controls
+        playsinline
+        crossorigin="use-credentials"
+      ></video>
 
-      <div id="status" class="status info">
-        Enter an HLS stream URL and click "Load Video"
-      </div>
-
-      <video id="video" controls></video>
-      <div id="debug" class="debug" aria-live="polite"></div>
+      <div id="log" class="log" aria-live="polite"></div>
     </div>
 
     <script>
-      let hls = null;
-      const video = document.getElementById('video');
-      const apiBaseUrlInput = document.getElementById('apiBaseUrl');
-      const videoUrlInput = document.getElementById('videoUrl');
-      const scopeInput = document.getElementById('scope');
-      const ttlInput = document.getElementById('ttlSeconds');
-      const tokenInput = document.getElementById('accessToken');
-      const loadBtn = document.getElementById('loadBtn');
-      const stopBtn = document.getElementById('stopBtn');
-      const cookiesBtn = document.getElementById('cookiesBtn');
-      const statusDiv = document.getElementById('status');
-      const debugDiv = document.getElementById('debug');
-
-      function updateStatus(message, type = 'info') {
-        statusDiv.textContent = message;
-        statusDiv.className = `status ${type}`;
+      const el = (id) => document.getElementById(id);
+      const logBox = el('log');
+      function log(msg) {
+        const t = new Date().toISOString();
+        logBox.textContent += `\n[${t}] ${msg}`;
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+      function setStatus(msg, cls = '') {
+        const s = el('status');
+        s.textContent = msg;
+        s.className = `status ${cls}`;
       }
 
-      function appendDebug(message) {
-        const time = new Date().toISOString();
-        debugDiv.textContent += `\n[${time}] ${message}`;
-        debugDiv.scrollTop = debugDiv.scrollHeight;
+      const video = el('video');
+      let hls;
+      const qualitySel = el('quality');
+      let cookieRefreshTimer = null;
+      let lastCookieTTL = null;
+
+      function resetQualitySelector() {
+        qualitySel.innerHTML = '<option value="-1" selected>Auto</option>';
+        qualitySel.disabled = true;
+      }
+
+      function populateQualitySelector(hlsInstance) {
+        resetQualitySelector();
+        const levels = hlsInstance.levels || [];
+        // Sort by height descending for clearer options
+        const sorted = levels.slice().sort((a, b) => (b.height || 0) - (a.height || 0));
+        sorted.forEach((lvl) => {
+          const idx = hlsInstance.levels.indexOf(lvl);
+          const kbps = lvl.bitrate ? ` (${Math.round(lvl.bitrate / 1000)} kbps)` : '';
+          const label = lvl.height ? `${lvl.height}p${kbps}` : `Level ${idx}${kbps}`;
+          const opt = document.createElement('option');
+          opt.value = String(idx);
+          opt.textContent = label;
+          qualitySel.appendChild(opt);
+        });
+        qualitySel.disabled = levels.length === 0;
+      }
+
+      qualitySel.onchange = (e) => {
+        if (!hls || !Hls.isSupported()) return;
+        const val = parseInt(e.target.value, 10);
+        if (val === -1) {
+          hls.autoLevelEnabled = true;
+          hls.currentLevel = -1; // auto
+          log('Quality set to Auto (ABR)');
+        } else {
+          hls.autoLevelEnabled = false;
+          hls.currentLevel = val; // immediate switch
+          const h = hls.levels[val]?.height || '?';
+          log(`Quality locked to level ${val} (${h}p)`);
+        }
+      };
+
+      // Derive folder wildcard from the manifest URL (no hardcoding)
+      function folderWildcardFromManifest(manifestUrl) {
+        try {
+          const u = new URL(manifestUrl);
+          const parts = u.pathname.split('/').filter(Boolean);
+          if (parts.length < 1) return '/*';
+          // e.g. if path is /fast-6/trailer/variants/..., parts[0] is "fast-6"
+          const root = parts[0];
+          return `/${root}/*`;
+        } catch {
+          return '/*';
+        }
       }
 
       async function getSignedCookies() {
-        const scope = scopeInput.value.trim() || '/';
-        const ttlSeconds = parseInt(ttlInput.value, 10) || 900;
-        const token = tokenInput.value.trim();
-        const apiBaseUrl = (apiBaseUrlInput.value || '').trim().replace(/\/$/, '');
-        const endpoint = `${apiBaseUrl}/aws-services/cloudfront/signed-cookies`;
+        const apiBase = el('apiBaseUrl').value.trim().replace(/\/$/, '');
+        const ttl = Math.min(
+          3600,
+          Math.max(60, parseInt(el('ttl').value || '900', 10)),
+        );
+        const manifest = el('videoUrl').value.trim();
+        if (!apiBase) return setStatus('Please provide API Base URL', 'err');
+        if (!manifest)
+          return setStatus('Please provide HLS manifest URL', 'err');
 
-        if (!apiBaseUrl) {
-          updateStatus('Please provide API Base URL (e.g., http://localhost:3000)', 'error');
-          return;
-        }
+        const scope = folderWildcardFromManifest(manifest);
+        const endpoint = apiBase + '/aws-services/cloudfront/signed-cookies';
+
+        setStatus(`Requesting signed cookies for scope "${scope}"...`);
+        log(
+          `POST ${endpoint} body: ${JSON.stringify({ scope, ttlSeconds: ttl })}`,
+        );
 
         try {
-          updateStatus(`Requesting CloudFront signed cookies...\nPOST ${endpoint}`, 'info');
-          appendDebug(`POST ${endpoint}`);
-          cookiesBtn.disabled = true;
-
-          const headers = { 'Content-Type': 'application/json' };
-          if (token) headers['Authorization'] = `Bearer ${token}`;
-
           const res = await fetch(endpoint, {
             method: 'POST',
-            headers,
-            credentials: 'include', // ensure cookies are set when same-site/cross-site with credentials
-            body: JSON.stringify({ scope, ttlSeconds }),
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', // accept Set-Cookie
+            body: JSON.stringify({ scope, ttlSeconds: ttl }),
           });
-
-          appendDebug(`Cookies response: ${res.status} ${res.statusText}`);
-          const isJson = (res.headers.get('content-type') || '').includes('application/json');
-          let payload = null;
-          if (isJson) {
-            payload = await res.json();
-          } else {
-            const text = await res.text();
-            appendDebug(`Non-JSON response body (first 200 chars):\n${text.slice(0, 200)}`);
-          }
-
-          if (!res.ok) {
-            const msg = payload?.message || `Failed to set cookies (HTTP ${res.status})`;
-            updateStatus(msg, 'error');
-            cookiesBtn.disabled = false;
-            return;
-          }
-
-          const message = payload?.message || 'CloudFront signed cookies set';
-          updateStatus(message, 'success');
-        } catch (err) {
-          updateStatus(`Error setting cookies: ${err?.message || err}`, 'error');
-          appendDebug(`Error setting cookies: ${err?.stack || err}`);
-        } finally {
-          cookiesBtn.disabled = false;
+          log(`Cookies response: ${res.status} ${res.statusText}`);
+          const txt = await res.text();
+          log(`Response body (first 200 chars): ${txt.slice(0, 200)}`);
+          if (!res.ok)
+            return setStatus(
+              `Failed to set cookies: HTTP ${res.status}`,
+              'err',
+            );
+          setStatus('Signed cookies set. You can load the video now.', 'ok');
+          // Schedule proactive refresh slightly before TTL expiry
+          lastCookieTTL = ttl;
+          scheduleCookieRefresh(ttl);
+        } catch (e) {
+          setStatus(`Error requesting cookies: ${e?.message || e}`, 'err');
+          log(`Cookie request error: ${e?.stack || e}`);
         }
       }
 
-      async function testManifestFetch() {
-        const url = videoUrlInput.value.trim();
-        if (!url) {
-          updateStatus('Please enter a valid HLS manifest URL', 'error');
+      function scheduleCookieRefresh(ttlSeconds) {
+        try {
+          if (cookieRefreshTimer) {
+            clearTimeout(cookieRefreshTimer);
+            cookieRefreshTimer = null;
+          }
+          const lead = Math.min(60, Math.max(15, Math.floor(ttlSeconds * 0.1))); // refresh ~10% early, min 15s, max 60s
+          const ms = Math.max(0, (ttlSeconds - lead) * 1000);
+          const when = new Date(Date.now() + ms).toLocaleTimeString();
+          log(`Scheduled cookie refresh in ${Math.round(ms / 1000)}s (at ${when})`);
+          cookieRefreshTimer = setTimeout(() => refreshSignedCookies('timer'), ms);
+        } catch (e) {
+          log(`Failed to schedule cookie refresh: ${e?.message || e}`);
+        }
+      }
+
+      async function refreshSignedCookies(source = 'timer') {
+        const apiBase = el('apiBaseUrl').value.trim().replace(/\/$/, '');
+        const ttl = Math.min(
+          3600,
+          Math.max(60, parseInt(el('ttl').value || String(lastCookieTTL || 900), 10)),
+        );
+        const manifest = el('videoUrl').value.trim();
+        if (!apiBase || !manifest) {
+          log('Cannot refresh cookies: missing API base or manifest URL');
           return;
         }
-        appendDebug(`Fetching manifest: GET ${url}`);
+        const scope = folderWildcardFromManifest(manifest);
+        const endpoint = apiBase + '/aws-services/cloudfront/signed-cookies';
+        log(`[${source}] Refreshing signed cookies for scope ${scope}...`);
         try {
-          const res = await fetch(url, {
-            method: 'GET',
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            mode: 'cors',
+            body: JSON.stringify({ scope, ttlSeconds: ttl }),
           });
-          const ct = res.headers.get('content-type') || '';
-          const bodyText = await res.text();
-          const snippet = bodyText.slice(0, 1000);
-          appendDebug(`Manifest response: ${res.status} ${res.statusText}, content-type: ${ct}`);
-          appendDebug(`Body snippet (first 1000 chars):\n${snippet}`);
-          if (/xml|text\/xml/.test(ct) || /<Error>|<AccessDenied>|<Code>AccessDenied<\/Code>/.test(bodyText)) {
-            updateStatus('Manifest request returned an XML error (likely AccessDenied). See debug below.', 'error');
-          } else if (ct.includes('application/vnd.apple.mpegurl') || snippet.includes('#EXTM3U')) {
-            updateStatus('Manifest appears valid. If playback still fails, check segment requests.', 'info');
+          const txt = await res.text();
+          log(`Refresh response: ${res.status} ${res.statusText}; body(first 200): ${txt.slice(0, 200)}`);
+          if (!res.ok) {
+            setStatus(`Cookie refresh failed: HTTP ${res.status}`, 'err');
+            return;
+          }
+          setStatus('Cookies refreshed.', 'ok');
+          lastCookieTTL = ttl;
+          scheduleCookieRefresh(ttl);
+          // Attempt recovery if we refreshed due to an error
+          if (source === 'reactive') {
+            attemptHlsRecovery();
+          }
+        } catch (e) {
+          setStatus(`Cookie refresh error: ${e?.message || e}`, 'err');
+          log(`Cookie refresh error: ${e?.stack || e}`);
+        }
+      }
+
+      function is403FromHlsError(data) {
+        const code =
+          (data?.response?.code ?? data?.response?.status ?? data?.networkDetails?.status ?? data?.xhr?.status);
+        return Number(code) === 403;
+      }
+
+      function attemptHlsRecovery(errData) {
+        try {
+          const url = el('videoUrl').value.trim();
+          if (!url) return;
+          if (!hls) return;
+          // If fatal or manifest-level problems, re-init the Hls instance
+          const isFatal = !!(errData && errData.fatal);
+          const isManifestIssue = !!(errData && String(errData.details || '').toLowerCase().includes('manifest'));
+          if (isFatal || isManifestIssue) {
+            log('Reinitializing Hls after cookie refresh...');
+            hls.destroy();
+            initHls(url);
           } else {
-            updateStatus('Manifest fetch completed, but content-type does not look like HLS playlist.', 'error');
+            log('Resuming Hls after cookie refresh...');
+            hls.startLoad();
           }
-        } catch (err) {
-          updateStatus(`Manifest fetch error: ${err?.message || err}`, 'error');
-          appendDebug(`Manifest fetch error: ${err?.stack || err}`);
-          // Fallback: try without credentials to capture error body (e.g., XML AccessDenied)
-          try {
-            const res2 = await fetch(url, {
-              method: 'GET',
-              credentials: 'omit',
-              mode: 'cors',
-            });
-            const ct2 = res2.headers.get('content-type') || '';
-            const bodyText2 = await res2.text();
-            const snippet2 = bodyText2.slice(0, 1000);
-            appendDebug(`Fallback (no credentials) manifest response: ${res2.status} ${res2.statusText}, content-type: ${ct2}`);
-            appendDebug(`Fallback body snippet (first 1000 chars):\n${snippet2}`);
-            if (/xml|text\/xml/.test(ct2) || /<Error>|<AccessDenied>|<Code>AccessDenied<\/Code>/.test(bodyText2)) {
-              updateStatus('Fallback manifest fetch returned XML error (likely due to missing CloudFront cookies).', 'error');
-            }
-          } catch (err2) {
-            appendDebug(`Fallback manifest fetch also failed: ${err2?.stack || err2}`);
+          setStatus('Resumed playback after cookie refresh.', 'ok');
+          video.play().catch(() => {});
+        } catch (e) {
+          log(`Recovery error: ${e?.message || e}`);
+        }
+      }
+
+      function initHls(url) {
+        hls = new Hls({
+          lowLatencyMode: true,
+          enableWorker: true,
+          // Ensure cookies are sent no matter which loader is used
+          fetchSetup: (ctx, init) => ({ ...init, credentials: 'include' }), // Fetch loader
+          xhrSetup: (xhr /*, url */) => {
+            xhr.withCredentials = true;
+          }, // XHR loader
+        });
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          log(
+            `HLS.js error: fatal=${!!data.fatal}, type=${data.type}, details=${data.details}`,
+          );
+          if (is403FromHlsError(data)) {
+            setStatus('Access denied (403). Refreshing cookies...', 'err');
+            refreshSignedCookies('reactive');
+            return;
           }
+          if (data.fatal) {
+            setStatus(`HLS fatal: ${data.details}`, 'err');
+            probeManifest();
+          }
+        });
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          setStatus('Video loaded (Hls.js)', 'ok');
+          populateQualitySelector(hls);
+          video.play().catch(() => {});
+        });
+        hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
+          const h = hls.levels[data.level]?.height || '?';
+          log(`Level switched to ${data.level} (${h}p)`);
+          if (!hls.autoLevelEnabled) {
+            qualitySel.value = String(data.level);
+          }
+        });
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        el('btnStop').disabled = false;
+      }
+
+      async function probeManifest() {
+        const url = el('videoUrl').value.trim();
+        if (!url) return setStatus('Enter a manifest URL first', 'err');
+        log(`Fetching manifest (with credentials): GET ${url}`);
+        try {
+          const r = await fetch(url, { credentials: 'include', mode: 'cors' });
+          const ct = r.headers.get('content-type') || '';
+          const txt = await r.text();
+          log(`Manifest response: ${r.status} ${r.statusText}; ct=${ct}`);
+          log(`Body (first 500 chars):\n${txt.slice(0, 500)}`);
+          if (r.status === 403) {
+            setStatus('Manifest 403 (likely cookies expired). Refreshing...', 'err');
+            await refreshSignedCookies('reactive');
+            return;
+          }
+          if (
+            r.ok &&
+            (ct.includes('application/vnd.apple.mpegurl') ||
+              txt.startsWith('#EXTM3U'))
+          ) {
+            setStatus(
+              'Manifest looks valid. If playback fails, check segment requests.',
+            );
+          } else if (txt.includes('<Error>')) {
+            setStatus(
+              'Manifest returned XML error (likely AccessDenied/MissingKey).',
+              'err',
+            );
+          } else {
+            setStatus(
+              'Manifest fetched but content-type doesn’t look like HLS.',
+              'err',
+            );
+          }
+        } catch (e) {
+          setStatus(`Manifest fetch error: ${e?.message || e}`, 'err');
+          log(`Manifest fetch error: ${e?.stack || e}`);
         }
       }
 
       function loadVideo() {
-        const url = videoUrlInput.value.trim();
+        const url = el('videoUrl').value.trim();
+        if (!url || !url.includes('.m3u8'))
+          return setStatus('Enter a valid .m3u8 URL', 'err');
 
-        if (!url) {
-          updateStatus('Please enter a valid URL', 'error');
-          return;
-        }
-
-        if (!url.includes('.m3u8')) {
-          updateStatus('URL should contain .m3u8 file', 'error');
-          return;
-        }
-
-        updateStatus('Loading video stream...', 'info');
-        loadBtn.disabled = true;
-        stopBtn.disabled = false;
-
+        // reset
         if (hls) {
           hls.destroy();
           hls = null;
         }
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+        resetQualitySelector();
+        setStatus('Loading video...');
 
+        // Native HLS (Safari/iOS)
         if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = url;
-          video.addEventListener('loadedmetadata', () => {
-            updateStatus('Video loaded successfully (native HLS)', 'success');
-          });
-          video.addEventListener('error', (e) => {
-            updateStatus(`Error loading video: ${e.message}`, 'error');
-            loadBtn.disabled = false;
-            stopBtn.disabled = true;
-            testManifestFetch();
-          });
-        } else if (Hls.isSupported()) {
-          hls = new Hls({
-            debug: false,
-            enableWorker: true,
-            lowLatencyMode: true,
-          });
-
-          hls.loadSource(url);
-          hls.attachMedia(video);
-
-          hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            updateStatus('Video loaded successfully (HLS.js)', 'success');
-            video.play();
-          });
-
-          hls.on(Hls.Events.ERROR, (event, data) => {
-            appendDebug(`HLS.js error: fatal=${!!data.fatal}, type=${data.type}, details=${data.details}`);
-            if (data.fatal) {
-              updateStatus(`HLS Error: ${data.details}`, 'error');
-              loadBtn.disabled = false;
-              stopBtn.disabled = true;
-              testManifestFetch();
-            }
-          });
-        } else {
-          updateStatus('HLS is not supported in this browser', 'error');
-          loadBtn.disabled = false;
-          stopBtn.disabled = true;
+          video.addEventListener(
+            'loadedmetadata',
+            () => {
+              setStatus('Video loaded (native HLS)', 'ok');
+              el('btnStop').disabled = false;
+              resetQualitySelector();
+            },
+            { once: true },
+          );
+          video.addEventListener(
+            'error',
+            (e) => {
+              setStatus(`Video error: ${e?.message || 'unknown'}`, 'err');
+              probeManifest();
+            },
+            { once: true },
+          );
+          video.play().catch(() => {});
+          return;
         }
+
+        // Hls.js (Chrome/Firefox/Edge)
+        if (Hls.isSupported()) {
+          initHls(url);
+          return;
+        }
+
+        setStatus('HLS not supported in this browser', 'err');
       }
 
       function stopVideo() {
@@ -366,33 +555,21 @@
           hls = null;
         }
         video.pause();
-        video.src = '';
+        video.removeAttribute('src');
         video.load();
-        updateStatus('Video stopped', 'info');
-        loadBtn.disabled = false;
-        stopBtn.disabled = true;
+        el('btnStop').disabled = true;
+        resetQualitySelector();
+        if (cookieRefreshTimer) {
+          clearTimeout(cookieRefreshTimer);
+          cookieRefreshTimer = null;
+        }
+        setStatus('Stopped');
       }
 
-      video.addEventListener('error', (e) => {
-        updateStatus(`Video error: ${e.message}`, 'error');
-        loadBtn.disabled = false;
-        stopBtn.disabled = true;
-        testManifestFetch();
-      });
-
-      video.addEventListener('loadstart', () => {
-        updateStatus('Loading video...', 'info');
-      });
-
-      video.addEventListener('canplay', () => {
-        updateStatus('Video ready to play', 'success');
-      });
-
-      videoUrlInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-          loadVideo();
-        }
-      });
+      el('btnCookies').onclick = getSignedCookies;
+      el('btnLoad').onclick = loadVideo;
+      el('btnStop').onclick = stopVideo;
+      el('btnProbe').onclick = probeManifest;
     </script>
   </body>
 </html>
