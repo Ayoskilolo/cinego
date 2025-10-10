@@ -19,6 +19,7 @@ import { ConfigService } from '@nestjs/config';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getSignedCookies } from '@aws-sdk/cloudfront-signer';
 import { readFileSync } from 'node:fs';
+import { makeCookiePolicy, normalizeScope } from 'src/helpers';
 
 @Injectable()
 export class AwsServicesService {
@@ -167,6 +168,10 @@ export class AwsServicesService {
     ttlSeconds: number = 900,
   ) {
     try {
+      // Normalize scope to folder format (e.g. /fast-6/trailer/*)
+      const { wildcard, cookiePath } = normalizeScope(scope);
+      console.log('Normalized scope', { wildcard, cookiePath });
+
       // Prefer namespaced config, fallback to direct env keys
       const cfDomain =
         this.configService.get<string>('aws.cfDomain') ||
@@ -175,9 +180,7 @@ export class AwsServicesService {
         this.configService.get<string>('aws.cfKeyPairId') ||
         this.configService.get<string>('AWS_CF_KEY_PAIR_ID');
 
-      let privateKey; // =
-      //   this.configService.get<string>('aws.privateKey') ||
-      //   this.configService.get<string>('PRIVATE_KEY');
+      let privateKey;
 
       // Support reading private key from file path if provided
       if (!privateKey) {
@@ -223,14 +226,18 @@ export class AwsServicesService {
       const ttl = Math.min(3600, Number(ttlSeconds ?? 900));
       const expires = new Date(Date.now() + ttl * 1000);
 
+      const policyJson = makeCookiePolicy(
+        `https://${cfDomain}${wildcard}`,
+        expires,
+      );
+
       const cookies = getSignedCookies({
-        url: `https://${cfDomain}${scope}`,
+        policy: policyJson,
         keyPairId,
         privateKey: normalizedPrivateKey,
-        dateLessThan: expires,
       });
 
-      return { cookies, expires };
+      return { cookies, expires, ttl };
     } catch (error) {
       this.logger.error('Failed to generate CloudFront signed cookies', error);
       throw new InternalServerErrorException(error);
