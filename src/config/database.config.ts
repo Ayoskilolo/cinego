@@ -1,15 +1,14 @@
 import { registerAs } from '@nestjs/config';
 import { env } from 'node:process';
 
-// export default registerAs(
-//   'database',
-//   (): TypeOrmModuleOptions => ({
-//     type: 'mongodb',
-//     url: env.MONGO_URL,
-//     database: env.DATABASE_NAME,
-//     autoLoadEntities: true,
-//   }),
-// );
+const isLocalHost = (h?: string) => {
+  if (!h) return true;
+  const host = String(h).toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local');
+};
+const sslEnv = env.POSTGRES_SSL?.toLowerCase();
+const sslEnabled = sslEnv === 'true' ? true : sslEnv === 'false' ? false : !isLocalHost(env.POSTGRES_HOST);
+const sslOption: false | { rejectUnauthorized: boolean } = sslEnabled ? { rejectUnauthorized: false } : false;
 
 export default registerAs('database', () => ({
   type: 'postgres',
@@ -23,7 +22,5 @@ export default registerAs('database', () => ({
   entities: [`${__dirname}/../**/*.entity.{ts,js}`],
   synchronize: true,
   migrations: [`${__dirname}/../database/migration/**/*.{ts,js}`],
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: sslOption,
 }));

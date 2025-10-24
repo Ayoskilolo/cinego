@@ -213,16 +213,16 @@ export class MovieSeeder implements Seeder {
     // Use predefined test content keys for consistent testing
     const testContent = [
       {
-        main: 'fast-6/trailer/fast6_master.m3u8',
-        trailer: 'fast-6/trailer/fast6_master.m3u8',
+        main: 'fast-6/trailer/variants/fast6_master.m3u8',
+        trailer: 'fast-6/trailer/variants/fast6_master.m3u8',
       },
       {
-        main: 'simpsons/trailer/simpsons_master.m3u8',
-        trailer: 'simpsons/trailer/simpsons_master.m3u8',
+        main: 'simpsons/trailer/variants/simpsons_master.m3u8',
+        trailer: 'simpsons/trailer/variants/simpsons_master.m3u8',
       },
       {
-        main: 'the-batman/trailer/batman_master.m3u8',
-        trailer: 'the-batman/trailer/batman_master.m3u8',
+        main: 'the-batman/trailer/variants/batman_master.m3u8',
+        trailer: 'the-batman/trailer/variants/batman_master.m3u8',
       },
     ];
 

@@ -29,6 +29,7 @@ import { EmailTemplateData } from 'src/mail/interfaces';
 import { MailService } from 'src/mail/mail.service';
 import { SessionEntity } from '../auth/entities/session.entity';
 import { PaginateQuery, paginate, PaginateConfig, FilterOperator } from 'nestjs-paginate';
+import { isISO8601, isEmail } from 'class-validator';
 
 @Injectable()
 export class UserService {
@@ -47,9 +48,9 @@ export class UserService {
   ) {}
 
   async createUser(createUserDto: SignUpDto) {
-    // Check if email or phone number is provided.
-    if (!createUserDto.email && !createUserDto.phoneNumber) {
-      throw new BadRequestException('Email or phone number required');
+    // Require email for account creation; phoneNumber remains optional
+    if (!createUserDto.email) {
+      throw new BadRequestException('Email is required');
     }
 
     // Check if the user already exists based on email or phone number.
@@ -892,13 +893,127 @@ export class UserService {
     }
   }
 
-  async updateUser(userId, updateObj: Partial<User>) {
+  async updateUser(userId: string, updateObj: Partial<User>) {
     try {
-      // Ensure user exists to return proper 404 instead of silent update
-      await this.findOneById(userId);
+      // Ensure user exists and get current state
+      const existing = await this.findOneById(userId);
+
+      // Helper to normalize possible date inputs
+      const normalizeDate = (value: unknown, fieldName: string): Date | null | undefined => {
+        if (value === undefined) return undefined;
+        if (value === null) return null;
+        if (value instanceof Date) return value;
+        if (typeof value === 'string') {
+          if (!isISO8601(value)) {
+            throw new BadRequestException(`${fieldName} must be a valid ISO 8601 date-time string`);
+          }
+          const d = new Date(value);
+          if (isNaN(d.getTime())) {
+            throw new BadRequestException(`${fieldName} is not a parsable date`);
+          }
+          return d;
+        }
+        throw new BadRequestException(`${fieldName} must be a Date, ISO string, null, or undefined`);
+      };
+
+      // Email verification rules
+      if (updateObj.isEmailVerified === true) {
+        const effectiveEmail = updateObj.email ?? existing.email;
+        if (!effectiveEmail || !isEmail(effectiveEmail)) {
+          throw new BadRequestException('Valid email is required to set isEmailVerified=true');
+        }
+      }
+
+      // Normalize date inputs if present
+      const nextBillingDateNorm = normalizeDate(updateObj.nextBillingDate, 'nextBillingDate');
+      const subscriptionExpiresAtNorm = normalizeDate(updateObj.subscriptionExpiresAt, 'subscriptionExpiresAt');
+
+      // Compute effective subscription type and initial flags
+      const effectiveType = updateObj.subscriptionType ?? existing.subscriptionType;
+      let effectiveIsSubscribed = updateObj.isSubscribed ?? existing.isSubscribed;
+      // Start with normalized date inputs (may be undefined)
+      let effectiveNextBillingDate = nextBillingDateNorm ?? existing.nextBillingDate;
+      let effectiveSubscriptionExpiresAt = subscriptionExpiresAtNorm ?? existing.subscriptionExpiresAt;
+
+      // Switching semantics based on subscriptionType input
+      if (updateObj.subscriptionType !== undefined) {
+        if (updateObj.subscriptionType === SubscriptionType.FREE_TIER || updateObj.subscriptionType === SubscriptionType.FREEMIUM) {
+          effectiveIsSubscribed = false;
+          // Force nulls for non-recurring types
+          updateObj.nextBillingDate = null;
+          updateObj.subscriptionExpiresAt = null;
+          // Reflect forced nulls in effective values
+          effectiveNextBillingDate = null;
+          effectiveSubscriptionExpiresAt = null;
+        } else if (updateObj.subscriptionType === SubscriptionType.PREMIUM) {
+          effectiveIsSubscribed = true;
+          // Require dates in update when switching to PREMIUM
+          const nb = nextBillingDateNorm ?? existing.nextBillingDate;
+          const exp = subscriptionExpiresAtNorm ?? existing.subscriptionExpiresAt;
+          if (!nb || !exp) {
+            throw new BadRequestException('For PREMIUM, nextBillingDate and subscriptionExpiresAt are required');
+          }
+          // Keep effective values consistent
+          effectiveNextBillingDate = nb;
+          effectiveSubscriptionExpiresAt = exp;
+        }
+      }
+
+      // Invariants
+      if (effectiveIsSubscribed === false) {
+        if (effectiveType === SubscriptionType.PREMIUM) {
+          throw new BadRequestException('If isSubscribed=false, subscriptionType must be FREE_TIER or FREEMIUM');
+        }
+      } else if (effectiveIsSubscribed === true) {
+        if (effectiveType !== SubscriptionType.PREMIUM) {
+          throw new BadRequestException('If isSubscribed=true, subscriptionType must be PREMIUM');
+        }
+      }
+
+      // Type-specific date requirements
+      const now = new Date();
+      if (effectiveType === SubscriptionType.FREE_TIER || effectiveType === SubscriptionType.FREEMIUM) {
+        // Dates must be null for non-recurring types
+        if ((effectiveNextBillingDate as any) !== null) {
+          throw new BadRequestException('nextBillingDate must be null for FREE_TIER and FREEMIUM');
+        }
+        if ((effectiveSubscriptionExpiresAt as any) !== null) {
+          throw new BadRequestException('subscriptionExpiresAt must be null for FREE_TIER and FREEMIUM');
+        }
+      } else if (effectiveType === SubscriptionType.PREMIUM) {
+        // Dates required and future-dated
+        if (!effectiveNextBillingDate) {
+          throw new BadRequestException('nextBillingDate is required for PREMIUM');
+        }
+        if (!effectiveSubscriptionExpiresAt) {
+          throw new BadRequestException('subscriptionExpiresAt is required for PREMIUM');
+        }
+        if (effectiveNextBillingDate.getTime() <= now.getTime()) {
+          throw new BadRequestException('nextBillingDate must be in the future when isSubscribed=true');
+        }
+        if (effectiveSubscriptionExpiresAt.getTime() <= now.getTime()) {
+          throw new BadRequestException('subscriptionExpiresAt must be in the future when isSubscribed=true');
+        }
+        if (effectiveSubscriptionExpiresAt.getTime() < effectiveNextBillingDate.getTime()) {
+          throw new BadRequestException('subscriptionExpiresAt must be greater than or equal to nextBillingDate');
+        }
+      }
+
+      // Apply normalized values into update object
+      // Do not override forced nulls when switching away from PREMIUM
+      if (nextBillingDateNorm !== undefined && updateObj.nextBillingDate !== null) {
+        updateObj.nextBillingDate = nextBillingDateNorm as Date | null;
+      }
+      if (subscriptionExpiresAtNorm !== undefined && updateObj.subscriptionExpiresAt !== null) {
+        updateObj.subscriptionExpiresAt = subscriptionExpiresAtNorm as Date | null;
+      }
+      // Ensure isSubscribed aligns with effective semantics (coercion for non-recurring types)
+      updateObj.isSubscribed = effectiveIsSubscribed;
+
+      // Persist update
       return await this.userRepository.update(userId, updateObj);
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
       }
       throw new InternalServerErrorException('Failed to update user.');

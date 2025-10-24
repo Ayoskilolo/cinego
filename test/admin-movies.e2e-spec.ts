@@ -181,7 +181,7 @@ describe('Admin Movies (e2e)', () => {
       .expect(403);
   });
 
-  it('should allow admin to list movies (paginated) with correct envelope and sanitized fields', async () => {
+  it('should allow admin to list movies (paginated) with correct envelope and fields', async () => {
     const token = await adminLogin(httpServer);
 
     const provider = await ensureProvider(ds);
@@ -201,10 +201,9 @@ describe('Admin Movies (e2e)', () => {
     if (first) {
       expect(first.id).toBeDefined();
       expect(first.title).toBeDefined();
-      // providerId must be excluded from admin list select
-      expect(first.providerId).toBeUndefined();
-      // mediaKeys should never appear
-      expect(first.mediaKeys).toBeUndefined();
+      // providerId and mediaKeys should be visible to admins
+      expect(first.providerId).toBeDefined();
+      expect(first.mediaKeys).toBeDefined();
     }
   });
 
@@ -319,6 +318,8 @@ describe('Admin Movies (e2e)', () => {
       .expect(200);
 
     expect(got.body?.data?.id).toBe(movie.id);
+    expect(got.body?.data?.providerId).toBeDefined();
+    expect(got.body?.data?.mediaKeys).toBeDefined();
 
     // update
     const updated = await request(httpServer)
@@ -329,6 +330,9 @@ describe('Admin Movies (e2e)', () => {
 
     expect(updated.body?.data?.title).toBe('After Update');
     expect(updated.body?.data?.isPremium).toBe(true);
+    // update response includes providerId and mediaKeys
+    expect(updated.body?.data?.providerId).toBeDefined();
+    expect(updated.body?.data?.mediaKeys).toBeDefined();
 
     // get again
     const got2 = await request(httpServer)
@@ -337,6 +341,8 @@ describe('Admin Movies (e2e)', () => {
       .expect(200);
 
     expect(got2.body?.data?.title).toBe('After Update');
+    expect(got2.body?.data?.providerId).toBeDefined();
+    expect(got2.body?.data?.mediaKeys).toBeDefined();
 
     // delete
     await request(httpServer)
@@ -348,6 +354,20 @@ describe('Admin Movies (e2e)', () => {
     await request(httpServer)
       .get(`/admin/movies/${movie.id}`)
       .set('Authorization', `Bearer ${token}`)
+      .expect(404);
+  });
+
+  it('should return 404 when updating with a non-existent providerId', async () => {
+    const token = await adminLogin(httpServer);
+    const provider = await ensureProvider(ds);
+    const movie = await seedMovie(ds, provider, { title: 'Provider Validation Test' });
+
+    const invalidProviderId = '00000000-0000-0000-0000-000000000000';
+
+    await request(httpServer)
+      .patch(`/admin/movies/${movie.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ providerId: invalidProviderId })
       .expect(404);
   });
 

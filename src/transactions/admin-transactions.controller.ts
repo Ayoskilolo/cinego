@@ -60,7 +60,7 @@ export class AdminTransactionsController {
     name: 'filter',
     required: false,
     type: String,
-    description: 'Filter by column:value (e.g., paymentReason:$eq:premium)',
+    description: 'Filter by column:value (e.g., paymentReason:$eq:premium, status:$eq:successful)',
   })
   @ApiResponse({
     status: 200,

@@ -200,7 +200,9 @@
           <select id="quality" disabled>
             <option value="-1" selected>Auto</option>
           </select>
-          <div class="hint">Available after manifest loads (Hls.js). Safari uses Auto.</div>
+          <div class="hint">
+            Available after manifest loads (Hls.js). Safari uses Auto.
+          </div>
         </div>
       </div>
 
@@ -248,11 +250,17 @@
         resetQualitySelector();
         const levels = hlsInstance.levels || [];
         // Sort by height descending for clearer options
-        const sorted = levels.slice().sort((a, b) => (b.height || 0) - (a.height || 0));
+        const sorted = levels
+          .slice()
+          .sort((a, b) => (b.height || 0) - (a.height || 0));
         sorted.forEach((lvl) => {
           const idx = hlsInstance.levels.indexOf(lvl);
-          const kbps = lvl.bitrate ? ` (${Math.round(lvl.bitrate / 1000)} kbps)` : '';
-          const label = lvl.height ? `${lvl.height}p${kbps}` : `Level ${idx}${kbps}`;
+          const kbps = lvl.bitrate
+            ? ` (${Math.round(lvl.bitrate / 1000)} kbps)`
+            : '';
+          const label = lvl.height
+            ? `${lvl.height}p${kbps}`
+            : `Level ${idx}${kbps}`;
           const opt = document.createElement('option');
           opt.value = String(idx);
           opt.textContent = label;
@@ -343,8 +351,13 @@
           const lead = Math.min(60, Math.max(15, Math.floor(ttlSeconds * 0.1))); // refresh ~10% early, min 15s, max 60s
           const ms = Math.max(0, (ttlSeconds - lead) * 1000);
           const when = new Date(Date.now() + ms).toLocaleTimeString();
-          log(`Scheduled cookie refresh in ${Math.round(ms / 1000)}s (at ${when})`);
-          cookieRefreshTimer = setTimeout(() => refreshSignedCookies('timer'), ms);
+          log(
+            `Scheduled cookie refresh in ${Math.round(ms / 1000)}s (at ${when})`,
+          );
+          cookieRefreshTimer = setTimeout(
+            () => refreshSignedCookies('timer'),
+            ms,
+          );
         } catch (e) {
           log(`Failed to schedule cookie refresh: ${e?.message || e}`);
         }
@@ -354,7 +367,10 @@
         const apiBase = el('apiBaseUrl').value.trim().replace(/\/$/, '');
         const ttl = Math.min(
           3600,
-          Math.max(60, parseInt(el('ttl').value || String(lastCookieTTL || 900), 10)),
+          Math.max(
+            60,
+            parseInt(el('ttl').value || String(lastCookieTTL || 900), 10),
+          ),
         );
         const manifest = el('videoUrl').value.trim();
         if (!apiBase || !manifest) {
@@ -372,7 +388,9 @@
             body: JSON.stringify({ scope, ttlSeconds: ttl }),
           });
           const txt = await res.text();
-          log(`Refresh response: ${res.status} ${res.statusText}; body(first 200): ${txt.slice(0, 200)}`);
+          log(
+            `Refresh response: ${res.status} ${res.statusText}; body(first 200): ${txt.slice(0, 200)}`,
+          );
           if (!res.ok) {
             setStatus(`Cookie refresh failed: HTTP ${res.status}`, 'err');
             return;
@@ -392,7 +410,10 @@
 
       function is403FromHlsError(data) {
         const code =
-          (data?.response?.code ?? data?.response?.status ?? data?.networkDetails?.status ?? data?.xhr?.status);
+          data?.response?.code ??
+          data?.response?.status ??
+          data?.networkDetails?.status ??
+          data?.xhr?.status;
         return Number(code) === 403;
       }
 
@@ -403,7 +424,12 @@
           if (!hls) return;
           // If fatal or manifest-level problems, re-init the Hls instance
           const isFatal = !!(errData && errData.fatal);
-          const isManifestIssue = !!(errData && String(errData.details || '').toLowerCase().includes('manifest'));
+          const isManifestIssue = !!(
+            errData &&
+            String(errData.details || '')
+              .toLowerCase()
+              .includes('manifest')
+          );
           if (isFatal || isManifestIssue) {
             log('Reinitializing Hls after cookie refresh...');
             hls.destroy();
@@ -471,7 +497,10 @@
           log(`Manifest response: ${r.status} ${r.statusText}; ct=${ct}`);
           log(`Body (first 500 chars):\n${txt.slice(0, 500)}`);
           if (r.status === 403) {
-            setStatus('Manifest 403 (likely cookies expired). Refreshing...', 'err');
+            setStatus(
+              'Manifest 403 (likely cookies expired). Refreshing...',
+              'err',
+            );
             await refreshSignedCookies('reactive');
             return;
           }

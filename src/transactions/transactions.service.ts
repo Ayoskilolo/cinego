@@ -46,12 +46,13 @@ export class TransactionsService {
 
   async findAll(query: PaginateQuery) {
     const result = await paginate(query, this.transactionRepository, {
-      sortableColumns: ['dateCreated', 'amount', 'paymentReason'],
+      sortableColumns: ['dateCreated', 'amount', 'paymentReason', 'status'],
       defaultSortBy: [['dateCreated', 'DESC']],
       searchableColumns: ['reference', 'externalReference', 'paymentReason'],
       filterableColumns: {
         paymentReason: true,
         paymentChanel: true,
+        status: true,
         amount: [FilterOperator.GTE, FilterOperator.LTE],
         dateCreated: [FilterOperator.GTE, FilterOperator.LTE],
       },
@@ -64,6 +65,7 @@ export class TransactionsService {
         'externalReference',
         'paymentReason',
         'paymentChanel',
+        'status',
         'userId',
         'dateCreated',
       ],
@@ -82,12 +84,13 @@ export class TransactionsService {
 
   async findByUser(userId: string, query: PaginateQuery) {
     const result = await paginate(query, this.transactionRepository, {
-      sortableColumns: ['dateCreated', 'amount', 'paymentReason'],
+      sortableColumns: ['dateCreated', 'amount', 'paymentReason', 'status'],
       defaultSortBy: [['dateCreated', 'DESC']],
       searchableColumns: ['reference', 'externalReference', 'paymentReason'],
       filterableColumns: {
         paymentReason: true,
         paymentChanel: true,
+        status: true,
         amount: [FilterOperator.GTE, FilterOperator.LTE],
         dateCreated: [FilterOperator.GTE, FilterOperator.LTE],
       },
@@ -101,6 +104,7 @@ export class TransactionsService {
         'externalReference',
         'paymentReason',
         'paymentChanel',
+        'status',
         'dateCreated',
       ],
     });

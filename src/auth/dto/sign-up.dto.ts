@@ -5,7 +5,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  IsEnum,
+  IsEnum
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MaturityRatings } from '../../user/enum/maturityRatings';
@@ -23,7 +23,7 @@ export class SignUpDto {
 
   @ApiProperty({
     example: 'user@example.com',
-    description: 'User email address',
+    description: 'User email address (required)',
   })
   @IsEmail({}, { message: 'Please provide a valid email address.' })
   @IsNotEmpty({ message: 'Email address is required.' })
@@ -69,5 +69,5 @@ export class SignUpDto {
     format: 'binary',
     description: 'User profile picture (optional)',
   })
-  profilePicture?: Express.Multer.File; // This field is handled by FileInterceptor, type is for Swagger only
+  profilePicture?: string; // This field is handled by FileInterceptor, type is for Swagger only
 }

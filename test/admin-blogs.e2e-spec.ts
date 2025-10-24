@@ -14,6 +14,54 @@ async function adminLogin(httpServer: any): Promise<string> {
   return token
 }
 
+// Helper to create and login a non-admin user via public auth endpoints
+async function createAndLoginNonAdmin(httpServer: any): Promise<string> {
+  const uniqueEmail = `e2e.user.${Date.now()}@example.com`
+
+  const signupRes = await request(httpServer).post('/auth/signup').send({
+    firstName: 'User',
+    lastName: 'Test',
+    email: uniqueEmail,
+    password: 'StrongPass123',
+    dateOfBirth: '1995-05-05',
+  })
+  if (![200, 201].includes(signupRes.status)) {
+    // eslint-disable-next-line no-console
+    console.log('Signup failed:', signupRes.status, signupRes.body)
+  }
+  expect([200, 201]).toContain(signupRes.status)
+
+  const loginRes = await request(httpServer)
+    .post('/auth/login')
+    .send({ email: uniqueEmail, password: 'StrongPass123' })
+  if (![200, 201].includes(loginRes.status)) {
+    // eslint-disable-next-line no-console
+    console.log('User login failed:', loginRes.status, loginRes.body)
+  }
+  expect([200, 201]).toContain(loginRes.status)
+
+  const tempToken = loginRes.body?.data?.tempAccessToken
+  const profiles = loginRes.body?.data?.user?.profiles
+  expect(tempToken).toBeDefined()
+  expect(profiles?.length).toBeGreaterThan(0)
+  const profileId = profiles[0]?.id
+  expect(profileId).toBeDefined()
+
+  const profileLoginRes = await request(httpServer)
+    .post('/auth/login/profile')
+    .set('Authorization', `Bearer ${tempToken}`)
+    .send({ profileId })
+  if (![200, 201].includes(profileLoginRes.status)) {
+    // eslint-disable-next-line no-console
+    console.log('Login with profile failed:', profileLoginRes.status, profileLoginRes.body)
+  }
+  expect([200, 201]).toContain(profileLoginRes.status)
+
+  const accessToken = profileLoginRes.body?.data?.accessToken
+  expect(accessToken).toBeDefined()
+  return accessToken
+}
+
 describe('Admin Blogs (e2e)', () => {
   let app: INestApplication
   let httpServer: any
@@ -46,6 +94,15 @@ describe('Admin Blogs (e2e)', () => {
   describe('Auth and RBAC', () => {
     it('GET /admin/blogs requires auth (401)', async () => {
       await request(httpServer).get('/admin/blogs').expect(401)
+    })
+
+    // New: ensure non-admin users are forbidden
+    it('GET /admin/blogs forbidden for non-admin (403)', async () => {
+      const userToken = await createAndLoginNonAdmin(httpServer)
+      await request(httpServer)
+        .get('/admin/blogs')
+        .set('Authorization', `Bearer ${userToken}`)
+        .expect(403)
     })
   })
 

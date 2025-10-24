@@ -60,3 +60,5 @@ summary.txt
 
 # Private key
 cf_private_key.pem
+
+certs/

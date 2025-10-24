@@ -56,7 +56,7 @@ export class AuthService {
     }
   }
 
-  async signUp(signUpDto: SignUpDto, file: Express.Multer.File) {
+  async signUp(signUpDto: SignUpDto, file: Express.Multer.File, userAgent?: string, ip?: string) {
     const user = await this.userService.createUser(signUpDto);
 
     try {
@@ -149,10 +149,47 @@ export class AuthService {
       // user.profilePicture = profilePicture;
     }
 
-    // Fetch the user's profiles to include in the response
+    // Fetch the user's profiles to include in the response and select active profile
     const userWithProfiles = await this.userService.findOne(user.id);
 
-    // const accessToken = await this.jwtService.signAsync(payload);
+    // Choose active profile: prefer DTO-provided or default created profile
+    const preferredProfileName = signUpDto.profileName || signUpDto.firstName;
+    let activeProfile = userWithProfiles.profiles?.find(
+      (p) => p.profileName === preferredProfileName,
+    );
+    if (!activeProfile && userWithProfiles.profiles?.length) {
+      // Fallback to the first available profile
+      activeProfile = userWithProfiles.profiles[0];
+    }
+
+    // Create session and tokens bound to active profile
+    const rawRefreshToken = uuidv4();
+    const safeUserAgent = userAgent ?? 'unknown';
+    const safeIp = ip ?? '0.0.0.0';
+    let accessToken: string | null = null;
+    let refreshToken: string | null = null;
+
+    if (activeProfile) {
+      const session = await this.createSession(
+        user.id,
+        activeProfile.id,
+        { ipAddress: safeIp, userAgent: safeUserAgent },
+        rawRefreshToken,
+      );
+
+      const payload = {
+        sub: user.id,
+        sessionId: session.id,
+        profileId: session.currentProfileId,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        isVerified: user.isEmailVerified,
+      };
+
+      accessToken = await this.jwtService.signAsync(payload);
+      refreshToken = `${session.id}.${rawRefreshToken}`;
+    }
+
     // Exclude sensitive fields before returning
     const {
       password,
@@ -162,7 +199,15 @@ export class AuthService {
       emailVerificationExpires,
       ...safeUser
     } = userWithProfiles;
-    return { user: safeUser };
+
+    return {
+      user: safeUser,
+      message: 'Signup successful',
+      accessToken,
+      refreshToken,
+      profile: activeProfile,
+      deviceInfo: this.utilService.getSimpleDeviceInfo(safeUserAgent),
+    };
   }
 
   async login(

@@ -18,8 +18,9 @@ import { Role } from '../auth/enums/role.enum';
 import { Paginate, PaginateQuery } from 'nestjs-paginate';
 import { SignUpDto } from '../auth/dto/sign-up.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { IsEnum, IsOptional } from 'class-validator';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsOptional, IsBoolean, IsDateString } from 'class-validator';
+import { SubscriptionType } from './enum/userType';
 
 // Admin-only DTOs (scoped to this controller to avoid extra files)
 class AdminCreateUserDto extends SignUpDto {
@@ -32,6 +33,38 @@ class AdminUpdateUserDto extends UpdateAccountDto {
   @IsOptional()
   @IsEnum(Role)
   role?: Role;
+
+  // Verification flag
+  @ApiPropertyOptional({ description: 'Email verification status' })
+  @IsOptional()
+  @IsBoolean()
+  isEmailVerified?: boolean;
+
+  // Subscription fields
+  @ApiPropertyOptional({ enum: SubscriptionType, description: 'User subscription type' })
+  @IsOptional()
+  @IsEnum(SubscriptionType)
+  subscriptionType?: SubscriptionType;
+
+  @ApiPropertyOptional({ description: 'Indicates if user currently has an active subscription' })
+  @IsOptional()
+  @IsBoolean()
+  isSubscribed?: boolean;
+
+  @ApiPropertyOptional({ type: String, format: 'date-time', description: 'Subscription expiry date (ISO 8601)' })
+  @IsOptional()
+  @IsDateString()
+  subscriptionExpiresAt?: string;
+
+  @ApiPropertyOptional({ type: String, format: 'date-time', description: 'Next billing date (ISO 8601)' })
+  @IsOptional()
+  @IsDateString()
+  nextBillingDate?: string;
+
+  @ApiPropertyOptional({ description: 'Whether user has used free trial' })
+  @IsOptional()
+  @IsBoolean()
+  hasUsedFreeTrial?: boolean;
 }
 
 @ApiTags('Admin Users')
@@ -100,7 +133,16 @@ export class AdminUsersController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'User not found.' })
   async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AdminUpdateUserDto) {
-    const { role, ...accountFields } = dto;
+    const {
+      role,
+      isEmailVerified,
+      subscriptionType,
+      isSubscribed,
+      subscriptionExpiresAt,
+      nextBillingDate,
+      hasUsedFreeTrial,
+      ...accountFields
+    } = dto;
 
     // Handle password hashing and account fields using existing service method
     if (Object.keys(accountFields).length > 0) {
@@ -108,10 +150,18 @@ export class AdminUsersController {
     }
 
     // Apply admin-specific fields
-    if (role !== undefined) {
-      await this.userService.updateUser(id, {
-        ...(role !== undefined ? { role } : {}),
-      });
+    const adminUpdates: any = {
+      ...(role !== undefined ? { role } : {}),
+      ...(isEmailVerified !== undefined ? { isEmailVerified } : {}),
+      ...(subscriptionType !== undefined ? { subscriptionType } : {}),
+      ...(isSubscribed !== undefined ? { isSubscribed } : {}),
+      ...(subscriptionExpiresAt !== undefined ? { subscriptionExpiresAt: subscriptionExpiresAt ? new Date(subscriptionExpiresAt) : null } : {}),
+      ...(nextBillingDate !== undefined ? { nextBillingDate: nextBillingDate ? new Date(nextBillingDate) : null } : {}),
+      ...(hasUsedFreeTrial !== undefined ? { hasUsedFreeTrial } : {}),
+    };
+
+    if (Object.keys(adminUpdates).length > 0) {
+      await this.userService.updateUser(id, adminUpdates);
     }
 
     const data = await this.userService.findOneById(id);

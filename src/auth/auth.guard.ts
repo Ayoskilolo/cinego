@@ -85,7 +85,6 @@ export class AuthGuard implements CanActivate {
 
       if (isPreProfile && session.sessionType === SessionType.PRE_PROFILE) {
         request['user'] = { ...payload };
-        console.log('PRE PROFILE WORKING');
         return true;
       }
 

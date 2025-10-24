@@ -37,6 +37,7 @@ class AdminUpdateMovieDto {
   duration?: string;
   isPremium?: boolean;
   images?: { poster: string; posterLandscape: string; thumbnail: string };
+  mediaKeys?: { main: string; trailer?: string };
   programType?: string;
   providerId?: string;
   providerTitleId?: string;

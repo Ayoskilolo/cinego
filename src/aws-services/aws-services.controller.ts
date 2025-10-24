@@ -6,12 +6,22 @@ import {
   Res,
   HttpCode,
   HttpStatus,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
 import { AwsServicesService } from './aws-services.service';
 import { Public } from 'src/auth/auth.decorator';
-import { ApiTags, ApiOperation, ApiBody, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBody,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { normalizeScope } from 'src/helpers';
+import { CloudfrontAccessGuard } from './guards/cloudfront-access.guard';
+import { Request } from 'express';
 
 @ApiTags('aws-services')
 @Controller('aws-services')
@@ -39,47 +49,57 @@ export class AwsServicesController {
     return this.awsServicesService.getPresignedUrlForMovie();
   }
 
-  @Public()
   @Post('cloudfront/signed-cookies')
+  @UseGuards(CloudfrontAccessGuard)
+  @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Generate CloudFront signed cookies for a given path/scope',
+    summary: 'Generate CloudFront signed cookies for a movie',
   })
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        scope: { type: 'string', example: '/' },
+        movieId: { type: 'string', example: 'uuid-of-movie' },
         ttlSeconds: { type: 'number', example: 900 },
+        useTrailer: { type: 'boolean', example: false },
       },
-      required: ['scope', 'ttlSeconds'],
+      required: ['movieId'],
+      description:
+        'Provide a movieId; optionally set useTrailer=true to scope to trailer media. TTL in seconds (capped at 3600).',
     },
-    description:
-      'Path scope (e.g., / or /protected/*) and TTL in seconds (capped at 3600)',
   })
   @ApiResponse({ status: 200, description: 'Cookies set successfully.' })
-  async getCloudFrontSignedCookies(
-    @Body('scope') scope: string,
+  async getCloudFrontSignedCookiesForMovie(
+    @Body('movieId') movieId: string,
     @Body('ttlSeconds') ttlSeconds: number,
+    @Body('useTrailer') useTrailer: boolean,
     @Res({ passthrough: true }) res: any,
+    @Body() _body: any,
+    @Req() req: Request,
   ) {
-    const { cookies, expires, ttl } =
-      await this.awsServicesService.getCloudFrontSignedCookies(
-        scope,
-        ttlSeconds,
+    const movie = (req as any)?.['movie'];
+    const mediaKey: string | undefined = useTrailer
+      ? movie?.mediaKeys?.trailer
+      : movie?.mediaKeys?.main;
+    if (!mediaKey) {
+      throw new Error(
+        useTrailer ? 'Trailer media key is missing.' : 'Movie media key is missing.',
       );
+    }
 
-    const domain = '.cinego.live'; // <-- IMPORTANT: parent domain
+    const scope = mediaKey;
+    const { cookies, ttl, cookiePath } =
+      await this.awsServicesService.getCloudFrontSignedCookies(scope, ttlSeconds);
 
-    const { cookiePath } = normalizeScope(scope);
+    const domain = '.cinego.live'; // parent domain for cookie sharing across subdomains
 
-    // const path = '/fast-6/'; // <-- match your HLS folder (or '/')
     const cookieAttrs = [
       `Domain=${domain}`,
       `Path=${cookiePath}`,
-      'Secure', // required with SameSite=None
-      'HttpOnly', // JS can’t read; still sent on requests
-      'SameSite=None', // allows cross-site requests
-      `Max-Age=${ttl}`, // or omit to make session cookies (AWS rec.)
+      'Secure',
+      'HttpOnly',
+      'SameSite=None',
+      `Max-Age=${ttl}`,
     ].join('; ');
 
     res.setHeader('Set-Cookie', [
@@ -88,6 +108,7 @@ export class AwsServicesController {
       `CloudFront-Key-Pair-Id=${cookies['CloudFront-Key-Pair-Id']}; ${cookieAttrs}`,
     ]);
 
-    return { message: 'Cookies set' };
+    const url = this.awsServicesService.buildMediaUrl(mediaKey);
+    return { url };
   }
 }

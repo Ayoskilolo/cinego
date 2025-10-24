@@ -30,21 +30,23 @@ export class SessionSeeder implements Seeder {
 
     let totalSessions = 0;
     const sessionsToCreate: Partial<SessionEntity>[] = [];
+    // Reduce noisy logs by aggregating skip counts instead of per-user messages
+    let skipNoProfiles = 0;
+    let skipExistingSessions = 0;
+    let seededUsers = 0;
 
     for (const user of users) {
       if (!user.profiles || user.profiles.length === 0) {
-        this.logger.warn(
-          `User ${user.email || user.id} has no profiles; skipping session creation.`,
-        );
+        // Previously logged per-user; now aggregate
+        skipNoProfiles++;
         continue;
       }
 
       // Skip seeding if user already has 1 or more sessions
       const existingCount = await this.sessionRepository.count({ where: { userId: user.id } });
       if (existingCount >= 1) {
-        this.logger.log(
-          `Skipping user ${user.email || user.id}: already has ${existingCount} session(s).`,
-        );
+        // Previously logged per-user; now aggregate
+        skipExistingSessions++;
         continue;
       }
 
@@ -92,9 +94,9 @@ export class SessionSeeder implements Seeder {
         totalSessions++;
       }
 
-      this.logger.log(
-        `Prepared ${sessionCount} sessions for user ${user.email || user.id}`,
-      );
+      // Keep a single per-user info log for seeded users if desired
+      // this.logger.log(`Prepared ${sessionCount} sessions for user ${user.email || user.id}`);
+      seededUsers++;
     }
 
     if (sessionsToCreate.length) {
@@ -104,7 +106,7 @@ export class SessionSeeder implements Seeder {
     }
 
     this.logger.log(
-      `Created ${totalSessions} sessions across users without existing sessions.`,
+      `Created ${totalSessions} sessions across ${seededUsers} users. Skipped ${skipExistingSessions} users with existing sessions and ${skipNoProfiles} users without profiles.`,
     );
   }
 

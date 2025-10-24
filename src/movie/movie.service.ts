@@ -222,19 +222,16 @@ export class MovieService {
       profileId ? this.getUserMyListChecksBatch(profileId, movieIds) : {},
     ]);
 
-    // Enrich each movie with the batch data and presigned URLs
+    // Enrich each movie with the batch data
     const enrichedMovies = await Promise.all(
       movies.map(async (movie) => {
-        const mediaUrls = await this.generateMoviePresignedUrls(movie);
-
-        // Extract movie data, excluding sensitive fields
-        const { mediaKeys, providerId, ...movieData } = movie as any;
+        // Do not generate or include mediaUrls anymore; using CloudFront cookies
+        const { providerId, ...movieData } = movie as any;
 
         return {
-          ...movieData,
+          ...movieData, // keep mediaKeys in public responses
           myListCount: counts[movie.id] || 0,
           isInMyList: profileId ? userChecks[movie.id] || false : undefined,
-          mediaUrls,
         };
       }),
     );
@@ -406,6 +403,8 @@ export class MovieService {
         'synopsis',
         'genres',
         'languages',
+        'programType',
+        'marketRating',
       ],
       defaultLimit: 10,
       filterableColumns: {
@@ -513,8 +512,8 @@ export class MovieService {
       profileId,
     );
     const enrichedMovie = enrichedMovies[0];
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { mediaKeys, providerId, ...movieData } = enrichedMovie;
+    // Keep mediaKeys, strip providerId only
+    const { providerId, ...movieData } = enrichedMovie as any;
 
     return { data: movieData };
   }
@@ -647,6 +646,8 @@ export class MovieService {
         'synopsis',
         'genres',
         'languages',
+        'programType',
+        'marketRating',
       ],
       defaultLimit: 10,
       filterableColumns: {
@@ -663,7 +664,7 @@ export class MovieService {
       select: [
         'id',
         'title',
-        // providerId intentionally excluded from select for admin listing responses
+        'providerId',
         'providerTitleId',
         'programType',
         'synopsis',
@@ -676,6 +677,7 @@ export class MovieService {
         'languages',
         'duration',
         'images',
+        'mediaKeys',
         'dateCreated',
         'isPremium',
       ],
@@ -689,9 +691,8 @@ export class MovieService {
     if (!movie) {
       throw new NotFoundException('Movie not found');
     }
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { mediaKeys, providerId, ...movieData } = movie as any;
-    return movieData;
+    // Admin view returns full movie data including providerId and mediaKeys
+    return movie as any;
   }
 
   async adminUpdate(
@@ -709,6 +710,7 @@ export class MovieService {
       duration: string;
       isPremium: boolean;
       images: Movie['images'];
+      mediaKeys: Movie['mediaKeys'];
       programType: string;
       providerId: string;
       providerTitleId: string;
@@ -717,6 +719,16 @@ export class MovieService {
     const movie = await this.movieRepository.findOne({ where: { id } });
     if (!movie) {
       throw new NotFoundException('Movie not found');
+    }
+    // Validate providerId if present
+    if (Object.prototype.hasOwnProperty.call(update, 'providerId')) {
+      const newProviderId = update.providerId as string;
+      if (newProviderId) {
+        await this.providersService.adminFindOne(newProviderId); // throws NotFound if invalid
+      } else {
+        // Empty providerId is invalid
+        throw new NotFoundException('Provider not found');
+      }
     }
     // Only assign allowed fields
     const allowedKeys: Array<keyof Movie | keyof typeof update> = [
@@ -732,6 +744,7 @@ export class MovieService {
       'duration',
       'isPremium',
       'images',
+      'mediaKeys',
       'programType',
       'providerId',
       'providerTitleId',
@@ -743,9 +756,8 @@ export class MovieService {
       }
     }
     const saved = await this.movieRepository.save(movie);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { mediaKeys, providerId, ...movieData } = saved as any;
-    return movieData;
+    // Return full entity for admin update (including providerId and mediaKeys)
+    return saved as any;
   }
 
   async adminDelete(id: string) {

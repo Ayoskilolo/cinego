@@ -3,6 +3,8 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
 import { AppModule } from './../src/app.module';
 import { SchedulerRegistry } from '@nestjs/schedule';
+// Increase Jest timeout for slower e2e flows
+jest.setTimeout(20000);
 
 async function adminLogin(httpServer: any): Promise<string> {
   const res = await request(httpServer)
@@ -381,5 +383,200 @@ describe('Admin Users (e2e)', () => {
       .delete(`/admin/users/${createdId}`)
       .set('Authorization', `Bearer ${token}`)
       .expect(204);
+  });
+
+  // Helper: create a fresh user via admin and return its id
+  async function createUserViaAdmin(token: string): Promise<string> {
+    const uniqueEmail = `guardrail.${Date.now()}@example.com`;
+    const createRes = await request(httpServer)
+      .post('/admin/users')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        firstName: 'Guard',
+        lastName: 'Rails',
+        email: uniqueEmail,
+        password: 'StrongPass123',
+        dateOfBirth: '1990-01-01',
+      })
+      .expect((r) => expect([200, 201]).toContain(r.status));
+    const id = createRes.body?.data?.id ?? createRes.body?.id;
+    expect(id).toBeDefined();
+    return id;
+  }
+
+  describe('Business guardrails', () => {
+    it('enforces PREMIUM requires both dates when switching', async () => {
+      const token = await adminLogin(httpServer);
+      const id = await createUserViaAdmin(token);
+
+      const res = await request(httpServer)
+        .patch(`/admin/users/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ subscriptionType: 'PREMIUM' })
+        .expect(400);
+      expect(String(res.body?.message || res.text)).toContain(
+        'nextBillingDate and subscriptionExpiresAt are required',
+      );
+    });
+
+    it('enforces dates must be future and expires >= nextBillingDate for PREMIUM', async () => {
+      const token = await adminLogin(httpServer);
+      const id = await createUserViaAdmin(token);
+
+      const past = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const future = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+      // nextBillingDate in past -> error
+      const res1 = await request(httpServer)
+        .patch(`/admin/users/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ subscriptionType: 'PREMIUM', nextBillingDate: past, subscriptionExpiresAt: future })
+        .expect(400);
+      expect(String(res1.body?.message || res1.text)).toContain(
+        'nextBillingDate must be in the future',
+      );
+
+      // subscriptionExpiresAt in past -> error
+      const res2 = await request(httpServer)
+        .patch(`/admin/users/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ subscriptionType: 'PREMIUM', nextBillingDate: future, subscriptionExpiresAt: past })
+        .expect(400);
+      expect(String(res2.body?.message || res2.text)).toContain(
+        'subscriptionExpiresAt must be in the future',
+      );
+
+      // expires < nextBillingDate -> error
+      const next2 = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+      const exp1 = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const res3 = await request(httpServer)
+        .patch(`/admin/users/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ subscriptionType: 'PREMIUM', nextBillingDate: next2, subscriptionExpiresAt: exp1 })
+        .expect(400);
+      expect(String(res3.body?.message || res3.text)).toContain(
+        'subscriptionExpiresAt must be greater than or equal to nextBillingDate',
+      );
+    });
+
+    it('enforces invariants: isSubscribed true requires PREMIUM, false forbids PREMIUM', async () => {
+      const token = await adminLogin(httpServer);
+      const id = await createUserViaAdmin(token);
+
+      // isSubscribed true with FREEMIUM -> coerced to false and success
+      const res1 = await request(httpServer)
+        .patch(`/admin/users/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ subscriptionType: 'FREEMIUM', isSubscribed: true })
+        .expect(200);
+      const user1 = res1.body?.data ?? res1.body;
+      expect(user1?.subscriptionType).toBe('FREEMIUM');
+      expect(user1?.isSubscribed).toBe(false);
+
+      // isSubscribed false with PREMIUM -> coerced to true and success
+      const future = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const res2 = await request(httpServer)
+        .patch(`/admin/users/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ subscriptionType: 'PREMIUM', isSubscribed: false, nextBillingDate: future, subscriptionExpiresAt: future })
+        .expect(200);
+      const user2 = res2.body?.data ?? res2.body;
+      expect(user2?.subscriptionType).toBe('PREMIUM');
+      expect(user2?.isSubscribed).toBe(true);
+    });
+
+    it('enforces FREE_TIER/FREEMIUM normalize to null dates', async () => {
+      const token = await adminLogin(httpServer);
+      const id = await createUserViaAdmin(token);
+      const future = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+      // nextBillingDate non-null on FREE_TIER -> coerced to null and success
+      const res1 = await request(httpServer)
+        .patch(`/admin/users/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ subscriptionType: 'FREE_TIER', nextBillingDate: future })
+        .expect(200);
+      const user1 = res1.body?.data ?? res1.body;
+      expect(user1?.subscriptionType).toBe('FREE_TIER');
+      expect(user1?.isSubscribed).toBe(false);
+      expect(user1?.nextBillingDate).toBeNull();
+      expect(user1?.subscriptionExpiresAt).toBeNull();
+
+      // subscriptionExpiresAt non-null on FREEMIUM -> coerced to null and success
+      const res2 = await request(httpServer)
+        .patch(`/admin/users/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ subscriptionType: 'FREEMIUM', subscriptionExpiresAt: future })
+        .expect(200);
+      const user2 = res2.body?.data ?? res2.body;
+      expect(user2?.subscriptionType).toBe('FREEMIUM');
+      expect(user2?.isSubscribed).toBe(false);
+      expect(user2?.nextBillingDate).toBeNull();
+      expect(user2?.subscriptionExpiresAt).toBeNull();
+    });
+
+    it('validates ISO 8601 formatting for date inputs', async () => {
+      const token = await adminLogin(httpServer);
+      const id = await createUserViaAdmin(token);
+
+      const bad = 'not-a-date';
+      const res1 = await request(httpServer)
+        .patch(`/admin/users/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ subscriptionType: 'PREMIUM', nextBillingDate: bad, subscriptionExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() })
+        .expect(400);
+      expect(String(res1.body?.message || res1.text)).toMatch(/ISO 8601/i);
+
+      const res2 = await request(httpServer)
+        .patch(`/admin/users/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ subscriptionType: 'PREMIUM', nextBillingDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), subscriptionExpiresAt: bad })
+        .expect(400);
+      expect(String(res2.body?.message || res2.text)).toMatch(/ISO 8601/i);
+    });
+
+    it('accepts a valid PREMIUM update and enforces FREEMIUM normalization', async () => {
+      const token = await adminLogin(httpServer);
+      const id = await createUserViaAdmin(token);
+
+      const next = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+      const exp = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+      const ok = await request(httpServer)
+        .patch(`/admin/users/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ subscriptionType: 'PREMIUM', nextBillingDate: next, subscriptionExpiresAt: exp })
+        .expect(200);
+      const premiumUser = ok.body?.data ?? ok.body;
+      expect(premiumUser?.subscriptionType).toBe('PREMIUM');
+      expect(premiumUser?.isSubscribed).toBe(true);
+      expect(new Date(premiumUser?.nextBillingDate).getTime()).toBeGreaterThan(Date.now());
+
+      // Switch to FREEMIUM should null dates and set isSubscribed false
+      const freemiumRes = await request(httpServer)
+        .patch(`/admin/users/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ subscriptionType: 'FREEMIUM' })
+        .expect(200);
+      const freemiumUser = freemiumRes.body?.data ?? freemiumRes.body;
+      expect(freemiumUser?.subscriptionType).toBe('FREEMIUM');
+      expect(freemiumUser?.isSubscribed).toBe(false);
+      expect(freemiumUser?.nextBillingDate).toBeNull();
+      expect(freemiumUser?.subscriptionExpiresAt).toBeNull();
+    });
+
+    it('allows setting isEmailVerified=true when account has a valid email', async () => {
+      const token = await adminLogin(httpServer);
+      const id = await createUserViaAdmin(token);
+
+      const res = await request(httpServer)
+        .patch(`/admin/users/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ isEmailVerified: true })
+        .expect(200);
+
+      const user = res.body?.data ?? res.body;
+      expect(user?.isEmailVerified).toBe(true);
+      expect(user?.email).toBeDefined();
+    });
   });
 });

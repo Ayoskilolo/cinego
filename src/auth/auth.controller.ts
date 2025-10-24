@@ -55,8 +55,11 @@ export class AuthController {
   async create(
     @Body() createAuthDto: SignUpDto,
     @UploadedFile() file: Express.Multer.File,
+    @Req() request: Request,
+    @Ip() ip: string,
   ) {
-    const data = await this.authService.signUp(createAuthDto, file);
+    const userAgent = request.headers['user-agent'];
+    const data = await this.authService.signUp(createAuthDto, file, userAgent, ip);
     return { data };
   }
 

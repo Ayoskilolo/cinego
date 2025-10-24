@@ -11,4 +11,8 @@ export default registerAs('aws', () => ({
   cfDomain: env.AWS_CF_DOMAIN,
   cfKeyPairId: env.AWS_CF_KEY_PAIR_ID,
   privateKey: env.PRIVATE_KEY,
+  // Optional: path to private key file (PEM)
+  privateKeyPath: env.PRIVATE_KEY_PATH,
+  // Media CDN base domain used to construct playback URLs
+  mediaCdnDomain: env.AWS_MEDIA_CDN_DOMAIN || env.AWS_CF_DOMAIN,
 }));

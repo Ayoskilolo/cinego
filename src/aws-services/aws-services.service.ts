@@ -19,6 +19,7 @@ import { ConfigService } from '@nestjs/config';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getSignedCookies } from '@aws-sdk/cloudfront-signer';
 import { readFileSync } from 'node:fs';
+import { createPrivateKey } from 'node:crypto';
 import { makeCookiePolicy, normalizeScope } from 'src/helpers';
 
 @Injectable()
@@ -163,6 +164,25 @@ export class AwsServicesService {
     return url;
   }
 
+  // Build the full media URL using the configured CDN domain
+  buildMediaUrl(mediaKey: string) {
+    const mediaDomain =
+      this.configService.get<string>('aws.mediaCdnDomain') ||
+      this.configService.get<string>('AWS_MEDIA_CDN_DOMAIN') ||
+      this.configService.get<string>('aws.cfDomain') ||
+      this.configService.get<string>('AWS_CF_DOMAIN');
+
+    if (!mediaDomain) {
+      this.logger.error('Missing media CDN domain configuration');
+      throw new InternalServerErrorException(
+        'MEDIA CDN domain is not configured. Ensure AWS_MEDIA_CDN_DOMAIN or AWS_CF_DOMAIN is set.',
+      );
+    }
+
+    const key = mediaKey.startsWith('/') ? mediaKey.slice(1) : mediaKey;
+    return `https://${mediaDomain}/${key}`;
+  }
+
   async getCloudFrontSignedCookies(
     scope: string = '/',
     ttlSeconds: number = 900,
@@ -170,7 +190,6 @@ export class AwsServicesService {
     try {
       // Normalize scope to folder format (e.g. /fast-6/trailer/*)
       const { wildcard, cookiePath } = normalizeScope(scope);
-      console.log('Normalized scope', { wildcard, cookiePath });
 
       // Prefer namespaced config, fallback to direct env keys
       const cfDomain =
@@ -180,46 +199,105 @@ export class AwsServicesService {
         this.configService.get<string>('aws.cfKeyPairId') ||
         this.configService.get<string>('AWS_CF_KEY_PAIR_ID');
 
-      let privateKey;
+      let privateKey: string | undefined;
+      let keySource: 'path' | 'env' | 'unknown' = 'unknown';
 
-      // Support reading private key from file path if provided
-      if (!privateKey) {
-        const privateKeyPath =
-          this.configService.get<string>('aws.privateKeyPath') ||
-          this.configService.get<string>('PRIVATE_KEY_PATH');
-        if (privateKeyPath) {
-          try {
-            privateKey = readFileSync(privateKeyPath, 'utf8');
-          } catch (err) {
-            this.logger.error('Failed to read PRIVATE_KEY_PATH file', {
-              privateKeyPath,
-              error: (err as Error)?.message,
-            });
-          }
+      // Prefer reading private key from file path first
+      const privateKeyPath =
+        this.configService.get<string>('aws.privateKeyPath') ||
+        this.configService.get<string>('PRIVATE_KEY_PATH');
+
+      if (privateKeyPath) {
+        try {
+          privateKey = readFileSync(privateKeyPath, 'utf8');
+          keySource = 'path';
+          this.logger.log(
+            'Using CloudFront private key from PRIVATE_KEY_PATH',
+            { privateKeyPath },
+          );
+        } catch (err) {
+          this.logger.error('Failed to read PRIVATE_KEY_PATH file', {
+            privateKeyPath,
+            error: (err as Error)?.message,
+          });
         }
       }
 
-      // Normalize escaped newlines if key is provided via environment variable
-      const normalizedPrivateKey = privateKey?.includes('\\n')
-        ? privateKey.replace(/\\n/g, '\n')
-        : privateKey;
+      // Fallback to environment-provided key
+      if (!privateKey) {
+        const envPrivateKey =
+          this.configService.get<string>('aws.privateKey') ||
+          this.configService.get<string>('PRIVATE_KEY');
 
-      if (!cfDomain || !keyPairId || !normalizedPrivateKey) {
+        if (envPrivateKey) {
+          keySource = 'env';
+          const isSingleLineEnv =
+            !envPrivateKey.includes('\n') && !envPrivateKey.includes('\\n');
+          if (isSingleLineEnv) {
+            this.logger.warn(
+              'PRIVATE_KEY env appears single-line; use \\n escapes or set PRIVATE_KEY_PATH to the PEM file.',
+            );
+          }
+          privateKey = envPrivateKey.includes('\\n')
+            ? envPrivateKey.replace(/\\n/g, '\n')
+            : envPrivateKey;
+          this.logger.log(
+            'Using CloudFront private key from PRIVATE_KEY environment variable',
+          );
+        }
+      }
+
+      if (!cfDomain || !keyPairId || !privateKey) {
         this.logger.error('Missing CloudFront signing configuration', {
           cfDomain,
           keyPairId,
-          hasPrivateKey: !!normalizedPrivateKey,
+          hasPrivateKey: !!privateKey,
         });
         throw new InternalServerErrorException(
-          'CloudFront signing configuration is missing. Ensure AWS_CF_DOMAIN, AWS_CF_KEY_PAIR_ID and PRIVATE_KEY are set (or PRIVATE_KEY_PATH).',
+          'CloudFront signing configuration is missing. Ensure AWS_CF_DOMAIN, AWS_CF_KEY_PAIR_ID and PRIVATE_KEY_PATH or PRIVATE_KEY are set.',
         );
       }
 
-      // Basic sanity check on key format
-      if (!normalizedPrivateKey.trim().startsWith('-----BEGIN')) {
-        this.logger.error('PRIVATE_KEY does not appear to be a valid PEM key');
+      const trimmedKey = privateKey.trim();
+
+      // Basic sanity checks on key format
+      if (!trimmedKey.startsWith('-----BEGIN')) {
+        this.logger.error(
+          'CloudFront private key does not appear to be a valid PEM key',
+          { keySource },
+        );
         throw new InternalServerErrorException(
-          'Invalid PRIVATE_KEY format. Expected a PEM string (-----BEGIN ... KEY-----).',
+          'Invalid CloudFront private key format. Expected a PEM string (-----BEGIN ... KEY-----).',
+        );
+      }
+      if (trimmedKey.includes('BEGIN PUBLIC KEY')) {
+        this.logger.error('Received a public key instead of a private key', {
+          keySource,
+        });
+        throw new InternalServerErrorException(
+          'CloudFront requires the private key (not the public key).',
+        );
+      }
+      if (trimmedKey.includes('BEGIN ENCRYPTED PRIVATE KEY')) {
+        this.logger.error('Encrypted private key detected; not supported', {
+          keySource,
+        });
+        throw new InternalServerErrorException(
+          'Encrypted private keys are not supported. Provide an unencrypted PKCS#8 private key.',
+        );
+      }
+
+      // Preflight decode to produce clearer errors under Node/OpenSSL
+      try {
+        createPrivateKey({ key: trimmedKey, format: 'pem' });
+      } catch (e) {
+        const msg = (e as Error)?.message ?? String(e);
+        this.logger.error('Failed to decode CloudFront private key', {
+          keySource,
+          error: msg,
+        });
+        throw new InternalServerErrorException(
+          'Failed to load CloudFront private key. If using env, ensure newlines are \\n-escaped or set PRIVATE_KEY_PATH.',
         );
       }
 
@@ -234,10 +312,10 @@ export class AwsServicesService {
       const cookies = getSignedCookies({
         policy: policyJson,
         keyPairId,
-        privateKey: normalizedPrivateKey,
+        privateKey: trimmedKey,
       });
 
-      return { cookies, expires, ttl };
+      return { cookies, expires, ttl, cookiePath };
     } catch (error) {
       this.logger.error('Failed to generate CloudFront signed cookies', error);
       throw new InternalServerErrorException(error);
