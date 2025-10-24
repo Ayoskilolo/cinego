@@ -65,7 +65,7 @@ export class AwsServicesController {
       },
       required: ['movieId'],
       description:
-        'Provide a movieId; optionally set useTrailer=true to scope to trailer media. TTL in seconds (capped at 3600).',
+        'Provide a movieId; cookies are scoped to the selected media folder (main by default, trailer when useTrailer=true). For premium movies, trailer access is allowed to all users; main access requires active PREMIUM. TTL in seconds (capped at 3600).',
     },
   })
   @ApiResponse({ status: 200, description: 'Cookies set successfully.' })

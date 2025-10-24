@@ -76,10 +76,11 @@ export class CloudfrontAccessGuard implements CanActivate {
 
     // Access rules:
     // - Non-premium movies: allow
-    // - Premium movies: allow only for users with active PREMIUM
+    // - Premium movies: allow trailer to all; main only for active PREMIUM
     if (movie.isPremium) {
       const isPremiumUser = effectiveType === SubscriptionType.PREMIUM;
-      if (!isPremiumUser) {
+      const useTrailer: boolean = !!req.body?.useTrailer;
+      if (!useTrailer && !isPremiumUser) {
         throw new ForbiddenException(
           'You do not have permission to access this premium content.',
         );
