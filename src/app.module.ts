@@ -37,19 +37,6 @@ import { BlogsModule } from './blogs/blogs.module'
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
         const db = configService.get('database') as Record<string, unknown>;
-        // Minimal debug: show selected host/port/url and ssl flags (no secrets)
-        try {
-          const dbg = {
-            host: db?.['host'],
-            port: db?.['port'],
-            url: !!db?.['url'],
-            ssl: db?.['ssl'],
-            extraSsl: !!(db?.['extra'] as any)?.ssl,
-          } as const;
-          if ((process.env.NODE_ENV || '').toLowerCase() !== 'production') {
-            console.log('[TypeOrmModule] using options:', dbg);
-          }
-        } catch {}
         return db;
       },
       inject: [ConfigService],
