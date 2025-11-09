@@ -18,8 +18,9 @@ import { InjectAws } from 'aws-sdk-v3-nest';
 import { ConfigService } from '@nestjs/config';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getSignedCookies } from '@aws-sdk/cloudfront-signer';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createPrivateKey } from 'node:crypto';
+import { join } from 'node:path';
 import { makeCookiePolicy, normalizeScope } from 'src/helpers';
 
 @Injectable()
@@ -220,6 +221,26 @@ export class AwsServicesService {
             privateKeyPath,
             error: (err as Error)?.message,
           });
+        }
+      }
+
+      // If no explicit path provided, try default repo root file before env fallback
+      if (!privateKeyPath && !privateKey) {
+        const repoRootPath = join(process.cwd(), 'cf_private_key.pem');
+        if (existsSync(repoRootPath)) {
+          try {
+            privateKey = readFileSync(repoRootPath, 'utf8');
+            keySource = 'path';
+            this.logger.log(
+              'Using CloudFront private key from repo root cf_private_key.pem',
+              { repoRootPath },
+            );
+          } catch (err) {
+            this.logger.error('Failed to read repo root cf_private_key.pem file', {
+              repoRootPath,
+              error: (err as Error)?.message,
+            });
+          }
         }
       }
 
