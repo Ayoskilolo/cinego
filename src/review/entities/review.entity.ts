@@ -9,6 +9,9 @@ export class Review extends BaseEntity {
   @Column('int')
   rating: number; // Rating out of 5
 
+  @Column('text', { nullable: true })
+  content?: string; // Optional text content for the review
+
   @Column()
   profileId: string;
 

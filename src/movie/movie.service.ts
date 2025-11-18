@@ -437,13 +437,7 @@ export class MovieService {
       ],
     };
 
-    if (
-      userSubscriptionType &&
-      (userSubscriptionType === SubscriptionType.FREEMIUM ||
-        userSubscriptionType === SubscriptionType.FREE_TIER)
-    ) {
-      paginateConfig.where = { isPremium: false }; // Filter for non-premium movies
-    }
+    
 
     const result = await paginate(query, this.movieRepository, paginateConfig);
 
@@ -470,39 +464,8 @@ export class MovieService {
 
     if (movie.isPremium) {
       if (!userId) {
-        // Anonymous user
         throw new ForbiddenException(
           'Premium content. Please log in and subscribe to access.',
-        );
-      }
-      // Authenticated user, check subscription
-      try {
-        const user = await this.userService.findOne(userId);
-        // userService.findOne throws NotFoundException if user doesn't exist.
-        if (
-          user.subscriptionType === SubscriptionType.FREEMIUM ||
-          user.subscriptionType === SubscriptionType.FREE_TIER
-        ) {
-          throw new ForbiddenException(
-            'Your current subscription plan does not allow access to this premium movie.',
-          );
-        }
-      } catch (error) {
-        if (error instanceof ForbiddenException) throw error;
-        if (error instanceof NotFoundException) {
-          // User not found by userService
-          this.logger.warn(
-            `User with ID ${userId} not found during premium access check for movie ${id}.`,
-          );
-          throw new ForbiddenException(
-            'User not found, access to premium content denied.',
-          );
-        }
-        this.logger.error(
-          `Error during premium access check for movie ${id} by user ${userId}: ${error.message}`,
-        );
-        throw new InternalServerErrorException(
-          'Could not verify access for premium content due to an internal error.',
         );
       }
     }
@@ -540,15 +503,7 @@ export class MovieService {
       .createQueryBuilder('movie')
       .where(':genre = ANY(movie.genres)', { genre: genre.toLowerCase() });
 
-    if (
-      userSubscriptionType &&
-      (userSubscriptionType === SubscriptionType.FREEMIUM ||
-        userSubscriptionType === SubscriptionType.FREE_TIER)
-    ) {
-      queryBuilder.andWhere('movie.isPremium = :isPremium', {
-        isPremium: false,
-      });
-    }
+    
 
     // Select specific fields to avoid exposing sensitive ones like mediaKeys by default
     queryBuilder.select([

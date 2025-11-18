@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HLS Player (CloudFront Cookies)</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/agora-rtm-sdk@2.2.3-1/agora-rtm.min.js"></script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="tab-btn" data-tab="player">Player</button>
+      <button class="tab-btn" data-tab="chat">Chat</button>
+      <button class="tab-btn" data-tab="auth">Auth</button>
+    </div>
+    <div class="wrap" id="playerWrap">
+      <h1>HLS Player (CloudFront Signed Cookies)</h1>
+
+      <details class="accordion" id="authAccordion">
+        <summary>Authentication (login + profile)</summary>
+        <div class="row" style="margin-bottom: 8px">
+          <div class="col">
+            <label for="apiBaseUrl">API Base URL</label>
+            <input
+              id="apiBaseUrl"
+              type="url"
+              placeholder="https://api.example.com"
+              value="https://api.cinego.live:3000"
+            />
+            <div class="hint">Used for auth and cookies requests</div>
+          </div>
+          <div class="col">
+            <label for="ttl">TTL (seconds, 60–3600)</label>
+            <input id="ttl" type="number" min="60" max="3600" value="900" />
+            <div class="hint">Keep short (10–30 min). Refresh on demand.</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col">
+            <label for="email">Email</label>
+            <input id="email" type="text" placeholder="user@example.com" value="admin@cinego.com" />
+            <div class="hint">Provide either email or phone number</div>
+          </div>
+          <div class="col">
+            <label for="phoneNumber">Phone Number</label>
+            <input id="phoneNumber" type="text" placeholder="08012345678" />
+          </div>
+        </div>
+
+        <div class="row" style="margin-top: 12px">
+          <div class="col">
+            <label for="password">Password</label>
+            <input id="password" type="password" placeholder="••••••••" value="admin123" />
+            <div class="actions" style="margin-top: 8px">
+              <button id="btnLogin">Login</button>
+              <button id="btnLogout" class="secondary" disabled>Logout</button>
+              <button id="btnRefreshToken" class="secondary" disabled>Refresh Token</button>
+            </div>
+            <div id="authStatus" class="hint">Not logged in.</div>
+          </div>
+          <div class="col">
+            <label for="profileSelect">Select Profile</label>
+            <select id="profileSelect" disabled>
+              <option value="" selected>Select profile</option>
+            </select>
+            <div class="actions" style="margin-top: 8px">
+              <button id="btnLoginProfile" class="secondary" disabled>Use Selected Profile</button>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <div id="playerMain">
+
+      <div class="row" style="margin-top: 12px">
+        <div class="col">
+          <label for="movieId">Movie ID</label>
+          <input id="movieId" type="text" placeholder="uuid-of-movie" />
+          <div class="hint">Required for signed cookies endpoint</div>
+        </div>
+        <div class="col">
+          <label for="movieSelect">Quick Select Movie</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="movieSelect" disabled>
+              <option value="" selected>Fetch and select a movie</option>
+            </select>
+            <button id="btnFetchMovies" class="secondary">Fetch Movies</button>
+          </div>
+          <div class="hint">Fetch a page of movies and pick one</div>
+        </div>
+        <div class="col">
+          <label for="useTrailer">Use Trailer</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input id="useTrailer" type="checkbox" checked />
+            <span class="hint">Trailer allowed for all; main requires premium</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col" style="grid-column: 1 / -1">
+          <label for="serverUrl">Server-provided HLS Manifest (.m3u8)</label>
+          <input
+            id="serverUrl"
+            type="url"
+            placeholder="Will be set after signed cookies"
+            readonly
+          />
+          <div class="hint">This URL is returned by the API for the selected movie/profile</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="btnCookies">Get Signed Cookies</button>
+        <button id="btnLoad">Load Video</button>
+        <button id="btnStop" class="secondary" disabled>Stop</button>
+        <button id="btnProbe" class="secondary">Probe Manifest</button>
+      </div>
+
+      <div class="row" style="margin-top: 12px">
+        <div class="col" style="grid-column: 1 / -1">
+          <label for="quality">Quality</label>
+          <select id="quality" disabled>
+            <option value="-1" selected>Auto</option>
+          </select>
+          <div class="hint">
+            Available after manifest loads (Hls.js). Safari uses Auto.
+          </div>
+        </div>
+      </div>
+
+      <div id="status" class="status">
+        Click “Get Signed Cookies”, then “Load Video” to play
+      </div>
+
+      <video
+        id="video"
+        controls
+        playsinline
+        crossorigin="use-credentials"
+      ></video>
+      </div>
+    </div>
+
+
+    <div class="wrap" id="chatWrap" style="margin-top:16px">
+      <details class="accordion" id="rtmAccordion">
+        <summary>Signaling (RTM Messaging)</summary>
+        <div class="row" style="margin-bottom: 8px">
+          <div class="col">
+            <label for="rtmAppId">Agora App ID</label>
+            <input id="rtmAppId" type="text" value="d7a84ff10a2b408dbcf20c882df9fe00" />
+          </div>
+          <div class="col">
+            <label for="rtmChannel">Channel</label>
+            <input id="rtmChannel" type="text" value="Chat_room" />
+          </div>
+        </div>
+        <div class="row" style="margin-top: 12px">
+          <div class="col" style="grid-column: 1 / -1">
+            <label for="rtmDisplay">Messages</label>
+            <div id="rtmDisplay" class="status" style="height: 200px; overflow: auto"></div>
+          </div>
+        </div>
+        <div class="actions">
+          <input id="rtmText" type="text" placeholder="Enter message" style="flex:1" />
+          <button id="btnSendRtm">Send</button>
+          <button id="btnConnectRtm" class="secondary">Connect</button>
+          <button id="btnDisconnectRtm" class="secondary">Disconnect</button>
+        </div>
+      </details>
+    </div>
+    <div class="wrap" id="watchPartyWrap" style="margin-top:16px">
+      <details class="accordion" id="watchPartyAccordion">
+        <summary>Watch Party</summary>
+        <div class="row" style="margin-bottom:8px">
+          <div class="col">
+            <label for="wpPartyId">Party ID</label>
+            <input id="wpPartyId" type="text" placeholder="party-id" title="Unique party identifier. Hosts use this for management or joining by ID. Guests typically use Join Code instead." />
+          </div>
+          <div class="col">
+            <label for="wpChannelName">Channel Name (optional)</label>
+            <input id="wpChannelName" type="text" placeholder="custom-channel" title="Optional signal channel label. Only used when starting a party. Leave empty to auto-generate." />
+          </div>
+        </div>
+        <div class="row" style="margin-bottom:8px">
+          <div class="col">
+            <label for="wpJoinCode">Join Code</label>
+            <input id="wpJoinCode" type="text" placeholder="ABC123" title="Short code provided by the host to join a scheduled or active party." />
+            <div class="hint" id="wpJoinCodeDisplay" title="Displays the current join code after starting or rotating a party."></div>
+          </div>
+          <div class="col">
+            <label>Role</label>
+            <div class="status" id="wpRoleStatus" title="Your role in the current party: HOST or PARTICIPANT.">No party</div>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="btnWpStart" title="Host only: create a new party. Returns Party ID, Join Code, and channel.">Start Party</button>
+          <button id="btnWpJoinId" class="secondary" title="Join an ACTIVE party using its Party ID. Use this only if you know the ID.">Join by ID</button>
+          <button id="btnWpJoinCode" class="secondary" title="Join a SCHEDULED or ACTIVE party using the Join Code from the host.">Join by Code</button>
+          <button id="btnWpMetadata" class="secondary" title="Fetch details for the Party ID entered above.">Get Metadata</button>
+          <button id="btnWpRotate" class="secondary" title="Host only: generate a new Join Code; old code stops working.">Rotate Code</button>
+          <button id="btnWpEnd" class="secondary" title="Host only: end the current active party.">End Party</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div class="col" style="grid-column: 1 / -1">
+            <label>Roster</label>
+            <div id="wpRoster" class="status" style="height:160px;overflow:auto" title="Live list of members connected to the party's channel."></div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div class="col">
+            <label for="wpTargetUserId">Target User ID</label>
+            <input id="wpTargetUserId" type="text" placeholder="user-id" title="User ID to moderate. Used with Kick/Ban/Mute actions." />
+          </div>
+          <div class="col">
+            <label>Moderation</label>
+            <div class="actions" style="margin-top:4px">
+              <button id="btnWpKick" class="secondary" title="Host only: remove a user from the party.">Kick</button>
+              <button id="btnWpBan" class="secondary" title="Host only: block a user from rejoining.">Ban</button>
+              <button id="btnWpUnban" class="secondary" title="Host only: revoke a user's ban.">Unban</button>
+              <button id="btnWpMute" class="secondary" title="Host only: mute a user's chat/control messages.">Mute</button>
+              <button id="btnWpUnmute" class="secondary" title="Host only: unmute a user.">Unmute</button>
+            </div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div class="col">
+            <label for="wpInviteUserIds">Invite User IDs (comma)</label>
+            <input id="wpInviteUserIds" type="text" placeholder="id1,id2" title="Comma-separated user IDs to invite to the party." />
+          </div>
+          <div class="col">
+            <label for="wpInviteEmails">Invite Emails (comma)</label>
+            <input id="wpInviteEmails" type="text" placeholder="a@b.com,c@d.com" title="Comma-separated emails to invite. Optional." />
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div class="col">
+            <label for="wpInvitePhones">Invite Phones (comma)</label>
+            <input id="wpInvitePhones" type="text" placeholder="080...,081..." title="Comma-separated phone numbers to invite. Optional." />
+          </div>
+          <div class="col">
+            <label>Invites</label>
+            <div class="actions" style="margin-top:4px">
+              <button id="btnWpInvite" class="secondary" title="Host only: send invites to the users specified above.">Invite</button>
+              <button id="btnWpRemoveInvite" class="secondary" title="Host only: revoke an existing invite for the specified user.">Remove Invite</button>
+            </div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div class="col">
+            <label for="wpScheduleAt">Schedule At (ISO)</label>
+            <input id="wpScheduleAt" type="text" placeholder="2025-12-01T18:00:00Z" title="For scheduling: ISO timestamp when the party should start. Host only." />
+          </div>
+          <div class="col">
+            <label>Scheduling</label>
+            <div class="actions" style="margin-top:4px">
+              <button id="btnWpSchedule" class="secondary" title="Host only: create a scheduled party for the given time.">Schedule</button>
+              <button id="btnWpListScheduled" class="secondary" title="View parties you are hosting or invited to that are scheduled.">My Scheduled</button>
+              <button id="btnWpStartScheduled" class="secondary" title="Host only: activate a scheduled party once it's time.">Start Scheduled</button>
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="wrap" style="margin-top:16px">
+      <details class="accordion" id="logsAccordion">
+        <summary>Logs</summary>
+        <div class="log-controls">
+          <label><input type="checkbox" id="filterInfo" checked /> Info</label>
+          <label><input type="checkbox" id="filterWarn" checked /> Warn</label>
+          <label><input type="checkbox" id="filterErr" checked /> Error</label>
+          <button id="btnClearLog" class="secondary">Clear</button>
+          <label style="margin-left:auto;"><input type="checkbox" id="autoScroll" checked /> Auto-scroll</label>
+        </div>
+        <div id="log" class="log" aria-live="polite">
+          <ul id="logList" class="log-list"></ul>
+        </div>
+      </details>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

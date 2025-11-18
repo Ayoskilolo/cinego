@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Review } from './entities/review.entity';
 import { CreateReviewDto } from './dto/create-review.dto';
+import { UpdateReviewDto } from './dto/update-review.dto';
 import { MovieService } from '../movie/movie.service';
 import { PaginateQuery, paginate, PaginateConfig } from 'nestjs-paginate';
 
@@ -48,6 +49,9 @@ export class ReviewService {
     if (review) {
       // Update existing review
       review.rating = createReviewDto.rating;
+      if (typeof createReviewDto.content !== 'undefined') {
+        review.content = createReviewDto.content;
+      }
     } else {
       // Create new review
       review = this.reviewRepository.create({
@@ -106,6 +110,7 @@ export class ReviewService {
       select: [
         'id',
         'rating',
+        'content',
         'movieId',
         'profileId',
         'dateCreated',
@@ -151,8 +156,15 @@ export class ReviewService {
     return this.reviewRepository.findOne({ where: { profileId, movieId } });
   }
 
-  async update(id: string, rating: number, profileId: string): Promise<Review> {
-    if (rating < 1 || rating > 5) {
+  async update(
+    id: string,
+    updateReviewDto: UpdateReviewDto,
+    profileId: string,
+  ): Promise<Review> {
+    if (
+      typeof updateReviewDto.rating !== 'undefined' &&
+      (updateReviewDto.rating < 1 || updateReviewDto.rating > 5)
+    ) {
       throw new BadRequestException('Rating must be between 1 and 5');
     }
 
@@ -164,7 +176,14 @@ export class ReviewService {
         `Review with ID "${id}" not found or profile not authorized`,
       );
     }
-    review.rating = rating;
+
+    if (typeof updateReviewDto.rating !== 'undefined') {
+      review.rating = updateReviewDto.rating;
+    }
+    if (typeof updateReviewDto.content !== 'undefined') {
+      review.content = updateReviewDto.content;
+    }
+
     return this.reviewRepository.save(review);
   }
 

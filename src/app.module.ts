@@ -28,6 +28,7 @@ import { RecommendationModule } from './recommendation/recommendation.module';
 import { SessionEntity } from './auth/entities/session.entity';
 import { AwsServicesModule } from './aws-services/aws-services.module';
 import { BlogsModule } from './blogs/blogs.module'
+import { WatchPartyModule } from './watch-party/watch-party.module';
 
 @Module({
   imports: [
@@ -76,6 +77,8 @@ import { BlogsModule } from './blogs/blogs.module'
     RecommendationModule,
 
     AwsServicesModule,
+
+    WatchPartyModule,
   ],
   controllers: [AppController],
   providers: [

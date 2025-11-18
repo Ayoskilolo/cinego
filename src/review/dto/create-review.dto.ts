@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsUUID, IsInt, Min, Max } from 'class-validator';
+import { IsNotEmpty, IsUUID, IsInt, Min, Max, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateReviewDto {
@@ -13,6 +13,16 @@ export class CreateReviewDto {
   @Min(1)
   @Max(5)
   rating: number;
+
+  @ApiProperty({
+    description: 'Optional text content for the review',
+    example: 'Loved the pacing and the cinematography.',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  content?: string;
 
   @ApiProperty({
     description: 'The ID of the movie being reviewed',

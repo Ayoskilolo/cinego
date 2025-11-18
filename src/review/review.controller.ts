@@ -192,11 +192,7 @@ export class ReviewController {
     @Req() req: Request,
   ) {
     const user = req['user'];
-    return await this.reviewService.update(
-      id,
-      updateReviewDto.rating,
-      user.profileId,
-    );
+    return await this.reviewService.update(id, updateReviewDto, user.profileId);
   }
 
   @Delete(':id')

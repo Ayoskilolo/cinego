@@ -1,6 +1,6 @@
 import { Exclude } from 'class-transformer';
 import { BaseEntity } from '../../base-entity/base-entity.entity';
-import { Column, Entity, OneToMany } from 'typeorm';
+import { Column, Entity, ManyToMany, OneToMany } from 'typeorm';
 import { Profile } from './profile.entity';
 import { SubscriptionType } from '../enum/userType';
 import { PaymentPartner } from '../../payment/entities/payment-partner.entity';
@@ -8,6 +8,7 @@ import { Genres } from '../../movie/genres.enum';
 import { Transaction } from 'src/transactions/entities/transaction.entity';
 import { Role } from '../../auth/enums/role.enum'; // Adjust path as needed
 import { SessionEntity } from 'src/auth/entities/session.entity';
+import { WatchParty } from 'src/watch-party/entities/watch-party.entity';
 
 @Entity()
 export class User extends BaseEntity {
@@ -105,4 +106,13 @@ export class User extends BaseEntity {
     default: Role.USER,
   })
   role: Role;
+
+  @OneToMany(() => WatchParty, (party) => party.host)
+  hostedParties: WatchParty[];
+
+  @ManyToMany(() => WatchParty, (party) => party.participants)
+  participatingParties: WatchParty[];
+
+  @ManyToMany(() => WatchParty, (party) => party.invitedUsers)
+  invitedWatchParties: WatchParty[];
 }

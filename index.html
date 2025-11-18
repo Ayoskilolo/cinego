@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HLS Player (CloudFront Cookies)</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/agora-rtm-sdk@2.2.3-1/agora-rtm.min.js"></script>
     <style>
       :root {
         --bg: #f5f7fb;
@@ -145,52 +146,224 @@
           grid-template-columns: 1fr;
         }
       }
+
+      /* Simple accordion styling */
+      details.accordion {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 8px 12px;
+        background: #fafafa;
+        margin-bottom: 12px;
+      }
+      details.accordion[open] {
+        background: #fff;
+      }
+      details.accordion > summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: var(--brand);
+        margin: 4px 0 8px;
+        list-style: none;
+      }
+      details.accordion > summary::marker {
+        display: none;
+      }
+
+      /* Logs: structured entries, filters, and controls */
+      .log-controls {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-top: 8px;
+      }
+      .log-controls label {
+        font-size: 12px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .log-list {
+        list-style: none;
+        padding: 0;
+        margin: 8px 0 0;
+      }
+      .log-entry {
+        display: grid;
+        grid-template-columns: 120px 140px 1fr;
+        gap: 8px;
+        padding: 8px;
+        border-bottom: 1px solid #1f2937;
+        background: #0d1326;
+      }
+      .log-time {
+        color: #9aa4b2;
+        font-size: 12px;
+      }
+      .badge {
+        font-size: 11px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .badge.info {
+        background: #e0f2fe;
+        color: #0c4a6e;
+      }
+      .badge.warn {
+        background: #fef3c7;
+        color: #92400e;
+      }
+      .badge.err {
+        background: #fee2e2;
+        color: #7f1d1d;
+      }
+      .badge.cat {
+        background: #e5e7eb;
+        color: #334155;
+      }
+      .log-msg {
+        font-size: 13px;
+        color: #e6e8f0;
+      }
+      .log-details {
+        margin-top: 6px;
+      }
+      .log-details summary {
+        font-size: 12px;
+        color: #9aa4b2;
+        cursor: pointer;
+      }
+      .log-details pre {
+        background: #0b1020;
+        color: #e6e8f0;
+        border: 1px solid #1f2937;
+        border-radius: 6px;
+        padding: 8px;
+        overflow: auto;
+        max-height: 180px;
+      }
     </style>
   </head>
   <body>
-    <div class="wrap">
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="tab-btn" data-tab="player">Player</button>
+      <button class="tab-btn" data-tab="chat">Chat</button>
+      <button class="tab-btn" data-tab="auth">Auth</button>
+    </div>
+    <div class="wrap" id="playerWrap">
       <h1>HLS Player (CloudFront Signed Cookies)</h1>
 
-      <div class="row">
-        <div class="col">
-          <label for="apiBaseUrl">API Base URL</label>
-          <input
-            id="apiBaseUrl"
-            type="url"
-            placeholder="https://api.example.com"
-            value="https://api.cinego.live:3000"
-          />
-          <div class="hint">
-            Endpoint: <code>/aws-services/cloudfront/signed-cookies</code>
+      <!-- Auth: Two-step login and profile selection (accordion) -->
+      <details class="accordion" id="authAccordion">
+        <summary>Authentication (login + profile)</summary>
+        <div class="row" style="margin-bottom: 8px">
+          <div class="col">
+            <label for="apiBaseUrl">API Base URL</label>
+            <input
+              id="apiBaseUrl"
+              type="url"
+              placeholder="https://api.example.com"
+              value="https://api.cinego.live:3000"
+            />
+            <div class="hint">Used for auth and cookies requests</div>
+          </div>
+          <div class="col">
+            <label for="ttl">TTL (seconds, 60–3600)</label>
+            <input id="ttl" type="number" min="60" max="3600" value="900" />
+            <div class="hint">Keep short (10–30 min). Refresh on demand.</div>
           </div>
         </div>
+
+        <div class="row">
+          <div class="col">
+            <label for="email">Email</label>
+            <input id="email" type="text" placeholder="user@example.com" value="admin@cinego.com" />
+            <div class="hint">Provide either email or phone number</div>
+          </div>
+          <div class="col">
+            <label for="phoneNumber">Phone Number</label>
+            <input id="phoneNumber" type="text" placeholder="08012345678" />
+          </div>
+        </div>
+
+        <div class="row" style="margin-top: 12px">
+          <div class="col">
+            <label for="password">Password</label>
+            <input id="password" type="password" placeholder="••••••••" value="admin123" />
+            <div class="actions" style="margin-top: 8px">
+              <button id="btnLogin">Login</button>
+              <button id="btnLogout" class="secondary" disabled>Logout</button>
+            </div>
+            <div id="authStatus" class="hint">Not logged in.</div>
+          </div>
+          <div class="col">
+            <label for="profileSelect">Select Profile</label>
+            <select id="profileSelect" disabled>
+              <option value="" selected>Select profile</option>
+            </select>
+            <div class="actions" style="margin-top: 8px">
+              <button id="btnLoginProfile" class="secondary" disabled>Use Selected Profile</button>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <div id="playerMain">
+
+      <!-- Cookies: choose movie and trailer/main -->
+      <div class="row" style="margin-top: 12px">
         <div class="col">
-          <label for="ttl">TTL (seconds, 60–3600)</label>
-          <input id="ttl" type="number" min="60" max="3600" value="900" />
-          <div class="hint">Keep short (10–30 min). Refresh on demand.</div>
+          <label for="movieId">Movie ID</label>
+          <input id="movieId" type="text" placeholder="uuid-of-movie" />
+          <div class="hint">Required for signed cookies endpoint</div>
+        </div>
+        <div class="col">
+          <label for="movieSelect">Quick Select Movie</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="movieSelect" disabled>
+              <option value="" selected>Fetch and select a movie</option>
+            </select>
+            <button id="btnFetchMovies" class="secondary">Fetch Movies</button>
+          </div>
+          <div class="hint">Fetch a page of movies and pick one</div>
+        </div>
+        <div class="col">
+          <label for="useTrailer">Use Trailer</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input id="useTrailer" type="checkbox" checked />
+            <span class="hint">Trailer allowed for all; main requires premium</span>
+          </div>
         </div>
       </div>
 
-      <div class="row" style="margin-top: 12px">
+      <div class="row">
         <div class="col" style="grid-column: 1 / -1">
-          <label for="videoUrl">HLS Manifest URL (.m3u8)</label>
+          <label for="serverUrl">Server-provided HLS Manifest (.m3u8)</label>
           <input
-            id="videoUrl"
+            id="serverUrl"
             type="url"
-            value="https://media.cinego.live/fast-6/trailer/variants/fast6_master.m3u8"
-            placeholder="https://media.cinego.live/path/to/master.m3u8"
+            placeholder="Will be set after signed cookies"
+            readonly
           />
-          <div class="hint">
-            Cookie scope is derived from this URL (folder wildcard).
-          </div>
+          <div class="hint">This URL is returned by the API for the selected movie/profile</div>
         </div>
       </div>
 
       <div class="actions">
-        <button id="btnCookies">1) Get Signed Cookies</button>
-        <button id="btnLoad">2) Load Video</button>
+        <button id="btnCookies">Get Signed Cookies</button>
+        <button id="btnLoad">Load Video</button>
         <button id="btnStop" class="secondary" disabled>Stop</button>
         <button id="btnProbe" class="secondary">Probe Manifest</button>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <input id="wpPartyId" type="text" placeholder="party-id" style="width:140px" />
+          <input id="wpChannelName" type="text" placeholder="channel" style="width:140px" />
+          <input id="wpJoinCode" type="text" placeholder="code" style="width:100px" />
+          <button id="btnWpStart" class="secondary">Start</button>
+          <button id="btnWpJoinId" class="secondary">Join</button>
+          <button id="btnWpJoinCode" class="secondary">Join Code</button>
+        </div>
       </div>
 
       <!-- Quality selector (Hls.js only; Safari uses Auto) -->
@@ -207,7 +380,7 @@
       </div>
 
       <div id="status" class="status">
-        Enter the manifest URL and click “Get Signed Cookies”
+        Click “Get Signed Cookies”, then “Load Video” to play
       </div>
 
       <!-- Important for native Safari to send cookies -->
@@ -217,18 +390,264 @@
         playsinline
         crossorigin="use-credentials"
       ></video>
+      <div class="row" style="margin-top:8px">
+        <div class="col" style="grid-column: 1 / -1">
+          <div class="status" id="wpRoleStatus">No party</div>
+          <div class="hint" id="wpJoinCodeDisplay"></div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div class="col" style="grid-column: 1 / -1">
+          <label>Roster</label>
+          <div id="wpRoster" class="status" style="height:140px;overflow:auto"></div>
+        </div>
+      </div>
+      </div>
+    </div>
 
-      <div id="log" class="log" aria-live="polite"></div>
+
+    <div class="wrap" id="chatWrap" style="margin-top:16px">
+      <details class="accordion" id="rtmAccordion">
+        <summary>Signaling (RTM Messaging)</summary>
+        <div class="row" style="margin-bottom: 8px">
+          <div class="col">
+            <label for="rtmAppId">Agora App ID</label>
+            <input id="rtmAppId" type="text" value="d7a84ff10a2b408dbcf20c882df9fe00" />
+          </div>
+          <div class="col">
+            <label for="rtmChannel">Channel</label>
+            <input id="rtmChannel" type="text" value="Chat_room" />
+          </div>
+        </div>
+        <div class="row" style="margin-top: 12px">
+          <div class="col" style="grid-column: 1 / -1">
+            <label for="rtmDisplay">Messages</label>
+            <div id="rtmDisplay" class="status" style="height: 200px; overflow: auto"></div>
+          </div>
+        </div>
+        <div class="actions">
+          <input id="rtmText" type="text" placeholder="Enter message" style="flex:1" />
+          <button id="btnSendRtm">Send</button>
+          <button id="btnConnectRtm" class="secondary">Connect</button>
+          <button id="btnDisconnectRtm" class="secondary">Disconnect</button>
+        </div>
+      </details>
+    </div>
+    <div class="wrap" id="watchPartyWrap" style="margin-top:16px">
+      <details class="accordion" id="watchPartyAccordion">
+        <summary>Watch Party</summary>
+        <div class="row" style="margin-bottom:8px">
+          <div class="col">
+            <label for="wpPartyId">Party ID</label>
+            <input id="wpPartyId" type="text" placeholder="party-id" title="Unique party identifier. Hosts use this for management or joining by ID. Guests typically use Join Code instead." />
+          </div>
+          <div class="col">
+            <label for="wpChannelName">Channel Name (optional)</label>
+            <input id="wpChannelName" type="text" placeholder="custom-channel" title="Optional signal channel label. Only used when starting a party. Leave empty to auto-generate." />
+          </div>
+        </div>
+        <div class="row" style="margin-bottom:8px">
+          <div class="col">
+            <label for="wpJoinCode">Join Code</label>
+            <input id="wpJoinCode" type="text" placeholder="ABC123" title="Short code provided by the host to join a scheduled or active party." />
+            <div class="hint" id="wpJoinCodeDisplay" title="Displays the current join code after starting or rotating a party."></div>
+          </div>
+          <div class="col">
+            <label>Role</label>
+            <div class="status" id="wpRoleStatus" title="Your role in the current party: HOST or PARTICIPANT.">No party</div>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="btnWpStart" title="Host only: create a new party. Returns Party ID, Join Code, and channel.">Start Party</button>
+          <button id="btnWpJoinId" class="secondary" title="Join an ACTIVE party using its Party ID. Use this only if you know the ID.">Join by ID</button>
+          <button id="btnWpJoinCode" class="secondary" title="Join a SCHEDULED or ACTIVE party using the Join Code from the host.">Join by Code</button>
+          <button id="btnWpMetadata" class="secondary" title="Fetch details for the Party ID entered above.">Get Metadata</button>
+          <button id="btnWpRotate" class="secondary" title="Host only: generate a new Join Code; old code stops working.">Rotate Code</button>
+          <button id="btnWpEnd" class="secondary" title="Host only: end the current active party.">End Party</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div class="col" style="grid-column: 1 / -1">
+            <label>Roster</label>
+            <div id="wpRoster" class="status" style="height:160px;overflow:auto" title="Live list of members connected to the party's channel."></div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div class="col">
+            <label for="wpTargetUserId">Target User ID</label>
+            <input id="wpTargetUserId" type="text" placeholder="user-id" title="User ID to moderate. Used with Kick/Ban/Mute actions." />
+          </div>
+          <div class="col">
+            <label>Moderation</label>
+            <div class="actions" style="margin-top:4px">
+              <button id="btnWpKick" class="secondary" title="Host only: remove a user from the party.">Kick</button>
+              <button id="btnWpBan" class="secondary" title="Host only: block a user from rejoining.">Ban</button>
+              <button id="btnWpUnban" class="secondary" title="Host only: revoke a user's ban.">Unban</button>
+              <button id="btnWpMute" class="secondary" title="Host only: mute a user's chat/control messages.">Mute</button>
+              <button id="btnWpUnmute" class="secondary" title="Host only: unmute a user.">Unmute</button>
+            </div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div class="col">
+            <label for="wpInviteUserIds">Invite User IDs (comma)</label>
+            <input id="wpInviteUserIds" type="text" placeholder="id1,id2" title="Comma-separated user IDs to invite to the party." />
+          </div>
+          <div class="col">
+            <label for="wpInviteEmails">Invite Emails (comma)</label>
+            <input id="wpInviteEmails" type="text" placeholder="a@b.com,c@d.com" title="Comma-separated emails to invite. Optional." />
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div class="col">
+            <label for="wpInvitePhones">Invite Phones (comma)</label>
+            <input id="wpInvitePhones" type="text" placeholder="080...,081..." title="Comma-separated phone numbers to invite. Optional." />
+          </div>
+          <div class="col">
+            <label>Invites</label>
+            <div class="actions" style="margin-top:4px">
+              <button id="btnWpInvite" class="secondary" title="Host only: send invites to the users specified above.">Invite</button>
+              <button id="btnWpRemoveInvite" class="secondary" title="Host only: revoke an existing invite for the specified user.">Remove Invite</button>
+            </div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div class="col">
+            <label for="wpScheduleAt">Schedule At (ISO)</label>
+            <input id="wpScheduleAt" type="text" placeholder="2025-12-01T18:00:00Z" title="For scheduling: ISO timestamp when the party should start. Host only." />
+          </div>
+          <div class="col">
+            <label>Scheduling</label>
+            <div class="actions" style="margin-top:4px">
+              <button id="btnWpSchedule" class="secondary" title="Host only: create a scheduled party for the given time.">Schedule</button>
+              <button id="btnWpListScheduled" class="secondary" title="View parties you are hosting or invited to that are scheduled.">My Scheduled</button>
+              <button id="btnWpStartScheduled" class="secondary" title="Host only: activate a scheduled party once it's time.">Start Scheduled</button>
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="wrap" style="margin-top:16px">
+      <details class="accordion" id="logsAccordion">
+        <summary>Logs</summary>
+        <div class="log-controls">
+          <label><input type="checkbox" id="filterInfo" checked /> Info</label>
+          <label><input type="checkbox" id="filterWarn" checked /> Warn</label>
+          <label><input type="checkbox" id="filterErr" checked /> Error</label>
+          <button id="btnClearLog" class="secondary">Clear</button>
+          <label style="margin-left:auto;"><input type="checkbox" id="autoScroll" checked /> Auto-scroll</label>
+        </div>
+        <div id="log" class="log" aria-live="polite">
+          <ul id="logList" class="log-list"></ul>
+        </div>
+      </details>
     </div>
 
     <script>
       const el = (id) => document.getElementById(id);
       const logBox = el('log');
-      function log(msg) {
-        const t = new Date().toISOString();
-        logBox.textContent += `\n[${t}] ${msg}`;
-        logBox.scrollTop = logBox.scrollHeight;
+      const logList = document.getElementById('logList');
+      const filterInfo = el('filterInfo');
+      const filterWarn = el('filterWarn');
+      const filterErr = el('filterErr');
+      const autoScrollEl = el('autoScroll');
+      const btnClearLog = el('btnClearLog');
+      const btnFetchMovies = document.getElementById('btnFetchMovies');
+      const movieSelect = document.getElementById('movieSelect');
+      let serverManifestUrl = '';
+
+      function shouldShow(level) {
+        return (
+          (level === 'info' && filterInfo?.checked) ||
+          (level === 'warn' && filterWarn?.checked) ||
+          (level === 'err' && filterErr?.checked)
+        );
       }
+
+      function createLogEntry(level, category, msg, detailsText) {
+        const li = document.createElement('li');
+        li.className = 'log-entry';
+        li.setAttribute('data-level', level);
+        // time
+        const tDiv = document.createElement('div');
+        tDiv.className = 'log-time';
+        tDiv.textContent = new Date().toLocaleTimeString();
+        // badges
+        const badgesWrap = document.createElement('div');
+        badgesWrap.style.display = 'flex';
+        badgesWrap.style.gap = '6px';
+        const levelBadge = document.createElement('div');
+        levelBadge.className = 'badge ' + (level === 'error' ? 'err' : level);
+        levelBadge.textContent = (level === 'err' ? 'ERROR' : level.toUpperCase());
+        const catBadge = document.createElement('div');
+        catBadge.className = 'badge cat';
+        catBadge.textContent = category || 'General';
+        badgesWrap.appendChild(levelBadge);
+        badgesWrap.appendChild(catBadge);
+        // message
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'log-msg';
+        msgDiv.textContent = msg || '';
+        li.appendChild(tDiv);
+        li.appendChild(badgesWrap);
+        li.appendChild(msgDiv);
+        if (detailsText) {
+          const detailsRow = document.createElement('div');
+          detailsRow.style.gridColumn = '1 / -1';
+          const details = document.createElement('details');
+          details.className = 'log-details';
+          const summary = document.createElement('summary');
+          summary.textContent = 'Details';
+          const pre = document.createElement('pre');
+          pre.textContent = detailsText;
+          details.appendChild(summary);
+          details.appendChild(pre);
+          detailsRow.appendChild(details);
+          li.appendChild(detailsRow);
+        }
+        // apply filter visibility on render
+        li.style.display = shouldShow(level) ? '' : 'none';
+        return li;
+      }
+
+      function pruneLog(maxItems) {
+        const max = Math.max(50, maxItems || 500);
+        while (logList.children.length > max) {
+          logList.removeChild(logList.firstChild);
+        }
+      }
+
+      function renderLogEntry(entryEl) {
+        logList.appendChild(entryEl);
+        pruneLog(500);
+        if (autoScrollEl?.checked) {
+          logBox.scrollTop = logBox.scrollHeight;
+        }
+      }
+
+      function logEx(level = 'info', category = 'General', msg, detailsText) {
+        const entry = createLogEntry(level, category, msg, detailsText);
+        renderLogEntry(entry);
+      }
+      function log(msg) { logEx('info', 'General', msg); }
+      function logInfo(msg, cat = 'General', detailsText) { logEx('info', cat, msg, detailsText); }
+      function logWarn(msg, cat = 'General', detailsText) { logEx('warn', cat, msg, detailsText); }
+      function logErr(msg, cat = 'General', detailsText) { logEx('err', cat, msg, detailsText); }
+
+      // Filters and controls
+      const applyFilters = () => {
+        const items = logList.querySelectorAll('li[data-level]');
+        items.forEach((li) => {
+          const level = li.getAttribute('data-level');
+          li.style.display = shouldShow(level) ? '' : 'none';
+        });
+      };
+      filterInfo?.addEventListener('change', applyFilters);
+      filterWarn?.addEventListener('change', applyFilters);
+      filterErr?.addEventListener('change', applyFilters);
+      btnClearLog?.addEventListener('click', () => {
+        logList.innerHTML = '';
+      });
       function setStatus(msg, cls = '') {
         const s = el('status');
         s.textContent = msg;
@@ -240,6 +659,13 @@
       const qualitySel = el('quality');
       let cookieRefreshTimer = null;
       let lastCookieTTL = null;
+      let tempAccessToken = null;
+      let accessToken = null;
+      let refreshToken = null;
+      let userData = null;
+      let currentProfile = null;
+      let currentMovieId = null;
+      let currentUseTrailer = true;
 
       function resetQualitySelector() {
         qualitySel.innerHTML = '<option value="-1" selected>Auto</option>';
@@ -284,18 +710,127 @@
         }
       };
 
-      // Derive folder wildcard from the manifest URL (no hardcoding)
-      function folderWildcardFromManifest(manifestUrl) {
+      async function login() {
+        const apiBase = el('apiBaseUrl').value.trim().replace(/\/$/, '');
+        const email = el('email').value.trim();
+        const phoneNumber = el('phoneNumber').value.trim();
+        const password = el('password').value;
+        if (!apiBase) return setStatus('Please provide API Base URL', 'err');
+        if (!password) return setStatus('Please enter password', 'err');
+        if (!email && !phoneNumber)
+          return setStatus('Enter email or phone number', 'err');
+
+        const payload = { password };
+        if (email) payload.email = email; else payload.phoneNumber = phoneNumber;
+        const endpoint = apiBase + '/auth/login';
+        setStatus('Logging in...');
+        logInfo(`POST ${endpoint}`, 'Auth', JSON.stringify({ ...payload, password: '••••••••' }));
         try {
-          const u = new URL(manifestUrl);
-          const parts = u.pathname.split('/').filter(Boolean);
-          if (parts.length < 1) return '/*';
-          // e.g. if path is /fast-6/trailer/variants/..., parts[0] is "fast-6"
-          const root = parts[0];
-          return `/${root}/*`;
-        } catch {
-          return '/*';
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const body = await res.json().catch(() => null);
+          logInfo(`Response ${res.status} ${res.statusText}`, 'Auth', JSON.stringify(body).slice(0, 300));
+          if (!res.ok) {
+            setStatus(`Login failed: HTTP ${res.status}`, 'err');
+            logErr('Login failed', 'Auth', JSON.stringify(body).slice(0, 300));
+            return;
+          }
+          const data = body?.data || body;
+          userData = data?.user;
+          tempAccessToken = data?.tempAccessToken;
+          if (!tempAccessToken || !userData) {
+            setStatus('Unexpected login response. Missing token or user.', 'err');
+            logErr('Unexpected login response', 'Auth', JSON.stringify(body).slice(0, 400));
+            return;
+          }
+          // Populate profiles
+          const profiles = Array.isArray(userData?.profiles)
+            ? userData.profiles
+            : [];
+          const select = el('profileSelect');
+          select.innerHTML = '';
+          profiles.forEach((p) => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = p.profileName || p.id;
+            select.appendChild(opt);
+          });
+          select.disabled = profiles.length === 0;
+          el('btnLoginProfile').disabled = profiles.length === 0;
+          el('btnLogout').disabled = false;
+          el('btnLogin').disabled = true;
+          setStatus('Login successful. Select a profile to continue.', 'ok');
+          el('authStatus').textContent = `Pre-profile session ready; ${profiles.length} profiles available.`;
+        } catch (e) {
+          setStatus(`Login error: ${e?.message || e}`, 'err');
+          logErr(`Login error: ${e?.message || e}`, 'Auth', e?.stack || String(e));
         }
+      }
+
+      async function loginWithProfile() {
+        const apiBase = el('apiBaseUrl').value.trim().replace(/\/$/, '');
+        if (!tempAccessToken)
+          return setStatus('Login first to get temp token.', 'err');
+        const select = el('profileSelect');
+        const profileId = select.value;
+        if (!profileId)
+          return setStatus('Select a profile to continue', 'err');
+        const endpoint = apiBase + '/auth/login/profile';
+        setStatus('Creating full session...');
+        logInfo(`POST ${endpoint}`, 'Auth', JSON.stringify({ profileId }));
+        try {
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${tempAccessToken}`,
+            },
+            body: JSON.stringify({ profileId }),
+          });
+          const body = await res.json().catch(() => null);
+          logInfo(`Response ${res.status} ${res.statusText}`, 'Auth', JSON.stringify(body).slice(0, 300));
+          if (!res.ok) {
+            setStatus(`Profile login failed: HTTP ${res.status}`, 'err');
+            logErr('Profile login failed', 'Auth', JSON.stringify(body).slice(0, 300));
+            return;
+          }
+          const data = body?.data || body;
+          accessToken = data?.accessToken;
+          refreshToken = data?.refreshToken;
+          currentProfile = data?.profile;
+          userData = data?.user || userData;
+          if (!accessToken) {
+            setStatus('Missing accessToken in response.', 'err');
+            log(`Response data: ${JSON.stringify(body).slice(0, 400)}`);
+            return;
+          }
+          el('btnLoginProfile').disabled = true;
+          el('profileSelect').disabled = true;
+          el('authStatus').textContent = `Full session active for profile ${currentProfile?.profileName || currentProfile?.id}`;
+          setStatus(
+            `Logged in as ${userData?.email || userData?.phoneNumber || 'user'}; active profile ${currentProfile?.profileName || currentProfile?.id}`,
+            'ok',
+          );
+        } catch (e) {
+          setStatus(`Profile login error: ${e?.message || e}`, 'err');
+          logErr(`Profile login error: ${e?.message || e}`, 'Auth', e?.stack || String(e));
+        }
+      }
+
+      function logout() {
+        tempAccessToken = null;
+        accessToken = null;
+        refreshToken = null;
+        userData = null;
+        currentProfile = null;
+        el('btnLogin').disabled = false;
+        el('btnLoginProfile').disabled = true;
+        el('profileSelect').disabled = true;
+        el('authStatus').textContent = 'Not logged in.';
+        setStatus('Logged out. Tokens cleared.');
       }
 
       async function getSignedCookies() {
@@ -304,41 +839,56 @@
           3600,
           Math.max(60, parseInt(el('ttl').value || '900', 10)),
         );
-        const manifest = el('videoUrl').value.trim();
+        const movieId = (movieSelect && movieSelect.value) ? String(movieSelect.value).trim() : el('movieId').value.trim();
+        const useTrailer = !!el('useTrailer').checked;
         if (!apiBase) return setStatus('Please provide API Base URL', 'err');
-        if (!manifest)
-          return setStatus('Please provide HLS manifest URL', 'err');
+        if (!accessToken)
+          return setStatus('Login and select a profile first.', 'err');
+        if (!movieId) return setStatus('Provide a movie ID for cookies', 'err');
 
-        const scope = folderWildcardFromManifest(manifest);
         const endpoint = apiBase + '/aws-services/cloudfront/signed-cookies';
-
-        setStatus(`Requesting signed cookies for scope "${scope}"...`);
-        log(
-          `POST ${endpoint} body: ${JSON.stringify({ scope, ttlSeconds: ttl })}`,
+        setStatus(
+          `Requesting signed cookies for movie ${movieId}${useTrailer ? ' (trailer)' : ''}...`,
         );
+        logInfo(`[POST] ${endpoint}`, 'Cookies', JSON.stringify({ movieId, ttlSeconds: ttl, useTrailer }));
 
         try {
           const res = await fetch(endpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include', // accept Set-Cookie
-            body: JSON.stringify({ scope, ttlSeconds: ttl }),
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            credentials: 'include',
+            body: JSON.stringify({ movieId, ttlSeconds: ttl, useTrailer }),
           });
-          log(`Cookies response: ${res.status} ${res.statusText}`);
           const txt = await res.text();
-          log(`Response body (first 200 chars): ${txt.slice(0, 200)}`);
+          let data = null;
+          try { data = JSON.parse(txt); } catch {}
+          logInfo(`Response ${res.status} ${res.statusText}`, 'Cookies', txt.slice(0, 200));
+          const urlBase = (data && data.data && data.data.url) ? data.data.url : data?.url;
+          if (urlBase) {
+            serverManifestUrl = urlBase;
+            logInfo(`Manifest URL from API: ${urlBase}`, 'Cookies');
+            const serverUrlInput = el('serverUrl');
+            if (serverUrlInput) {
+              serverUrlInput.value = urlBase;
+              logInfo('Displayed manifest URL from API response', 'Cookies');
+            }
+          }
           if (!res.ok)
             return setStatus(
               `Failed to set cookies: HTTP ${res.status}`,
               'err',
             );
           setStatus('Signed cookies set. You can load the video now.', 'ok');
-          // Schedule proactive refresh slightly before TTL expiry
+          currentMovieId = movieId;
+          currentUseTrailer = useTrailer;
           lastCookieTTL = ttl;
           scheduleCookieRefresh(ttl);
         } catch (e) {
           setStatus(`Error requesting cookies: ${e?.message || e}`, 'err');
-          log(`Cookie request error: ${e?.stack || e}`);
+          logErr(`Cookie request error: ${e?.message || e}`, 'Cookies', e?.stack || String(e));
         }
       }
 
@@ -351,15 +901,16 @@
           const lead = Math.min(60, Math.max(15, Math.floor(ttlSeconds * 0.1))); // refresh ~10% early, min 15s, max 60s
           const ms = Math.max(0, (ttlSeconds - lead) * 1000);
           const when = new Date(Date.now() + ms).toLocaleTimeString();
-          log(
+          logInfo(
             `Scheduled cookie refresh in ${Math.round(ms / 1000)}s (at ${when})`,
+            'Cookies'
           );
           cookieRefreshTimer = setTimeout(
             () => refreshSignedCookies('timer'),
             ms,
           );
         } catch (e) {
-          log(`Failed to schedule cookie refresh: ${e?.message || e}`);
+          logWarn(`Failed to schedule cookie refresh: ${e?.message || e}`, 'Cookies');
         }
       }
 
@@ -372,25 +923,43 @@
             parseInt(el('ttl').value || String(lastCookieTTL || 900), 10),
           ),
         );
-        const manifest = el('videoUrl').value.trim();
-        if (!apiBase || !manifest) {
-          log('Cannot refresh cookies: missing API base or manifest URL');
+        const movieId = currentMovieId || el('movieId').value.trim();
+        const useTrailer =
+          currentUseTrailer !== undefined ? currentUseTrailer : !!el('useTrailer').checked;
+        if (!apiBase || !movieId || !accessToken) {
+          logWarn('Cannot refresh cookies: missing API base, movieId, or accessToken', 'Cookies');
           return;
         }
-        const scope = folderWildcardFromManifest(manifest);
         const endpoint = apiBase + '/aws-services/cloudfront/signed-cookies';
-        log(`[${source}] Refreshing signed cookies for scope ${scope}...`);
+        logInfo(
+          `[${source}] Refreshing signed cookies for movie ${movieId}${useTrailer ? ' (trailer)' : ''}...`,
+          'Cookies'
+        );
         try {
           const res = await fetch(endpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
             credentials: 'include',
-            body: JSON.stringify({ scope, ttlSeconds: ttl }),
+            body: JSON.stringify({ movieId, ttlSeconds: ttl, useTrailer }),
           });
           const txt = await res.text();
-          log(
-            `Refresh response: ${res.status} ${res.statusText}; body(first 200): ${txt.slice(0, 200)}`,
+          let data = null;
+          try { data = JSON.parse(txt); } catch {}
+          logInfo(
+            `Refresh response: ${res.status} ${res.statusText}`,
+            'Cookies',
+            txt.slice(0, 200)
           );
+          const newUrl = (data && data.data && data.data.url) ? data.data.url : data?.url;
+          if (newUrl) {
+            serverManifestUrl = newUrl;
+            const serverUrlInput = el('serverUrl');
+            if (serverUrlInput) serverUrlInput.value = newUrl;
+            logInfo('Updated manifest URL from refresh response', 'Cookies');
+          }
           if (!res.ok) {
             setStatus(`Cookie refresh failed: HTTP ${res.status}`, 'err');
             return;
@@ -404,8 +973,87 @@
           }
         } catch (e) {
           setStatus(`Cookie refresh error: ${e?.message || e}`, 'err');
-          log(`Cookie refresh error: ${e?.stack || e}`);
+          logErr(`Cookie refresh error: ${e?.message || e}`, 'Cookies', e?.stack || String(e));
         }
+      }
+
+      async function fetchMovies() {
+        try {
+          const apiBase = el('apiBaseUrl').value.trim().replace(/\/$/, '');
+          if (!apiBase) return setStatus('Please provide API Base URL', 'err');
+          if (!accessToken) return setStatus('Login and select a profile first.', 'err');
+          const endpoint = `${apiBase}/movie?page=1&limit=25&sortBy=title:ASC`;
+          logInfo(`[GET] ${endpoint}`, 'Movies');
+          const res = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+            credentials: 'include',
+          });
+          const txt = await res.text();
+          let data = null; try { data = JSON.parse(txt); } catch {}
+          logInfo(`Movies response: ${res.status} ${res.statusText}`, 'Movies', txt.slice(0, 200));
+          if (!res.ok) {
+            setStatus(`Failed to fetch movies: HTTP ${res.status}`, 'err');
+            return;
+          }
+          const payload = data?.data || {};
+          const items = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.items) ? payload.items : [];
+          if (!items.length) {
+            logWarn('No movies returned in first page.', 'Movies');
+          }
+          populateMovieSelect(items);
+          setStatus('Movies loaded. Select one and get cookies.', 'ok');
+        } catch (e) {
+          setStatus(`Error fetching movies: ${e?.message || e}`, 'err');
+          logErr(`Error fetching movies: ${e?.message || e}`, 'Movies', e?.stack || String(e));
+        }
+      }
+
+      function populateMovieSelect(items) {
+        try {
+          if (!movieSelect) return;
+          movieSelect.innerHTML = '';
+          const opt0 = document.createElement('option');
+          opt0.value = '';
+          opt0.selected = true;
+          opt0.textContent = 'Select a movie';
+          movieSelect.appendChild(opt0);
+          items.forEach((m) => {
+            const opt = document.createElement('option');
+            opt.value = m.id || '';
+            const title = m.title || m.name || m.slug || m.id;
+            const isPremium = m.isPremium ? ' (Premium)' : '';
+            opt.textContent = `${title}${isPremium}`;
+            if (m.mediaKeys?.trailer) opt.setAttribute('data-hasTrailer', '1');
+            movieSelect.appendChild(opt);
+          });
+          movieSelect.disabled = false;
+          // reset manual field to reflect selection changes
+          const idVal = movieSelect.value || '';
+          el('movieId').value = idVal;
+          movieSelect.addEventListener('change', () => {
+            const id = movieSelect.value || '';
+            el('movieId').value = id;
+            const sel = movieSelect.selectedOptions[0];
+            const hasTrailer = sel?.getAttribute('data-hasTrailer') === '1';
+            if (!hasTrailer && el('useTrailer')?.checked) {
+              logWarn('Selected movie has no trailer key; switching to main.', 'Movies');
+              el('useTrailer').checked = false;
+            }
+          }, { once: true });
+          logInfo(`Populated ${items.length} movies into selector`, 'Movies');
+        } catch (e) {
+          logErr(`Failed to populate movie selector: ${e?.message || e}`, 'Movies');
+        }
+      }
+
+      if (btnFetchMovies) {
+        btnFetchMovies.addEventListener('click', (e) => {
+          e.preventDefault();
+          fetchMovies();
+        });
       }
 
       function is403FromHlsError(data) {
@@ -419,7 +1067,7 @@
 
       function attemptHlsRecovery(errData) {
         try {
-          const url = el('videoUrl').value.trim();
+          const url = serverManifestUrl?.trim();
           if (!url) return;
           if (!hls) return;
           // If fatal or manifest-level problems, re-init the Hls instance
@@ -431,17 +1079,17 @@
               .includes('manifest')
           );
           if (isFatal || isManifestIssue) {
-            log('Reinitializing Hls after cookie refresh...');
+            logWarn('Reinitializing Hls after cookie refresh...', 'HLS');
             hls.destroy();
             initHls(url);
           } else {
-            log('Resuming Hls after cookie refresh...');
+            logInfo('Resuming Hls after cookie refresh...', 'HLS');
             hls.startLoad();
           }
           setStatus('Resumed playback after cookie refresh.', 'ok');
           video.play().catch(() => {});
         } catch (e) {
-          log(`Recovery error: ${e?.message || e}`);
+          logErr(`Recovery error: ${e?.message || e}`, 'HLS');
         }
       }
 
@@ -456,8 +1104,9 @@
           }, // XHR loader
         });
         hls.on(Hls.Events.ERROR, (_, data) => {
-          log(
-            `HLS.js error: fatal=${!!data.fatal}, type=${data.type}, details=${data.details}`,
+          logErr(
+            `HLS.js error: type=${data.type}, details=${data.details}, fatal=${!!data.fatal}`,
+            'HLS'
           );
           if (is403FromHlsError(data)) {
             setStatus('Access denied (403). Refreshing cookies...', 'err');
@@ -476,7 +1125,7 @@
         });
         hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
           const h = hls.levels[data.level]?.height || '?';
-          log(`Level switched to ${data.level} (${h}p)`);
+          logInfo(`Level switched to ${data.level} (${h}p)`, 'HLS');
           if (!hls.autoLevelEnabled) {
             qualitySel.value = String(data.level);
           }
@@ -487,52 +1136,79 @@
       }
 
       async function probeManifest() {
-        const url = el('videoUrl').value.trim();
-        if (!url) return setStatus('Enter a manifest URL first', 'err');
-        log(`Fetching manifest (with credentials): GET ${url}`);
+        const url = serverManifestUrl?.trim();
+        if (!url) return setStatus('Get signed cookies to obtain manifest URL first', 'err');
+
+        const pageOrigin = window.location.origin;
+        let manifestOrigin = '';
+        try { manifestOrigin = new URL(url).origin; } catch {}
+        logInfo(`Page origin: ${pageOrigin}; Manifest origin: ${manifestOrigin || 'unknown'}`, 'Probe');
+
+        // Step A: Credentialless HEAD request to infer CORS behavior without cookies
         try {
-          const r = await fetch(url, { credentials: 'include', mode: 'cors' });
+          logInfo(`HEAD (no credentials): ${url}`, 'Probe');
+          const r0 = await fetch(url, { method: 'HEAD', mode: 'cors', credentials: 'omit', cache: 'no-store' });
+          const ct0 = r0.headers.get('content-type') || '';
+          logInfo(`HEAD response: type=${r0.type}; status=${r0.status} ${r0.statusText}; ct=${ct0}`, 'Probe');
+          const acao = r0.headers.get('access-control-allow-origin');
+          const acc = r0.headers.get('access-control-allow-credentials');
+          if (acao || acc) {
+            logInfo(`Readable CORS headers: A-C-A-O='${acao}', A-C-A-C='${acc}'`, 'Probe');
+          } else {
+            logWarn('CORS headers not readable by JS (normal unless exposed). This does not prove absence.', 'Probe');
+          }
+          if (r0.type === 'opaque') {
+            logWarn('Opaque HEAD response: origin not permitted for CORS (likely missing Access-Control-Allow-Origin).', 'Probe');
+          } else {
+            logInfo('Origin appears permitted for credentialless CORS HEAD.', 'Probe');
+          }
+        } catch (e0) {
+          logWarn(`HEAD (no credentials) failed: ${e0?.message || e0}`, 'Probe');
+          try {
+            const r0b = await fetch(url, { method: 'HEAD', mode: 'no-cors', credentials: 'omit', cache: 'no-store' });
+            logWarn(`HEAD (no-cors) returned type=${r0b.type}. Opaque indicates CORS not permitted or headers not exposed.`, 'Probe');
+          } catch (e0b) {
+            logErr(`HEAD (no-cors) also failed: ${e0b?.message || e0b}`, 'Probe');
+          }
+        }
+
+        // Step B: Credentialed GET request (actual manifest fetch)
+        logInfo(`GET manifest (with credentials): ${url}`, 'Probe');
+        try {
+          const r = await fetch(url, { credentials: 'include', mode: 'cors', cache: 'no-store' });
           const ct = r.headers.get('content-type') || '';
-          const txt = await r.text();
-          log(`Manifest response: ${r.status} ${r.statusText}; ct=${ct}`);
-          log(`Body (first 500 chars):\n${txt.slice(0, 500)}`);
+          logInfo(`Manifest response: type=${r.type}; status=${r.status} ${r.statusText}; ct=${ct}`, 'Probe');
+          const txt = await r.text().catch(() => '');
+          if (txt) logInfo('Body (first 500 chars):', 'Probe', txt.slice(0, 500));
           if (r.status === 403) {
-            setStatus(
-              'Manifest 403 (likely cookies expired). Refreshing...',
-              'err',
-            );
+            setStatus('Manifest 403 (likely cookies expired). Refreshing...', 'err');
             await refreshSignedCookies('reactive');
             return;
           }
-          if (
-            r.ok &&
-            (ct.includes('application/vnd.apple.mpegurl') ||
-              txt.startsWith('#EXTM3U'))
-          ) {
-            setStatus(
-              'Manifest looks valid. If playback fails, check segment requests.',
-            );
+          if (r.ok && (ct.includes('application/vnd.apple.mpegurl') || txt.startsWith('#EXTM3U'))) {
+            setStatus('Manifest looks valid. If playback fails, check segment requests.');
           } else if (txt.includes('<Error>')) {
-            setStatus(
-              'Manifest returned XML error (likely AccessDenied/MissingKey).',
-              'err',
-            );
+            setStatus('Manifest returned XML error (likely AccessDenied/MissingKey).', 'err');
           } else {
-            setStatus(
-              'Manifest fetched but content-type doesn’t look like HLS.',
-              'err',
-            );
+            setStatus('Manifest fetched but content-type doesn’t look like HLS.', 'err');
           }
         } catch (e) {
-          setStatus(`Manifest fetch error: ${e?.message || e}`, 'err');
-          log(`Manifest fetch error: ${e?.stack || e}`);
+          const msg = e?.message || String(e);
+          setStatus(`Manifest fetch error: ${msg}`, 'err');
+          logErr(`Manifest fetch error: ${msg}`, 'Probe', e?.stack || String(e));
+          if (String(msg).toLowerCase().includes('failed to fetch')) {
+            // When CORS blocks credentialed requests, the browser prevents reading response headers
+            logWarn('Credentialed CORS likely blocked. The browser prevents inspecting response headers when blocked.', 'Probe');
+            logInfo(`Ensure media origin sends: Access-Control-Allow-Origin: ${pageOrigin} and Access-Control-Allow-Credentials: true`, 'Probe');
+            logInfo('Also ensure allowed methods/headers and optionally expose headers: Accept-Ranges, Content-Length, Content-Range', 'Probe');
+          }
         }
       }
 
       function loadVideo() {
-        const url = el('videoUrl').value.trim();
+        const url = serverManifestUrl?.trim();
         if (!url || !url.includes('.m3u8'))
-          return setStatus('Enter a valid .m3u8 URL', 'err');
+          return setStatus('Get signed cookies to obtain a valid .m3u8 URL', 'err');
 
         // reset
         if (hls) {
@@ -599,6 +1275,451 @@
       el('btnLoad').onclick = loadVideo;
       el('btnStop').onclick = stopVideo;
       el('btnProbe').onclick = probeManifest;
+      el('btnLogin').onclick = login;
+      el('btnLoginProfile').onclick = loginWithProfile;
+      el('btnLogout').onclick = logout;
+
+      const rtmControls = {
+        appIdEl: el('rtmAppId'),
+        channelEl: el('rtmChannel'),
+        displayEl: el('rtmDisplay'),
+        textEl: el('rtmText'),
+        btnConnect: el('btnConnectRtm'),
+        btnSend: el('btnSendRtm'),
+        btnDisconnect: el('btnDisconnectRtm'),
+      };
+      let rtmClient = null;
+      let rtmUserId = null;
+
+      function appendRtmMessage(user, msg) {
+        const d = rtmControls.displayEl;
+        const t = document.createTextNode(String(user) + ': ' + String(msg));
+        const br = document.createElement('br');
+        d.appendChild(t);
+        d.appendChild(br);
+        d.scrollTop = d.scrollHeight;
+      }
+
+      function connectRtm() {
+        const appId = rtmControls.appIdEl?.value?.trim();
+        const channel = rtmControls.channelEl?.value?.trim() || 'Chat_room';
+        const apiBase = el('apiBaseUrl')?.value?.trim()?.replace(/\/$/, '');
+        if (!appId || !apiBase) return;
+
+        rtmUserId = (currentProfile?.id || userData?.id || Math.random().toString(36).slice(2, 10));
+        try {
+          rtmClient = new AgoraRTM.RTM(appId, rtmUserId);
+        } catch (e) {
+          logErr('RTM init failed', 'RTM', e?.stack || String(e));
+          return;
+        }
+
+        rtmClient.addEventListener('message', (event) => {
+          if (event.publisher === rtmUserId) return;
+          appendRtmMessage(event.publisher, event.message);
+        });
+        rtmClient.addEventListener('presence', (event) => {
+          appendRtmMessage('INFO', event.eventType === 'SNAPSHOT' ? 'Join snapshot' : (event.publisher + ' ' + event.eventType));
+        });
+        rtmClient.addEventListener('status', (event) => {
+          logInfo('RTM status', 'RTM', JSON.stringify(event));
+        });
+
+        fetch(apiBase + '/watch-party/rtm/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: accessToken ? `Bearer ${accessToken}` : '' },
+          body: JSON.stringify({}),
+        })
+          .then((res) => res.json())
+          .then((json) => {
+            const token = json?.data?.token || json?.token;
+            if (!token) throw new Error('token missing');
+            return rtmClient.login({ token });
+          })
+          .then(() => rtmClient.subscribe(channel))
+          .then(() => {
+            logInfo('RTM connected', 'RTM');
+          })
+          .catch((e) => {
+            logErr('RTM connect error', 'RTM', e?.stack || String(e));
+          });
+      }
+
+      function publishRtmMessage() {
+        if (!rtmClient) return;
+        const channel = rtmControls.channelEl?.value?.trim() || 'Chat_room';
+        const message = rtmControls.textEl?.value || '';
+        if (!message) return;
+        const payload = JSON.stringify({ type: 'text', message });
+        const options = { channelType: 'MESSAGE' };
+        rtmClient
+          .publish(channel, payload, options)
+          .then(() => {
+            appendRtmMessage(rtmUserId, payload);
+            rtmControls.textEl.value = '';
+          })
+          .catch((e) => {
+            logErr('Publish failed', 'RTM', e?.stack || String(e));
+          });
+      }
+
+      function disconnectRtm() {
+        if (!rtmClient) return;
+        rtmClient
+          .logout()
+          .catch(() => {})
+          .finally(() => {
+            rtmClient = null;
+            logInfo('RTM disconnected', 'RTM');
+          });
+      }
+
+      rtmControls.btnConnect?.addEventListener('click', connectRtm);
+      rtmControls.btnDisconnect?.addEventListener('click', disconnectRtm);
+      rtmControls.btnSend?.addEventListener('click', publishRtmMessage);
+      rtmControls.textEl?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') publishRtmMessage();
+      });
+
+      const wpControls = {
+        partyIdEl: el('wpPartyId'),
+        channelNameEl: el('wpChannelName'),
+        joinCodeEl: el('wpJoinCode'),
+        joinCodeDisplayEl: el('wpJoinCodeDisplay'),
+        roleStatusEl: el('wpRoleStatus'),
+        rosterEl: el('wpRoster'),
+        targetUserEl: el('wpTargetUserId'),
+        inviteUserIdsEl: el('wpInviteUserIds'),
+        inviteEmailsEl: el('wpInviteEmails'),
+        invitePhonesEl: el('wpInvitePhones'),
+        scheduleAtEl: el('wpScheduleAt'),
+        btnStart: el('btnWpStart'),
+        btnJoinId: el('btnWpJoinId'),
+        btnJoinCode: el('btnWpJoinCode'),
+        btnMetadata: el('btnWpMetadata'),
+        btnRotate: el('btnWpRotate'),
+        btnEnd: el('btnWpEnd'),
+        btnKick: el('btnWpKick'),
+        btnBan: el('btnWpBan'),
+        btnUnban: el('btnWpUnban'),
+        btnMute: el('btnWpMute'),
+        btnUnmute: el('btnWpUnmute'),
+        btnInvite: el('btnWpInvite'),
+        btnRemoveInvite: el('btnWpRemoveInvite'),
+        btnSchedule: el('btnWpSchedule'),
+        btnListScheduled: el('btnWpListScheduled'),
+        btnStartScheduled: el('btnWpStartScheduled'),
+      };
+      const wpState = {
+        partyId: null,
+        channelName: null,
+        role: null,
+        rtmToken: null,
+        isHost: false,
+        rtm: null,
+        rtmUid: null,
+        roster: new Map(),
+        driftToleranceMs: 400,
+        lastAnchor: null,
+        hbTimer: null,
+        scrubTimer: null,
+        rateBucket: { count: 0, start: 0 },
+      };
+
+      function wpSetRole(role) {
+        wpState.role = role || null;
+        wpState.isHost = role === 'HOST';
+        if (wpControls.roleStatusEl) wpControls.roleStatusEl.textContent = role ? role : 'No party';
+      }
+      function wpUpdateRosterView() {
+        const d = wpControls.rosterEl; if (!d) return;
+        d.innerHTML = '';
+        const items = Array.from(wpState.roster.entries());
+        items.sort((a,b)=>String(a[0]).localeCompare(String(b[0])));
+        items.forEach(([uid, status]) => {
+          const t = document.createTextNode(uid + ' • ' + status);
+          const br = document.createElement('br');
+          d.appendChild(t); d.appendChild(br);
+        });
+      }
+      function wpRateLimit() {
+        const now = Date.now();
+        if (!wpState.rateBucket.start || now - wpState.rateBucket.start > 1000) {
+          wpState.rateBucket.start = now; wpState.rateBucket.count = 0; return true;
+        }
+        wpState.rateBucket.count++;
+        return wpState.rateBucket.count <= 20;
+      }
+      function wpLoginRtmToken() {
+        const apiBase = el('apiBaseUrl')?.value?.trim()?.replace(/\/$/, '');
+        if (!apiBase || !accessToken) return Promise.reject('missing apiBase/accessToken');
+        return fetch(apiBase + '/watch-party/rtm/token', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` }, body: JSON.stringify({}) })
+          .then((r)=>r.json()).then((j)=>j?.data?.token || j?.token);
+      }
+      function wpConnectRtm(channel) {
+        const appId = rtmControls.appIdEl?.value?.trim();
+        if (!appId) return Promise.reject('missing appId');
+        const uid = (currentProfile?.id || userData?.id || Math.random().toString(36).slice(2,10));
+        wpState.rtmUid = uid;
+        try { wpState.rtm = new AgoraRTM.RTM(appId, uid); } catch (e) { logErr('RTM init failed', 'WP', e?.stack || String(e)); return Promise.reject(e); }
+        wpState.rtm.addEventListener('message', (event) => {
+          if (event.publisher === uid) return;
+          try {
+            const data = JSON.parse(event.message);
+            if (data && data.t && (data.t === 'play' || data.t === 'pause' || data.t === 'seek' || data.t === 'hb')) {
+              wpApplyAnchor(data);
+              return;
+            }
+          } catch {}
+          appendRtmMessage(event.publisher, event.message);
+        });
+        wpState.rtm.addEventListener('presence', (event) => {
+          const who = event.publisher || 'unknown';
+          const status = event.eventType || 'event';
+          wpState.roster.set(who, status);
+          wpUpdateRosterView();
+        });
+        wpState.rtm.addEventListener('status', (event) => {
+          const st = String(event.state || '');
+          if (st === 'RECONNECTED') { wpReadChannelAttrs(channel).catch(()=>{}); }
+        });
+        return wpLoginRtmToken()
+          .then((token) => wpState.rtm.login({ token }))
+          .then(() => wpState.rtm.subscribe(channel))
+          .then(() => { logInfo('Watch party RTM connected', 'WP'); return wpReadChannelAttrs(channel); })
+          .catch((e)=>{ logErr('Watch party RTM connect error', 'WP', e?.stack || String(e)); throw e; });
+      }
+      function wpSetChannelAttrs(channel, attrs) {
+        if (!wpState.rtm) return Promise.resolve();
+        const a = { hostId: String(attrs.hostId||''), state: String(attrs.state||''), mediaTime: Number(attrs.mediaTime||0), at: Number(attrs.at||0) };
+        return wpState.rtm.setChannelAttributes(channel, a, { enableNotificationToChannelMembers: true }).catch(()=>{});
+      }
+      function wpReadChannelAttrs(channel) {
+        if (!wpState.rtm) return Promise.resolve();
+        return wpState.rtm.getChannelAttributes(channel).then((a)=>{
+          const hostId = a?.hostId; const state = a?.state; const mediaTime = Number(a?.mediaTime||0); const at = Number(a?.at||0);
+          if (hostId && (state === 'playing' || state === 'paused')) {
+            wpApplyAnchor({ t: state === 'playing' ? 'play' : 'pause', mediaTime, at });
+          }
+        }).catch(()=>{});
+      }
+      function wpPublishControl(t, mediaTime) {
+        if (!wpState.rtm || !wpRateLimit()) return;
+        const payload = JSON.stringify({ t, mediaTime: Number(mediaTime||0), at: Date.now() });
+        const opts = { channelType: 'MESSAGE' };
+        wpState.rtm.publish(wpState.channelName, payload, opts).catch(()=>{});
+      }
+      function wpApplyAnchor(msg) {
+        const now = Date.now();
+        const playing = msg.t === 'play' || msg.t === 'seek' || msg.t === 'hb';
+        const target = playing ? Number(msg.mediaTime || 0) + (now - Number(msg.at || now))/1000 : Number(msg.mediaTime || 0);
+        const cur = Number(video.currentTime || 0);
+        const driftMs = Math.abs((target - cur) * 1000);
+        if (driftMs > wpState.driftToleranceMs) { try { video.currentTime = target; } catch {} }
+        if (playing) { if (video.paused) { video.play().catch(()=>{}); } } else { try { video.pause(); } catch {} }
+        wpState.lastAnchor = { t: msg.t, mediaTime: msg.mediaTime, at: msg.at };
+      }
+      function wpHeartbeatStart() {
+        if (wpState.hbTimer) { clearInterval(wpState.hbTimer); wpState.hbTimer = null; }
+        wpState.hbTimer = setInterval(()=>{ if (wpState.isHost) { wpPublishControl('hb', video.currentTime || 0); } }, 3000);
+      }
+      function wpHeartbeatStop() { if (wpState.hbTimer) { clearInterval(wpState.hbTimer); wpState.hbTimer = null; } }
+      function wpOnPlay() {
+        if (!wpState.partyId || !wpState.isHost) return;
+        const mediaTime = Number(video.currentTime || 0);
+        wpPublishControl('play', mediaTime);
+        wpSetChannelAttrs(wpState.channelName, { hostId: wpState.rtmUid, state: 'playing', mediaTime, at: Date.now() });
+        wpHeartbeatStart();
+      }
+      function wpOnPause() {
+        if (!wpState.partyId || !wpState.isHost) return;
+        const mediaTime = Number(video.currentTime || 0);
+        wpPublishControl('pause', mediaTime);
+        wpSetChannelAttrs(wpState.channelName, { hostId: wpState.rtmUid, state: 'paused', mediaTime, at: Date.now() });
+        wpHeartbeatStop();
+      }
+      function wpOnSeeked() {
+        if (!wpState.partyId || !wpState.isHost) return;
+        const fire = () => {
+          const mediaTime = Number(video.currentTime || 0);
+          wpPublishControl('seek', mediaTime);
+          wpSetChannelAttrs(wpState.channelName, { hostId: wpState.rtmUid, state: video.paused ? 'paused' : 'playing', mediaTime, at: Date.now() });
+        };
+        if (wpState.scrubTimer) { clearTimeout(wpState.scrubTimer); }
+        wpState.scrubTimer = setTimeout(fire, 250);
+      }
+      video.addEventListener('play', wpOnPlay);
+      video.addEventListener('pause', wpOnPause);
+      video.addEventListener('seeked', wpOnSeeked);
+
+      function wpEnsureAuth() { return !!accessToken; }
+      function wpApiBase() { return el('apiBaseUrl')?.value?.trim()?.replace(/\/$/, ''); }
+      function wpMovieId() { return (movieSelect && movieSelect.value) ? String(movieSelect.value).trim() : el('movieId')?.value?.trim(); }
+      function wpPartyId() { return wpControls.partyIdEl?.value?.trim(); }
+      function wpJoinCode() { return wpControls.joinCodeEl?.value?.trim(); }
+      function wpChannelName() { return wpControls.channelNameEl?.value?.trim(); }
+      function wpHeaders() { return { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` }; }
+      function wpSetMetadataView(meta) {
+        const code = meta?.party?.joinCode || meta?.joinCode;
+        if (code && wpControls.joinCodeDisplayEl) wpControls.joinCodeDisplayEl.textContent = 'Join Code: ' + code;
+        const roster = (meta?.party?.participants || []).map((u)=>u.id||'user');
+        wpState.roster.clear(); roster.forEach((id)=>wpState.roster.set(id, 'ONLINE'));
+        wpUpdateRosterView();
+      }
+      function wpConnectFromResponse(payload) {
+        const party = payload?.party; const channel = payload?.channelName || party?.channelName; const role = payload?.role;
+        if (!party || !channel) { setStatus('Party response missing channel', 'err'); return; }
+        wpState.partyId = party.id; wpState.channelName = channel; wpSetRole(role || 'PARTICIPANT');
+        wpSetMetadataView({ party });
+        wpConnectRtm(channel).then(()=>{
+          if (rtmControls.channelEl) rtmControls.channelEl.value = channel;
+          if (!rtmClient) connectRtm();
+        }).catch(()=>{});
+      }
+      async function wpStart() {
+        if (!wpEnsureAuth()) { setStatus('Login first', 'err'); return; }
+        const apiBase = wpApiBase(); const movieId = wpMovieId(); const channelName = wpChannelName();
+        if (!apiBase || !movieId) { setStatus('Provide API base and movieId', 'err'); return; }
+        const body = { movieId, channelName };
+        logInfo(`[POST] ${apiBase}/watch-party/party/start`, 'WP', JSON.stringify(body));
+        const res = await fetch(`${apiBase}/watch-party/party/start`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify(body) });
+        const j = await res.json().catch(()=>null);
+        if (!res.ok) { setStatus(`Start failed: ${res.status}`, 'err'); logErr('Start failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+        wpConnectFromResponse(j?.data || j);
+      }
+      async function wpJoinId() {
+        if (!wpEnsureAuth()) { setStatus('Login first', 'err'); return; }
+        const apiBase = wpApiBase(); const pid = wpPartyId(); if (!apiBase || !pid) { setStatus('Provide partyId', 'err'); return; }
+        logInfo(`[POST] ${apiBase}/watch-party/party/join`, 'WP', JSON.stringify({ partyId: pid }));
+        const res = await fetch(`${apiBase}/watch-party/party/join`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid }) });
+        const j = await res.json().catch(()=>null);
+        if (!res.ok) { setStatus(`Join failed: ${res.status}`, 'err'); logErr('Join failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+        wpConnectFromResponse(j?.data || j);
+      }
+      async function wpJoinCodeAction() {
+        if (!wpEnsureAuth()) { setStatus('Login first', 'err'); return; }
+        const apiBase = wpApiBase(); const code = wpJoinCode(); if (!apiBase || !code) { setStatus('Provide join code', 'err'); return; }
+        logInfo(`[POST] ${apiBase}/watch-party/party/join-by-code`, 'WP', JSON.stringify({ code }));
+        const res = await fetch(`${apiBase}/watch-party/party/join-by-code`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ code }) });
+        const j = await res.json().catch(()=>null);
+        if (!res.ok) { setStatus(`Join-by-code failed: ${res.status}`, 'err'); logErr('Join-by-code failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+        wpConnectFromResponse(j?.data || j);
+      }
+      async function wpMetadata() {
+        const apiBase = wpApiBase(); const pid = wpPartyId(); if (!apiBase || !pid || !accessToken) { return; }
+        logInfo(`[GET] ${apiBase}/watch-party/party/${pid}`, 'WP');
+        const res = await fetch(`${apiBase}/watch-party/party/${pid}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+        const j = await res.json().catch(()=>null);
+        if (!res.ok) { logErr('Metadata failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+        wpSetMetadataView(j?.data || j);
+      }
+      async function wpRotate() {
+        const apiBase = wpApiBase(); const pid = wpPartyId(); if (!apiBase || !pid || !accessToken) { return; }
+        logInfo(`[POST] ${apiBase}/watch-party/party/rotate-code`, 'WP', JSON.stringify({ partyId: pid }));
+        const res = await fetch(`${apiBase}/watch-party/party/rotate-code`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid }) });
+        const j = await res.json().catch(()=>null);
+        if (!res.ok) { logErr('Rotate failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+        const code = (j?.data || j)?.joinCode; if (code && wpControls.joinCodeDisplayEl) wpControls.joinCodeDisplayEl.textContent = 'Join Code: ' + code;
+      }
+      async function wpEnd() {
+        const apiBase = wpApiBase(); const pid = wpPartyId(); if (!apiBase || !pid || !accessToken) { return; }
+        logInfo(`[POST] ${apiBase}/watch-party/party/end`, 'WP', JSON.stringify({ partyId: pid }));
+        const res = await fetch(`${apiBase}/watch-party/party/end`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid }) });
+        const j = await res.json().catch(()=>null);
+        if (!res.ok) { logErr('End failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+        wpSetRole(null); wpState.partyId = null; wpState.channelName = null; wpHeartbeatStop();
+      }
+      async function wpInvite() {
+        const apiBase = wpApiBase(); const pid = wpPartyId(); if (!apiBase || !pid || !accessToken) { return; }
+        const ids = (wpControls.inviteUserIdsEl?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const emails = (wpControls.inviteEmailsEl?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const phones = (wpControls.invitePhonesEl?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+        logInfo(`[POST] ${apiBase}/watch-party/party/invite`, 'WP', JSON.stringify({ partyId: pid, userIds: ids, emails, phones }));
+        const res = await fetch(`${apiBase}/watch-party/party/invite`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid, userIds: ids, emails, phones }) });
+        const j = await res.json().catch(()=>null);
+        if (!res.ok) { logErr('Invite failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+      }
+      async function wpRemoveInvite() {
+        const apiBase = wpApiBase(); const pid = wpPartyId(); const uid = wpControls.targetUserEl?.value?.trim(); if (!apiBase || !pid || !uid || !accessToken) { return; }
+        logInfo(`[POST] ${apiBase}/watch-party/party/remove-invite`, 'WP', JSON.stringify({ partyId: pid, userId: uid }));
+        const res = await fetch(`${apiBase}/watch-party/party/remove-invite`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid, userId: uid }) });
+        await res.text();
+      }
+      async function wpModerate(path) {
+        const apiBase = wpApiBase(); const pid = wpPartyId(); const uid = wpControls.targetUserEl?.value?.trim(); if (!apiBase || !pid || !uid || !accessToken) { return; }
+        logInfo(`[POST] ${apiBase}/watch-party/party/${path}`, 'WP', JSON.stringify({ partyId: pid, userId: uid }));
+        const res = await fetch(`${apiBase}/watch-party/party/${path}`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid, userId: uid }) });
+        await res.text();
+      }
+      async function wpListScheduled() {
+        const apiBase = wpApiBase(); if (!apiBase || !accessToken) return;
+        logInfo(`[GET] ${apiBase}/watch-party/my/scheduled`, 'WP');
+        const res = await fetch(`${apiBase}/watch-party/my/scheduled`, { headers: { Authorization: `Bearer ${accessToken}` } });
+        const j = await res.json().catch(()=>null);
+        if (res.ok) { logInfo('Scheduled parties', 'WP', JSON.stringify(j).slice(0,400)); }
+      }
+      async function wpSchedule() {
+        const apiBase = wpApiBase(); const movieId = wpMovieId(); const when = wpControls.scheduleAtEl?.value?.trim(); const channelName = wpChannelName(); if (!apiBase || !movieId || !when || !accessToken) return;
+        const body = { movieId, channelName, scheduledFor: when, inviteeIds: (wpControls.inviteUserIdsEl?.value||'').split(',').map(s=>s.trim()).filter(Boolean), emails: (wpControls.inviteEmailsEl?.value||'').split(',').map(s=>s.trim()).filter(Boolean), phones: (wpControls.invitePhonesEl?.value||'').split(',').map(s=>s.trim()).filter(Boolean) };
+        logInfo(`[POST] ${apiBase}/watch-party/party/schedule`, 'WP', JSON.stringify(body).slice(0,400));
+        const res = await fetch(`${apiBase}/watch-party/party/schedule`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify(body) });
+        const j = await res.json().catch(()=>null);
+        if (!res.ok) { logErr('Schedule failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+      }
+      async function wpStartScheduled() {
+        const apiBase = wpApiBase(); const pid = wpPartyId(); if (!apiBase || !pid || !accessToken) return;
+        logInfo(`[POST] ${apiBase}/watch-party/party/start-scheduled`, 'WP', JSON.stringify({ partyId: pid }));
+        const res = await fetch(`${apiBase}/watch-party/party/start-scheduled`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid }) });
+        const j = await res.json().catch(()=>null);
+        if (!res.ok) { logErr('Start scheduled failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+        wpConnectFromResponse(j?.data || j);
+      }
+      wpControls.btnStart?.addEventListener('click', wpStart);
+      wpControls.btnJoinId?.addEventListener('click', wpJoinId);
+      wpControls.btnJoinCode?.addEventListener('click', wpJoinCodeAction);
+      wpControls.btnMetadata?.addEventListener('click', wpMetadata);
+      wpControls.btnRotate?.addEventListener('click', wpRotate);
+      wpControls.btnEnd?.addEventListener('click', wpEnd);
+      wpControls.btnInvite?.addEventListener('click', wpInvite);
+      wpControls.btnRemoveInvite?.addEventListener('click', wpRemoveInvite);
+      wpControls.btnKick?.addEventListener('click', ()=>wpModerate('kick'));
+      wpControls.btnBan?.addEventListener('click', ()=>wpModerate('ban'));
+      wpControls.btnUnban?.addEventListener('click', ()=>wpModerate('unban'));
+      wpControls.btnMute?.addEventListener('click', ()=>wpModerate('mute'));
+      wpControls.btnUnmute?.addEventListener('click', ()=>wpModerate('unmute'));
+      wpControls.btnListScheduled?.addEventListener('click', wpListScheduled);
+      wpControls.btnSchedule?.addEventListener('click', wpSchedule);
+      wpControls.btnStartScheduled?.addEventListener('click', wpStartScheduled);
+
+      const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
+      function showTab(name) {
+        const playerWrap = document.getElementById('playerWrap');
+        const playerMain = document.getElementById('playerMain');
+        const authAcc = document.getElementById('authAccordion');
+        const chatWrap = document.getElementById('chatWrap');
+        const watchWrap = document.getElementById('watchPartyWrap');
+        if (name === 'player') {
+          playerWrap.style.display = '';
+          playerMain.style.display = '';
+          authAcc.style.display = 'none';
+          chatWrap.style.display = 'none';
+          watchWrap.style.display = '';
+        } else if (name === 'chat') {
+          playerWrap.style.display = 'none';
+          chatWrap.style.display = '';
+          watchWrap.style.display = 'none';
+        } else if (name === 'auth') {
+          playerWrap.style.display = '';
+          playerMain.style.display = 'none';
+          authAcc.style.display = '';
+          chatWrap.style.display = 'none';
+          watchWrap.style.display = 'none';
+        }
+      }
+      tabButtons.forEach((b)=>{
+        b.addEventListener('click', ()=> showTab(b.getAttribute('data-tab')));
+      });
+      showTab('player');
     </script>
   </body>
 </html>
