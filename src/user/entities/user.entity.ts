@@ -88,6 +88,9 @@ export class User extends BaseEntity {
   @Column({ nullable: true })
   subscriptionExpiresAt: Date | null;
 
+  @Column({ default: false })
+  hasUsedWatchPartyTrial: boolean;
+
   @Column({ nullable: true })
   nextBillingDate: Date | null;
 

@@ -1,5 +1,11 @@
 import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { WatchPartyService } from './watch-party.service';
 
@@ -27,7 +33,7 @@ export class WatchPartyController {
     @Body('expireSeconds') expireSeconds?: number,
   ) {
     const user = req['user'];
-    const uid = user?.sub;
+    const uid = user?.profileId;
     return this.watchPartyService.generateAgoraRTMToken(uid, expireSeconds);
   }
 
@@ -49,7 +55,7 @@ export class WatchPartyController {
     @Body('expireSeconds') expireSeconds?: number,
   ) {
     const user = req['user'];
-    const uid = user?.sub;
+    const uid = user?.profileId;
     return this.watchPartyService.refreshAgoraRTMToken(uid, expireSeconds);
   }
 
@@ -74,7 +80,13 @@ export class WatchPartyController {
     @Body('idempotencyKey') idempotencyKey?: string,
   ) {
     const user = req['user'];
-    return this.watchPartyService.startParty(movieId, channelName, user?.sub, idempotencyKey);
+    return this.watchPartyService.startParty(
+      movieId,
+      channelName,
+      user?.sub,
+      idempotencyKey,
+      user?.profileId,
+    );
   }
 
   @ApiBearerAuth()
@@ -90,12 +102,9 @@ export class WatchPartyController {
     },
   })
   @ApiResponse({ status: 201, description: 'Joined party.' })
-  async joinParty(
-    @Req() req: Request,
-    @Body('partyId') partyId: string,
-  ) {
+  async joinParty(@Req() req: Request, @Body('partyId') partyId: string) {
     const user = req['user'];
-    return this.watchPartyService.joinParty(partyId, user?.sub);
+    return this.watchPartyService.joinParty(partyId, user?.sub, user?.profileId);
   }
 
   @ApiBearerAuth()
@@ -191,7 +200,13 @@ export class WatchPartyController {
     @Body('phones') phones?: string[],
   ) {
     const user = req['user'];
-    return this.watchPartyService.inviteToParty(partyId, user?.sub, userIds, emails, phones);
+    return this.watchPartyService.inviteToParty(
+      partyId,
+      user?.sub,
+      userIds,
+      emails,
+      phones,
+    );
   }
 
   @ApiBearerAuth()
@@ -244,6 +259,45 @@ export class WatchPartyController {
   async rotateCode(@Req() req: Request, @Body('partyId') partyId: string) {
     const user = req['user'];
     return this.watchPartyService.rotateJoinCode(partyId, user?.sub);
+  }
+
+  @ApiBearerAuth()
+  @Post('party/transfer-host')
+  @ApiOperation({ summary: 'Transfer host to another participant (host only)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { partyId: { type: 'string' }, newHostId: { type: 'string' } },
+      required: ['partyId', 'newHostId'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Host transferred.' })
+  async transferHost(
+    @Req() req: Request,
+    @Body('partyId') partyId: string,
+    @Body('newHostId') newHostId: string,
+  ) {
+    const user = req['user'];
+    return this.watchPartyService.transferHost(partyId, user?.sub, newHostId);
+  }
+
+  @ApiBearerAuth()
+  @Post('party/leave')
+  @ApiOperation({ summary: 'Leave a watch party (marks freemium trial used if applicable)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { partyId: { type: 'string' } },
+      required: ['partyId'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Left party.' })
+  async leave(
+    @Req() req: Request,
+    @Body('partyId') partyId: string,
+  ) {
+    const user = req['user'];
+    return this.watchPartyService.leaveParty(partyId, user?.sub);
   }
 
   @ApiBearerAuth()
@@ -348,7 +402,9 @@ export class WatchPartyController {
 
   @ApiBearerAuth()
   @Get('my/scheduled')
-  @ApiOperation({ summary: 'List scheduled parties for current user (hosted or invited)' })
+  @ApiOperation({
+    summary: 'List scheduled parties for current user (hosted or invited)',
+  })
   @ApiResponse({ status: 200, description: 'Scheduled parties.' })
   async myScheduled(@Req() req: Request) {
     const user = req['user'];
@@ -368,12 +424,9 @@ export class WatchPartyController {
     },
   })
   @ApiResponse({ status: 201, description: 'Joined party.' })
-  async joinByCode(
-    @Req() req: Request,
-    @Body('code') code: string,
-  ) {
+  async joinByCode(@Req() req: Request, @Body('code') code: string) {
     const user = req['user'];
-    return this.watchPartyService.joinPartyByCode(code, user?.sub);
+    return this.watchPartyService.joinPartyByCode(code, user?.sub, user?.profileId);
   }
 
   @ApiBearerAuth()
@@ -395,6 +448,11 @@ export class WatchPartyController {
     @Body('idempotencyKey') idempotencyKey?: string,
   ) {
     const user = req['user'];
-    return this.watchPartyService.startScheduledParty(partyId, user?.sub, idempotencyKey);
+    return this.watchPartyService.startScheduledParty(
+      partyId,
+      user?.sub,
+      idempotencyKey,
+      user?.profileId,
+    );
   }
 }

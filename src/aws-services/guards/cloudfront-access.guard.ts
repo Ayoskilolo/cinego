@@ -11,6 +11,7 @@ import { Repository } from 'typeorm';
 import { Movie } from '../../movie/entities/movie.entity';
 import { User } from '../../user/entities/user.entity';
 import { SubscriptionType } from '../../user/enum/userType';
+import { WatchParty } from '../../watch-party/entities/watch-party.entity';
 
 @Injectable()
 export class CloudfrontAccessGuard implements CanActivate {
@@ -19,6 +20,8 @@ export class CloudfrontAccessGuard implements CanActivate {
     private readonly movieRepo: Repository<Movie>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(WatchParty)
+    private readonly partyRepo: Repository<WatchParty>,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -81,6 +84,27 @@ export class CloudfrontAccessGuard implements CanActivate {
       const isPremiumUser = effectiveType === SubscriptionType.PREMIUM;
       const useTrailer: boolean = !!req.body?.useTrailer;
       if (!useTrailer && !isPremiumUser) {
+        const partyId: string | undefined = req.body?.partyId;
+        if (partyId && effectiveType === SubscriptionType.FREEMIUM) {
+          const party = await this.partyRepo.findOne({
+            where: { id: partyId },
+            relations: { participants: true, invitedUsers: true, host: true },
+          });
+          const partyOk =
+            !!party &&
+            party.status === 'ACTIVE' &&
+            !!party.host &&
+            party.host.subscriptionType === SubscriptionType.PREMIUM;
+          if (partyOk) {
+            const inParticipants = (party.participants || []).some((u) => u.id === user.id);
+            const inInvited = (party.invitedUsers || []).some((u) => u.id === user.id);
+            const isHost = party.hostId === user.id;
+            if (inParticipants || inInvited || isHost) {
+              // Allow premium MAIN via watch party for freemium user
+              return true;
+            }
+          }
+        }
         throw new ForbiddenException(
           'You do not have permission to access this premium content.',
         );

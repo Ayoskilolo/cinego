@@ -9,9 +9,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Movie } from '../movie/entities/movie.entity';
 import { User } from '../user/entities/user.entity';
 import { CloudfrontAccessGuard } from './guards/cloudfront-access.guard';
+import { WatchParty } from '../watch-party/entities/watch-party.entity';
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Movie, User]),
+    TypeOrmModule.forFeature([Movie, User, WatchParty]),
     AwsSdkModule.registerAsync({
       imports: [ConfigModule],
       clientType: S3Client,

@@ -29,7 +29,11 @@ export class WatchPartyService {
 
   private rateMap = new Map<string, { windowStart: number; count: number }>();
 
-  private checkRateLimit(op: 'start' | 'join' | 'rotate', userId: string, maxPerSec = 5) {
+  private checkRateLimit(
+    op: 'start' | 'join' | 'rotate',
+    userId: string,
+    maxPerSec = 5,
+  ) {
     const key = `${op}:${userId}`;
     const now = Date.now();
     const windowMs = 1000;
@@ -44,9 +48,9 @@ export class WatchPartyService {
     }
   }
 
-  async generateAgoraRTMToken(uid: string, expireSeconds?: number) {
-    if (!uid) {
-      throw new BadRequestException('uid is required');
+  async generateAgoraRTMToken(profileId: string, expireSeconds?: number) {
+    if (!profileId) {
+      throw new BadRequestException('profileId is required');
     }
 
     const appId =
@@ -67,12 +71,12 @@ export class WatchPartyService {
       : Number(this.configService.get<string>('AGORA_TOKEN_EXPIRE_SECONDS')) ||
         7200;
 
-    const token = RtmTokenBuilder.buildToken(appId, appCertificate, uid, ttl);
+    const token = RtmTokenBuilder.buildToken(appId, appCertificate, profileId, ttl);
     return { token, expireSeconds: ttl };
   }
 
-  async refreshAgoraRTMToken(uid: string, expireSeconds?: number) {
-    return this.generateAgoraRTMToken(uid, expireSeconds);
+  async refreshAgoraRTMToken(profileId: string, expireSeconds?: number) {
+    return this.generateAgoraRTMToken(profileId, expireSeconds);
   }
 
   private ensureEligible(user: User) {
@@ -101,7 +105,9 @@ export class WatchPartyService {
     const count = await this.partyRepo
       .createQueryBuilder('party')
       .leftJoin('party.participants', 'p')
-      .where('party.status IN (:...statuses)', { statuses: ['SCHEDULED', 'ACTIVE'] })
+      .where('party.status IN (:...statuses)', {
+        statuses: ['SCHEDULED', 'ACTIVE'],
+      })
       .andWhere('(party.hostId = :uid OR p.id = :uid)', { uid: userId })
       .getCount();
     return count > 0;
@@ -111,7 +117,13 @@ export class WatchPartyService {
     return Math.random().toString(36).slice(2, 8).toUpperCase();
   }
 
-  async startParty(movieId: string, channelName: string | undefined, requestingUserId: string, idempotencyKey?: string) {
+  async startParty(
+    movieId: string,
+    channelName: string | undefined,
+    requestingUserId: string,
+    idempotencyKey?: string,
+    profileIdForToken?: string,
+  ) {
     if (!movieId) throw new BadRequestException('movieId is required');
     this.checkRateLimit('start', requestingUserId);
 
@@ -119,23 +131,32 @@ export class WatchPartyService {
 
     if (!movie) throw new NotFoundException('Movie not found');
 
-    const host = await this.userRepo.findOne({ where: { id: requestingUserId } });
+    const host = await this.userRepo.findOne({
+      where: { id: requestingUserId },
+    });
     if (!host) throw new NotFoundException('User not found');
     this.ensureEligible(host);
+    if (host.subscriptionType === SubscriptionType.FREEMIUM && (host as any).hasUsedWatchPartyTrial) {
+      throw new ForbiddenException('Freemium watch party trial already used');
+    }
 
     if (await this.userHasActiveParty(host.id)) {
       throw new ForbiddenException('You already have an active party');
     }
     if (host.subscriptionType === SubscriptionType.FREEMIUM) {
       if (await this.userHasScheduledOrActiveParty(host.id)) {
-        throw new ForbiddenException('Freemium users can only have one scheduled or active party');
+        throw new ForbiddenException(
+          'Freemium users can only have one scheduled or active party',
+        );
       }
     }
 
     if (idempotencyKey) {
-      const existing = await this.partyRepo.findOne({ where: { startKey: idempotencyKey, hostId: requestingUserId } });
+      const existing = await this.partyRepo.findOne({
+        where: { startKey: idempotencyKey, hostId: requestingUserId },
+      });
       if (existing && existing.status === 'ACTIVE') {
-        const tok = await this.generateAgoraRTMToken(requestingUserId);
+        const tok = await this.generateAgoraRTMToken(profileIdForToken || requestingUserId);
         return {
           party: existing,
           rtmToken: tok.token,
@@ -159,7 +180,7 @@ export class WatchPartyService {
       startKey: idempotencyKey,
     });
     const saved = await this.partyRepo.save(party);
-    const tok = await this.generateAgoraRTMToken(requestingUserId);
+    const tok = await this.generateAgoraRTMToken(profileIdForToken || requestingUserId);
     return {
       party: saved,
       rtmToken: tok.token,
@@ -169,21 +190,33 @@ export class WatchPartyService {
     };
   }
 
-  async joinParty(partyId: string, requestingUserId: string) {
+  async joinParty(partyId: string, requestingUserId: string, profileIdForToken?: string) {
     if (!partyId || !requestingUserId) {
       throw new BadRequestException('partyId and userId are required');
     }
     this.checkRateLimit('join', requestingUserId);
 
-    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { participants: true, host: true, bannedUsers: true } });
+    const party = await this.partyRepo.findOne({
+      where: { id: partyId },
+      relations: { participants: true, host: true, bannedUsers: true },
+    });
     if (!party) throw new NotFoundException('Party not found');
+
+    if (party.hostId !== requestingUserId) {
+      throw new ForbiddenException('Only the host can join by ID');
+    }
 
     if (party.status === 'ENDED') {
       throw new BadRequestException('Party has ended');
     }
-    const user = await this.userRepo.findOne({ where: { id: requestingUserId } });
+    const user = await this.userRepo.findOne({
+      where: { id: requestingUserId },
+    });
     if (!user) throw new NotFoundException('User not found');
     this.ensureEligible(user);
+    if (user.subscriptionType === SubscriptionType.FREEMIUM && (user as any).hasUsedWatchPartyTrial) {
+      throw new ForbiddenException('Freemium watch party trial already used');
+    }
     if (party.status === 'ACTIVE') {
       if (await this.userHasActiveParty(user.id)) {
         throw new ForbiddenException('You already have an active party');
@@ -191,7 +224,9 @@ export class WatchPartyService {
     }
     if (user.subscriptionType === SubscriptionType.FREEMIUM) {
       if (await this.userHasScheduledOrActiveParty(user.id)) {
-        throw new ForbiddenException('Freemium users can only have one scheduled or active party');
+        throw new ForbiddenException(
+          'Freemium users can only have one scheduled or active party',
+        );
       }
     }
 
@@ -199,19 +234,27 @@ export class WatchPartyService {
     if (!exists) {
       party.participants = [...(party.participants || []), user];
     }
+    party.hostLeftAt = null;
     await this.partyRepo.save(party);
-    const tok = await this.generateAgoraRTMToken(requestingUserId);
+    const tok = await this.generateAgoraRTMToken(profileIdForToken || requestingUserId);
     return {
       party,
       rtmToken: tok.token,
       expireSeconds: tok.expireSeconds,
-      role: 'PARTICIPANT',
+      role: 'HOST',
       channelName: party.channelName,
     };
   }
 
-  async endParty(partyId: string, requestingUserId: string, idempotencyKey?: string) {
-    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { participants: true, host: true } });
+  async endParty(
+    partyId: string,
+    requestingUserId: string,
+    idempotencyKey?: string,
+  ) {
+    const party = await this.partyRepo.findOne({
+      where: { id: partyId },
+      relations: { participants: true, host: true },
+    });
     if (!party) throw new NotFoundException('Party not found');
     if (party.hostId && party.hostId !== requestingUserId) {
       throw new ForbiddenException('Only the host can end the party');
@@ -245,8 +288,18 @@ export class WatchPartyService {
   }
 
   async getPartyMetadata(partyId: string) {
-    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { participants: true, host: true, invitedUsers: true, bannedUsers: true, mutedUsers: true } });
+    let party = await this.partyRepo.findOne({
+      where: { id: partyId },
+      relations: {
+        participants: true,
+        host: true,
+        invitedUsers: true,
+        bannedUsers: true,
+        mutedUsers: true,
+      },
+    });
     if (!party) throw new NotFoundException('Party not found');
+    party = await this.maybeReassignHost(party);
     const movie = await this.movieRepo.findOne({
       where: { id: party.movieId },
     });
@@ -273,18 +326,23 @@ export class WatchPartyService {
     }
     const now = new Date();
     const sched = new Date(scheduledFor);
-    if (sched <= now) throw new BadRequestException('scheduledFor must be in the future');
+    if (sched <= now)
+      throw new BadRequestException('scheduledFor must be in the future');
 
     const movie = await this.movieRepo.findOne({ where: { id: movieId } });
     if (!movie) throw new NotFoundException('Movie not found');
 
-    const host = await this.userRepo.findOne({ where: { id: requestingUserId } });
+    const host = await this.userRepo.findOne({
+      where: { id: requestingUserId },
+    });
     if (!host) throw new NotFoundException('User not found');
     this.ensureEligible(host);
 
     if (host.subscriptionType === SubscriptionType.FREEMIUM) {
       if (await this.userHasScheduledOrActiveParty(host.id)) {
-        throw new ForbiddenException('Freemium users can only have one scheduled or active party');
+        throw new ForbiddenException(
+          'Freemium users can only have one scheduled or active party',
+        );
       }
     }
 
@@ -292,9 +350,15 @@ export class WatchPartyService {
     const ids = inviteeIds || [];
     const emailList = emails || [];
     const phoneList = phones || [];
-    const byIds = ids.length ? await this.userRepo.find({ where: { id: In(ids) } }) : [];
-    const byEmails = emailList.length ? await this.userRepo.find({ where: { email: In(emailList) } }) : [];
-    const byPhones = phoneList.length ? await this.userRepo.find({ where: { phoneNumber: In(phoneList) } }) : [];
+    const byIds = ids.length
+      ? await this.userRepo.find({ where: { id: In(ids) } })
+      : [];
+    const byEmails = emailList.length
+      ? await this.userRepo.find({ where: { email: In(emailList) } })
+      : [];
+    const byPhones = phoneList.length
+      ? await this.userRepo.find({ where: { phoneNumber: In(phoneList) } })
+      : [];
     const seen = new Set<string>();
     for (const u of [...byIds, ...byEmails, ...byPhones]) {
       if (!seen.has(u.id)) {
@@ -320,45 +384,70 @@ export class WatchPartyService {
     return await this.partyRepo.save(party);
   }
 
-  async inviteToParty(partyId: string, requestingUserId: string, userIds?: string[], emails?: string[], phones?: string[]) {
+  async inviteToParty(
+    partyId: string,
+    requestingUserId: string,
+    userIds?: string[],
+    emails?: string[],
+    phones?: string[],
+  ) {
     const ids = userIds || [];
     const emailList = emails || [];
     const phoneList = phones || [];
-    if (!ids.length && !emailList.length && !phoneList.length) return this.getPartyMetadata(partyId);
-    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { invitedUsers: true, host: true } });
+    if (!ids.length && !emailList.length && !phoneList.length)
+      return this.getPartyMetadata(partyId);
+    const party = await this.partyRepo.findOne({
+      where: { id: partyId },
+      relations: { invitedUsers: true, host: true },
+    });
     if (!party) throw new NotFoundException('Party not found');
-    if (party.hostId !== requestingUserId) throw new ForbiddenException('Only host can invite');
-    const byIds = ids.length ? await this.userRepo.find({ where: { id: In(ids) } }) : [];
-    const byEmails = emailList.length ? await this.userRepo.find({ where: { email: In(emailList) } }) : [];
-    const byPhones = phoneList.length ? await this.userRepo.find({ where: { phoneNumber: In(phoneList) } }) : [];
+    if (party.hostId !== requestingUserId)
+      throw new ForbiddenException('Only host can invite');
+    const byIds = ids.length
+      ? await this.userRepo.find({ where: { id: In(ids) } })
+      : [];
+    const byEmails = emailList.length
+      ? await this.userRepo.find({ where: { email: In(emailList) } })
+      : [];
+    const byPhones = phoneList.length
+      ? await this.userRepo.find({ where: { phoneNumber: In(phoneList) } })
+      : [];
     const users = [...byIds, ...byEmails, ...byPhones];
     const existingIds = new Set((party.invitedUsers || []).map((u) => u.id));
     const toAdd = users.filter((u) => !existingIds.has(u.id));
     party.invitedUsers = [...(party.invitedUsers || []), ...toAdd];
     await this.partyRepo.save(party);
-    const tok = await this.generateAgoraRTMToken(requestingUserId);
-    return {
-      party,
-      rtmToken: tok.token,
-      expireSeconds: tok.expireSeconds,
-      role: 'PARTICIPANT',
-      channelName: party.channelName,
-    };
+    return party;
   }
 
   async rejectInvite(partyId: string, requestingUserId: string) {
-    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { invitedUsers: true } });
+    const party = await this.partyRepo.findOne({
+      where: { id: partyId },
+      relations: { invitedUsers: true },
+    });
     if (!party) throw new NotFoundException('Party not found');
-    party.invitedUsers = (party.invitedUsers || []).filter((u) => u.id !== requestingUserId);
+    party.invitedUsers = (party.invitedUsers || []).filter(
+      (u) => u.id !== requestingUserId,
+    );
     await this.partyRepo.save(party);
     return party;
   }
 
-  async removeInvite(partyId: string, requestingUserId: string, userId: string) {
-    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { invitedUsers: true, host: true } });
+  async removeInvite(
+    partyId: string,
+    requestingUserId: string,
+    userId: string,
+  ) {
+    const party = await this.partyRepo.findOne({
+      where: { id: partyId },
+      relations: { invitedUsers: true, host: true },
+    });
     if (!party) throw new NotFoundException('Party not found');
-    if (party.hostId !== requestingUserId) throw new ForbiddenException('Only host can remove invite');
-    party.invitedUsers = (party.invitedUsers || []).filter((u) => u.id !== userId);
+    if (party.hostId !== requestingUserId)
+      throw new ForbiddenException('Only host can remove invite');
+    party.invitedUsers = (party.invitedUsers || []).filter(
+      (u) => u.id !== userId,
+    );
     await this.partyRepo.save(party);
     return party;
   }
@@ -366,7 +455,8 @@ export class WatchPartyService {
   async rotateJoinCode(partyId: string, requestingUserId: string) {
     const party = await this.partyRepo.findOne({ where: { id: partyId } });
     if (!party) throw new NotFoundException('Party not found');
-    if (party.hostId !== requestingUserId) throw new ForbiddenException('Only host can rotate code');
+    if (party.hostId !== requestingUserId)
+      throw new ForbiddenException('Only host can rotate code');
     this.checkRateLimit('rotate', requestingUserId);
     party.joinCode = this.generateJoinCode();
     party.rotatedAt = new Date();
@@ -385,56 +475,108 @@ export class WatchPartyService {
       .getMany();
   }
 
-  async joinPartyByCode(code: string, requestingUserId: string) {
+  async joinPartyByCode(code: string, requestingUserId: string, profileIdForToken?: string) {
     if (!code || !requestingUserId) {
       throw new BadRequestException('code and userId are required');
     }
     this.checkRateLimit('join', requestingUserId);
-    const party = await this.partyRepo.findOne({ where: { joinCode: code }, relations: { participants: true, host: true, bannedUsers: true } });
+    const party = await this.partyRepo.findOne({
+      where: { joinCode: code },
+      relations: { participants: true, host: true, bannedUsers: true },
+    });
     if (!party) throw new NotFoundException('Party not found');
     if (party.status === 'ENDED') {
       throw new BadRequestException('Party has ended');
     }
-    const user = await this.userRepo.findOne({ where: { id: requestingUserId } });
+    const user = await this.userRepo.findOne({
+      where: { id: requestingUserId },
+    });
     if (!user) throw new NotFoundException('User not found');
     this.ensureEligible(user);
+    const bannedIds = new Set((party.bannedUsers || []).map((u) => u.id));
+    if (bannedIds.has(requestingUserId)) {
+      throw new ForbiddenException('You are banned from this party');
+    }
+    if (user.subscriptionType === SubscriptionType.FREEMIUM && (user as any).hasUsedWatchPartyTrial) {
+      throw new ForbiddenException('Freemium watch party trial already used');
+    }
+    const exists = (party.participants || []).some((u) => u.id === user.id);
     if (party.status === 'ACTIVE') {
-      if (await this.userHasActiveParty(user.id)) {
+      if (!exists && (await this.userHasActiveParty(user.id))) {
         throw new ForbiddenException('You already have an active party');
       }
     }
     if (user.subscriptionType === SubscriptionType.FREEMIUM) {
-      if (await this.userHasScheduledOrActiveParty(user.id)) {
-        throw new ForbiddenException('Freemium users can only have one scheduled or active party');
+      if (!exists && (await this.userHasScheduledOrActiveParty(user.id))) {
+        throw new ForbiddenException(
+          'Freemium users can only have one scheduled or active party',
+        );
       }
     }
-    const exists = (party.participants || []).some((u) => u.id === user.id);
     if (!exists) {
       party.participants = [...(party.participants || []), user];
     }
+    if (party.hostId === requestingUserId) {
+      party.hostLeftAt = null;
+    }
     await this.partyRepo.save(party);
-    const tok = await this.generateAgoraRTMToken(requestingUserId);
+    const tok = await this.generateAgoraRTMToken(profileIdForToken || requestingUserId);
     return {
       party,
       rtmToken: tok.token,
       expireSeconds: tok.expireSeconds,
-      role: 'HOST',
+      role: party.hostId === requestingUserId ? 'HOST' : 'PARTICIPANT',
       channelName: party.channelName,
     };
   }
 
-  async startScheduledParty(partyId: string, requestingUserId: string, idempotencyKey?: string) {
-    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { participants: true, host: true } });
+  private async maybeReassignHost(party: WatchParty) {
+    if (!party || party.status !== 'ACTIVE' || !party.hostLeftAt) return party;
+    const elapsed = Date.now() - new Date(party.hostLeftAt).getTime();
+    if (elapsed < 60_000) return party;
+    const participants = party.participants || [];
+    const candidate = participants.sort((a,b)=>String(a.id).localeCompare(String(b.id)))[0];
+    if (!candidate) return party;
+    party.hostId = candidate.id;
+    party.host = candidate;
+    party.hostLeftAt = null;
+    await this.partyRepo.save(party);
+    return party;
+  }
+
+  async startScheduledParty(
+    partyId: string,
+    requestingUserId: string,
+    idempotencyKey?: string,
+    profileIdForToken?: string,
+  ) {
+    const party = await this.partyRepo.findOne({
+      where: { id: partyId },
+      relations: { participants: true, host: true },
+    });
     if (!party) throw new NotFoundException('Party not found');
     if (party.hostId && party.hostId !== requestingUserId) {
-      throw new ForbiddenException('Only the host can start the scheduled party');
+      throw new ForbiddenException(
+        'Only the host can start the scheduled party',
+      );
     }
     // Idempotency: if previous activation with same key already made party ACTIVE, return
-    if (idempotencyKey && party.lastStartScheduledKey === idempotencyKey && party.status === 'ACTIVE') {
-      const tok = await this.generateAgoraRTMToken(requestingUserId);
-      return { party, rtmToken: tok.token, expireSeconds: tok.expireSeconds, role: 'HOST', channelName: party.channelName };
+    if (
+      idempotencyKey &&
+      party.lastStartScheduledKey === idempotencyKey &&
+      party.status === 'ACTIVE'
+    ) {
+      const tok = await this.generateAgoraRTMToken(profileIdForToken || requestingUserId);
+      return {
+        party,
+        rtmToken: tok.token,
+        expireSeconds: tok.expireSeconds,
+        role: 'HOST',
+        channelName: party.channelName,
+      };
     }
-    if (party.status !== 'SCHEDULED') throw new BadRequestException('Party is not scheduled');
+    if (party.status !== 'SCHEDULED')
+      throw new BadRequestException('Party is not scheduled');
     this.checkRateLimit('start', requestingUserId);
     const host = party.host;
     if (!host) {
@@ -447,47 +589,108 @@ export class WatchPartyService {
     party.status = 'ACTIVE';
     party.lastStartScheduledKey = idempotencyKey;
     await this.partyRepo.save(party);
-    const tok = await this.generateAgoraRTMToken(requestingUserId);
-    return { party, rtmToken: tok.token, expireSeconds: tok.expireSeconds, role: 'HOST', channelName: party.channelName };
+    const tok = await this.generateAgoraRTMToken(profileIdForToken || requestingUserId);
+    return {
+      party,
+      rtmToken: tok.token,
+      expireSeconds: tok.expireSeconds,
+      role: 'HOST',
+      channelName: party.channelName,
+    };
   }
   async kickUser(partyId: string, requestingUserId: string, userId: string) {
-    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { participants: true, host: true } });
+    const party = await this.partyRepo.findOne({
+      where: { id: partyId },
+      relations: { participants: true, host: true },
+    });
     if (!party) throw new NotFoundException('Party not found');
-    if (party.hostId !== requestingUserId) throw new ForbiddenException('Only host can kick');
+    if (party.hostId !== requestingUserId)
+      throw new ForbiddenException('Only host can kick');
+    const removed = (party.participants || []).find((u) => u.id === userId) || null;
     party.participants = (party.participants || []).filter((u) => u.id !== userId);
     await this.partyRepo.save(party);
+    if (removed) {
+      const u = await this.userRepo.findOne({ where: { id: userId } });
+      if (u && u.subscriptionType === SubscriptionType.FREEMIUM && !(u as any).hasUsedWatchPartyTrial) {
+        await this.userRepo.update(
+          { id: u.id },
+          {
+            hasUsedWatchPartyTrial: true,
+            subscriptionType: SubscriptionType.FREE_TIER,
+            isSubscribed: false,
+            subscriptionExpiresAt: null,
+            nextBillingDate: null,
+          },
+        );
+      }
+    }
     return party;
   }
 
   async banUser(partyId: string, requestingUserId: string, userId: string) {
-    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { participants: true, invitedUsers: true, bannedUsers: true, host: true } });
+    const party = await this.partyRepo.findOne({
+      where: { id: partyId },
+      relations: {
+        participants: true,
+        invitedUsers: true,
+        bannedUsers: true,
+        host: true,
+      },
+    });
     if (!party) throw new NotFoundException('Party not found');
-    if (party.hostId !== requestingUserId) throw new ForbiddenException('Only host can ban');
+    if (party.hostId !== requestingUserId)
+      throw new ForbiddenException('Only host can ban');
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
     const bannedIds = new Set((party.bannedUsers || []).map((u) => u.id));
     if (!bannedIds.has(user.id)) {
       party.bannedUsers = [...(party.bannedUsers || []), user];
     }
-    party.participants = (party.participants || []).filter((u) => u.id !== user.id);
-    party.invitedUsers = (party.invitedUsers || []).filter((u) => u.id !== user.id);
+    party.participants = (party.participants || []).filter(
+      (u) => u.id !== user.id,
+    );
+    party.invitedUsers = (party.invitedUsers || []).filter(
+      (u) => u.id !== user.id,
+    );
     await this.partyRepo.save(party);
+    if (user.subscriptionType === SubscriptionType.FREEMIUM && !(user as any).hasUsedWatchPartyTrial) {
+      await this.userRepo.update(
+        { id: user.id },
+        {
+          hasUsedWatchPartyTrial: true,
+          subscriptionType: SubscriptionType.FREE_TIER,
+          isSubscribed: false,
+          subscriptionExpiresAt: null,
+          nextBillingDate: null,
+        },
+      );
+    }
     return party;
   }
 
   async unbanUser(partyId: string, requestingUserId: string, userId: string) {
-    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { bannedUsers: true, host: true } });
+    const party = await this.partyRepo.findOne({
+      where: { id: partyId },
+      relations: { bannedUsers: true, host: true },
+    });
     if (!party) throw new NotFoundException('Party not found');
-    if (party.hostId !== requestingUserId) throw new ForbiddenException('Only host can unban');
-    party.bannedUsers = (party.bannedUsers || []).filter((u) => u.id !== userId);
+    if (party.hostId !== requestingUserId)
+      throw new ForbiddenException('Only host can unban');
+    party.bannedUsers = (party.bannedUsers || []).filter(
+      (u) => u.id !== userId,
+    );
     await this.partyRepo.save(party);
     return party;
   }
 
   async muteUser(partyId: string, requestingUserId: string, userId: string) {
-    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { mutedUsers: true, host: true } });
+    const party = await this.partyRepo.findOne({
+      where: { id: partyId },
+      relations: { mutedUsers: true, host: true },
+    });
     if (!party) throw new NotFoundException('Party not found');
-    if (party.hostId !== requestingUserId) throw new ForbiddenException('Only host can mute');
+    if (party.hostId !== requestingUserId)
+      throw new ForbiddenException('Only host can mute');
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
     const mutedIds = new Set((party.mutedUsers || []).map((u) => u.id));
@@ -499,11 +702,54 @@ export class WatchPartyService {
   }
 
   async unmuteUser(partyId: string, requestingUserId: string, userId: string) {
-    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { mutedUsers: true, host: true } });
+    const party = await this.partyRepo.findOne({
+      where: { id: partyId },
+      relations: { mutedUsers: true, host: true },
+    });
     if (!party) throw new NotFoundException('Party not found');
-    if (party.hostId !== requestingUserId) throw new ForbiddenException('Only host can unmute');
+    if (party.hostId !== requestingUserId)
+      throw new ForbiddenException('Only host can unmute');
     party.mutedUsers = (party.mutedUsers || []).filter((u) => u.id !== userId);
     await this.partyRepo.save(party);
     return party;
+  }
+
+  async transferHost(partyId: string, requestingUserId: string, newHostId: string) {
+    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { participants: true, host: true } });
+    if (!party) throw new NotFoundException('Party not found');
+    if (party.status !== 'ACTIVE') throw new BadRequestException('Party is not active');
+    if (party.hostId !== requestingUserId) throw new ForbiddenException('Only host can transfer');
+    const candidate = (party.participants || []).find((u) => u.id === newHostId);
+    if (!candidate) throw new BadRequestException('New host must be a participant');
+    party.hostId = candidate.id;
+    party.host = candidate;
+    party.hostLeftAt = null;
+    await this.partyRepo.save(party);
+    return { partyId: party.id, hostId: party.hostId };
+  }
+
+  async leaveParty(partyId: string, requestingUserId: string) {
+    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { participants: true, host: true } });
+    if (!party) throw new NotFoundException('Party not found');
+    const user = await this.userRepo.findOne({ where: { id: requestingUserId } });
+    if (!user) throw new NotFoundException('User not found');
+    party.participants = (party.participants || []).filter((u) => u.id !== requestingUserId);
+    if (party.hostId === requestingUserId) {
+      party.hostLeftAt = new Date();
+    }
+    await this.partyRepo.save(party);
+    if (user.subscriptionType === SubscriptionType.FREEMIUM && !(user as any).hasUsedWatchPartyTrial) {
+      await this.userRepo.update(
+        { id: user.id },
+        {
+          hasUsedWatchPartyTrial: true,
+          subscriptionType: SubscriptionType.FREE_TIER,
+          isSubscribed: false,
+          subscriptionExpiresAt: null,
+          nextBillingDate: null,
+        },
+      );
+    }
+    return { partyId: party.id, status: 'left' };
   }
 }

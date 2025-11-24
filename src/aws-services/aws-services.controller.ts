@@ -31,19 +31,16 @@ export class AwsServicesController {
     private readonly configService: ConfigService,
   ) {}
 
-  @Public()
   @Get('list-buckets')
   async listBuckets() {
     return this.awsServicesService.listBuckets();
   }
 
-  @Public()
   @Get('show-movies-in-bucket')
   async showMoviesInBucket() {
     return this.awsServicesService.showMoviesInBucket();
   }
 
-  @Public()
   @Get('get-presigned-url-for-movie')
   async getPresignedUrlForMovie() {
     return this.awsServicesService.getPresignedUrlForMovie();
@@ -62,10 +59,15 @@ export class AwsServicesController {
         movieId: { type: 'string', example: 'uuid-of-movie' },
         ttlSeconds: { type: 'number', example: 900 },
         useTrailer: { type: 'boolean', example: false },
+        partyId: {
+          type: 'string',
+          example: 'uuid-of-active-party',
+          nullable: true,
+        },
       },
       required: ['movieId'],
       description:
-        'Provide a movieId; cookies are scoped to the selected media folder (main by default, trailer when useTrailer=true). For premium movies, trailer access is allowed to all users; main access requires active PREMIUM. TTL in seconds (capped at 3600).',
+        'Provide a movieId; cookies are scoped to the selected media folder (main by default, trailer when useTrailer=true). For premium movies, trailer access is allowed to all users; main access requires active PREMIUM. Optionally include partyId to allow freemium users to access premium main when in an active watch party hosted by a premium user. TTL in seconds (capped at 3600).',
     },
   })
   @ApiResponse({ status: 200, description: 'Cookies set successfully.' })
@@ -83,13 +85,18 @@ export class AwsServicesController {
       : movie?.mediaKeys?.main;
     if (!mediaKey) {
       throw new Error(
-        useTrailer ? 'Trailer media key is missing.' : 'Movie media key is missing.',
+        useTrailer
+          ? 'Trailer media key is missing.'
+          : 'Movie media key is missing.',
       );
     }
 
     const scope = mediaKey;
-    const { cookies, ttl, cookiePath } =
-      await this.awsServicesService.getCloudFrontSignedCookies(scope, ttlSeconds);
+    const { cookies, ttl, cookiePath, expires } =
+      await this.awsServicesService.getCloudFrontSignedCookies(
+        scope,
+        ttlSeconds,
+      );
 
     const domain = '.cinego.live'; // parent domain for cookie sharing across subdomains
 
@@ -109,6 +116,13 @@ export class AwsServicesController {
     ]);
 
     const url = this.awsServicesService.buildMediaUrl(mediaKey);
-    return { url };
+    // TODO: remove the cookies from the response when api.cinego.live is available to stop the manual injection of cookies
+    return {
+      url,
+      cookies,
+      cookiePath,
+      ttl,
+      expires,
+    };
   }
 }

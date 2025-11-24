@@ -1,5 +1,12 @@
 import { BaseEntity } from '../../base-entity/base-entity.entity';
-import { Column, Entity, JoinColumn, JoinTable, ManyToMany, ManyToOne } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  JoinTable,
+  ManyToMany,
+  ManyToOne,
+} from 'typeorm';
 import { User } from '../../user/entities/user.entity';
 
 export type WatchPartyStatus = 'SCHEDULED' | 'ACTIVE' | 'ENDED';
@@ -52,6 +59,9 @@ export class WatchParty extends BaseEntity {
 
   @Column({ type: 'timestamp', nullable: true })
   rotatedAt?: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  hostLeftAt?: Date;
 
   @Column({ nullable: true })
   lastEndKey?: string;
