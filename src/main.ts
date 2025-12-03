@@ -5,6 +5,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { AppService } from './app.service';
 
 async function bootstrap() {
   // Prepare HTTPS options from local certs (mkcert)
@@ -77,6 +78,8 @@ async function bootstrap() {
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api-docs', app, document);
+  const appService = app.get(AppService);
+  appService.setSwaggerDocument(document);
 
   const port = (await app.get(ConfigService)).get('app.port');
   await app.listen(port);

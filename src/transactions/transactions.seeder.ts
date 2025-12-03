@@ -56,7 +56,9 @@ export class TransactionsSeeder implements Seeder {
       : users;
 
     if (filteredUsers.length === 0) {
-      this.logger.warn('No users found (after filtering). Skipping transactions seeding.');
+      this.logger.warn(
+        'No users found (after filtering). Skipping transactions seeding.',
+      );
       return;
     }
 
@@ -66,7 +68,10 @@ export class TransactionsSeeder implements Seeder {
       }, USER_IDS=${USER_IDS.join(',') || 'all'}`,
     );
 
-    const toSave: Partial<Transaction>[] = [];
+    const toSave: (Partial<Transaction> & {
+      dateCreated?: any;
+      dateUpdated?: any;
+    })[] = [];
     const countsByDay: number[] = [];
 
     for (let d = 0; d < DAYS; d++) {
@@ -75,12 +80,21 @@ export class TransactionsSeeder implements Seeder {
       baseDate.setHours(0, 0, 0, 0); // anchor to start of day
 
       // Draw baseline per-day count and optionally apply a spike multiplier
-      let perDayCount = faker.number.int({ min: PER_DAY_MIN, max: PER_DAY_MAX });
+      let perDayCount = faker.number.int({
+        min: PER_DAY_MIN,
+        max: PER_DAY_MAX,
+      });
       const spike = Math.random() < SPIKE_CHANCE;
       if (spike) {
         // Use a multiplier to occasionally create significantly higher volumes
-        const spikeMult = faker.number.float({ min: SPIKE_MULTIPLIER_MIN, max: SPIKE_MULTIPLIER_MAX });
-        perDayCount = Math.min(Math.floor(perDayCount * spikeMult), PER_DAY_HARD_MAX);
+        const spikeMult = faker.number.float({
+          min: SPIKE_MULTIPLIER_MIN,
+          max: SPIKE_MULTIPLIER_MAX,
+        });
+        perDayCount = Math.min(
+          Math.floor(perDayCount * spikeMult),
+          PER_DAY_HARD_MAX,
+        );
       }
       countsByDay.push(perDayCount);
 
@@ -96,57 +110,40 @@ export class TransactionsSeeder implements Seeder {
           TransactionStatus.FAILED,
         ]);
 
-        const amount =
-          reason === PaymentReason.PREMIUM
-            ? 4000
-            : 100;
- 
-         const tx: Partial<Transaction> = {
-           amount,
-           reference: uuidv4(),
-           externalId: null,
-           externalReference: null,
-           paymentReason: reason,
-           paymentChanel: PaymentChannel.FLUTTERWAVE,
-           status,
-           verificationAttempts: 0,
-           lastVerificationAttemptAt: null,
-           userId: user.id,
-         };
+        const amount = reason === PaymentReason.PREMIUM ? 4000 : 100;
+
+        const minutes = faker.number.int({ min: 0, max: 24 * 60 - 1 });
+        const createdAt = new Date(baseDate.getTime() + minutes * 60 * 1000);
+
+        const tx: Partial<Transaction> & {
+          dateCreated?: any;
+          dateUpdated?: any;
+        } = {
+          amount,
+          reference: uuidv4(),
+          externalId: null,
+          externalReference: null,
+          paymentReason: reason,
+          paymentChanel: PaymentChannel.FLUTTERWAVE,
+          status,
+          verificationAttempts: 0,
+          lastVerificationAttemptAt: null,
+          userId: user.id,
+          dateCreated: createdAt as any,
+          dateUpdated: createdAt as any,
+        };
 
         toSave.push(tx);
       }
     }
 
-    // Insert all transactions first
-    const created = await this.transactionRepository.save(
+    await this.transactionRepository.save(
       toSave.map((t) => this.transactionRepository.create(t)),
-      { chunk: 100 },
+      { chunk: 500 },
     );
 
-    // Update their dateCreated/dateUpdated to distribute within each day (random minutes)
-    let index = 0;
-    for (let d = 0; d < DAYS; d++) {
-      const baseDate = new Date(baseNow);
-      baseDate.setDate(baseNow.getDate() - d);
-      baseDate.setHours(0, 0, 0, 0);
-
-      const perDayCount = countsByDay[d] || 0;
-      for (let i = 0; i < perDayCount && index < created.length; i++) {
-        const minutes = faker.number.int({ min: 0, max: 24 * 60 - 1 });
-        const createdAt = new Date(baseDate.getTime() + minutes * 60 * 1000);
-        await this.transactionRepository.update(created[index].id, {
-          // @ts-ignore - override CreateDateColumn/UpdateDateColumn for deterministic e2e
-          dateCreated: createdAt as any,
-          // @ts-ignore
-          dateUpdated: createdAt as any,
-        });
-        index++;
-      }
-    }
-
     this.logger.log(
-      `Seeded ${created.length} transactions over ${DAYS} day(s). Min/day=${PER_DAY_MIN}, max/day≈${PER_DAY_HARD_MAX} with spikes.`,
+      `Seeded ${toSave.length} transactions over ${DAYS} day(s). Min/day=${PER_DAY_MIN}, max/day≈${PER_DAY_HARD_MAX} with spikes.`,
     );
   }
 
