@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Seeder } from 'nestjs-seeder';
-import { Repository } from 'typeorm';
+import { Repository, DeepPartial } from 'typeorm';
 import { WatchHistory } from './entities/watch-history.entity';
 import { Review } from '../review/entities/review.entity';
 import { Comment } from '../comment/entities/comment.entity';
@@ -34,29 +34,39 @@ export class UserInteractionsSeeder implements Seeder {
   ) {}
   private readonly logger = new Logger(UserInteractionsSeeder.name);
 
+  private async hasAny(repo: Repository<any>): Promise<boolean> {
+    const r = await repo
+      .createQueryBuilder('e')
+      .select('1')
+      .limit(1)
+      .getRawOne();
+    return !!r;
+  }
+
   async seed(): Promise<any> {
     // Check if data density is specified via environment variable
     const dataDensity =
       (process.env.DATA_DENSITY as DataDensity) || DataDensity.SPARSE;
 
-    const existingWatchHistory = await this.watchHistoryRepository.count();
-    const existingReviews = await this.reviewRepository.count();
-    const existingComments = await this.commentRepository.count();
-    const existingMyList = await this.myListRepository.count();
+    const [hasWatchHistory, hasReviews, hasComments, hasMyList] =
+      await Promise.all([
+        this.hasAny(this.watchHistoryRepository),
+        this.hasAny(this.reviewRepository),
+        this.hasAny(this.commentRepository),
+        this.hasAny(this.myListRepository),
+      ]);
 
-    if (
-      existingWatchHistory > 0 ||
-      existingReviews > 0 ||
-      existingComments > 0 ||
-      existingMyList > 0
-    ) {
+    if (hasWatchHistory || hasReviews || hasComments || hasMyList) {
       this.logger.log('User interactions already seeded, skipping...');
       return;
     }
 
-    // Get all profiles and movies
-    const profiles = await this.profileRepository.find();
-    const movies = await this.movieRepository.find();
+    const [profiles, movies] = await Promise.all([
+      this.profileRepository.find({ select: { id: true, profileName: true } }),
+      this.movieRepository.find({
+        select: { id: true, contentType: true, seriesId: true, genres: true },
+      }),
+    ]);
 
     if (profiles.length === 0) {
       this.logger.error('No profiles found. Please run the user seeder first.');
@@ -105,14 +115,19 @@ export class UserInteractionsSeeder implements Seeder {
         ? this.createPopularMovies(movies, config.popularMovieCount)
         : [];
 
-    // Generate interactions for each profile
-    for (const profile of profiles) {
-      await this.generateProfileInteractions(
-        profile,
-        movies,
-        popularMovies,
-        config,
-        commentTemplates,
+    const concurrency = Number(process.env.SEED_CONCURRENCY || 4);
+    for (let i = 0; i < profiles.length; i += concurrency) {
+      const slice = profiles.slice(i, i + concurrency);
+      await Promise.all(
+        slice.map((profile) =>
+          this.generateProfileInteractions(
+            profile,
+            movies,
+            popularMovies,
+            config,
+            commentTemplates,
+          ),
+        ),
       );
     }
 
@@ -247,108 +262,70 @@ export class UserInteractionsSeeder implements Seeder {
       );
     }
 
-    // Track which movies this profile has watched for realistic interactions
     const profileWatchedMovies = new Set<string>();
+    const watchHistoryRows: DeepPartial<WatchHistory>[] = [];
+    const reviewRows: DeepPartial<Review>[] = [];
+    const commentRows: DeepPartial<Comment>[] = [];
+    const myListRows: DeepPartial<MyListEntity>[] = [];
+    const myListKeySet = new Set<string>();
 
     for (const movie of moviesToWatch) {
-      try {
-        // Generate realistic watch data
-        const watchDurationInSeconds = faker.number.int({
-          min: 300,
-          max: 7200,
-        }); // 5 min to 2 hours
-        const watchProgress = faker.number.float({
-          min: 10,
-          max: 100,
-          fractionDigits: 1,
-        });
-        const isCompleted = watchProgress >= 90; // Consider completed if watched 90% or more
+      const watchDurationInSeconds = faker.number.int({ min: 300, max: 7200 });
+      const watchProgress = faker.number.float({
+        min: 10,
+        max: 100,
+        fractionDigits: 1,
+      });
+      const isCompleted = watchProgress >= 90;
+      const lastWatchedAt = faker.date.recent({ days: 30 });
 
-        // Generate realistic last watched date (within last 30 days)
-        const lastWatchedAt = faker.date.recent({ days: 30 });
+      watchHistoryRows.push({
+        profileId: profile.id,
+        movieId: movie.id,
+        lastWatchedAt,
+        watchDurationInSeconds,
+        watchProgress,
+        isCompleted,
+      });
 
-        const watchHistory: Partial<WatchHistory> = {
-          profileId: profile.id,
-          movieId: movie.id,
-          lastWatchedAt,
-          watchDurationInSeconds,
-          watchProgress,
-          isCompleted,
-        };
+      profileWatchedMovies.add(movie.id);
 
-        const watchHistoryEntity =
-          this.watchHistoryRepository.create(watchHistory);
-        await this.watchHistoryRepository.save(watchHistoryEntity);
-
-        profileWatchedMovies.add(movie.id);
-
-        // If they completed the movie, they're more likely to interact with it
-        if (isCompleted) {
-          // Review probability based on data density
-          if (
-            faker.datatype.boolean({ probability: config.reviewProbability }) &&
-            movie.contentType !== MovieContentType.EPISODE
-          ) {
-            const rating = faker.helpers.weightedArrayElement([
-              { value: 1, weight: 5 },
-              { value: 2, weight: 10 },
-              { value: 3, weight: 25 },
-              { value: 4, weight: 40 },
-              { value: 5, weight: 20 },
-            ]);
-
-            const review: Partial<Review> = {
-              profileId: profile.id,
-              movieId: movie.id,
-              rating,
-            };
-
-            const reviewEntity = this.reviewRepository.create(review);
-            await this.reviewRepository.save(reviewEntity);
-          }
-
-          // Comment probability based on data density
-          if (
-            faker.datatype.boolean({ probability: config.commentProbability })
-          ) {
-            const commentContent = faker.helpers.arrayElement(commentTemplates);
-
-            const comment: Partial<Comment> = {
-              profileId: profile.id,
-              movieId: movie.id,
-              content: commentContent,
-            };
-
-            const commentEntity = this.commentRepository.create(comment);
-            await this.commentRepository.save(commentEntity);
-          }
+      if (isCompleted) {
+        if (
+          faker.datatype.boolean({ probability: config.reviewProbability }) &&
+          movie.contentType !== MovieContentType.EPISODE
+        ) {
+          const rating = faker.helpers.weightedArrayElement([
+            { value: 1, weight: 5 },
+            { value: 2, weight: 10 },
+            { value: 3, weight: 25 },
+            { value: 4, weight: 40 },
+            { value: 5, weight: 20 },
+          ]);
+          reviewRows.push({ profileId: profile.id, movieId: movie.id, rating });
         }
-
-        // MyList probability based on data density
-        if (faker.datatype.boolean({ probability: config.myListProbability })) {
-          const targetId =
-            movie.contentType === MovieContentType.EPISODE && movie.seriesId
-              ? movie.seriesId
-              : movie.id;
-          try {
-            const exists = await this.myListRepository.findOne({
-              where: { profileId: profile.id, movieId: targetId },
-            });
-            if (!exists) {
-              const myListItem: Partial<MyListEntity> = {
-                profileId: profile.id,
-                movieId: targetId,
-              };
-              const myListEntity = this.myListRepository.create(myListItem);
-              await this.myListRepository.save(myListEntity);
-            }
-          } catch {}
+        if (
+          faker.datatype.boolean({ probability: config.commentProbability })
+        ) {
+          const content = faker.helpers.arrayElement(commentTemplates);
+          commentRows.push({
+            profileId: profile.id,
+            movieId: movie.id,
+            content,
+          });
         }
-      } catch (error) {
-        this.logger.error(
-          `Unable to seed interactions for profile ${profile.profileName} and movie ${movie.title}`,
-          error,
-        );
+      }
+
+      if (faker.datatype.boolean({ probability: config.myListProbability })) {
+        const targetId =
+          movie.contentType === MovieContentType.EPISODE && movie.seriesId
+            ? movie.seriesId
+            : movie.id;
+        const key = `${profile.id}|${targetId}`;
+        if (!myListKeySet.has(key)) {
+          myListKeySet.add(key);
+          myListRows.push({ profileId: profile.id, movieId: targetId });
+        }
       }
     }
 
@@ -365,32 +342,64 @@ export class UserInteractionsSeeder implements Seeder {
         unwatchedMovies,
         numberOfUnwatchedForList,
       );
-
       for (const movie of moviesForFutureWatching) {
-        try {
-          const targetId =
-            movie.contentType === MovieContentType.EPISODE && movie.seriesId
-              ? movie.seriesId
-              : movie.id;
-          const exists = await this.myListRepository.findOne({
-            where: { profileId: profile.id, movieId: targetId },
-          });
-          if (!exists) {
-            const myListItem: Partial<MyListEntity> = {
-              profileId: profile.id,
-              movieId: targetId,
-            };
-            const myListEntity = this.myListRepository.create(myListItem);
-            await this.myListRepository.save(myListEntity);
-          }
-        } catch (error) {
-          this.logger.error(
-            `Unable to seed my-list entry for profile ${profile.profileName} and movie ${movie.title}`,
-            error,
-          );
+        const targetId =
+          movie.contentType === MovieContentType.EPISODE && movie.seriesId
+            ? movie.seriesId
+            : movie.id;
+        const key = `${profile.id}|${targetId}`;
+        if (!myListKeySet.has(key)) {
+          myListKeySet.add(key);
+          myListRows.push({ profileId: profile.id, movieId: targetId });
         }
       }
     }
+
+    await this.watchHistoryRepository.manager.transaction(async (em) => {
+      const wh = em.getRepository(WatchHistory);
+      const rv = em.getRepository(Review);
+      const cm = em.getRepository(Comment);
+      const ml = em.getRepository(MyListEntity);
+
+      if (watchHistoryRows.length) {
+        for (let i = 0; i < watchHistoryRows.length; i += 500) {
+          await wh
+            .createQueryBuilder()
+            .insert()
+            .values(watchHistoryRows.slice(i, i + 500))
+            .execute();
+        }
+      }
+      if (reviewRows.length) {
+        for (let i = 0; i < reviewRows.length; i += 500) {
+          await rv
+            .createQueryBuilder()
+            .insert()
+            .values(reviewRows.slice(i, i + 500))
+            .onConflict('("profileId","movieId") DO NOTHING')
+            .execute();
+        }
+      }
+      if (commentRows.length) {
+        for (let i = 0; i < commentRows.length; i += 500) {
+          await cm
+            .createQueryBuilder()
+            .insert()
+            .values(commentRows.slice(i, i + 500))
+            .execute();
+        }
+      }
+      if (myListRows.length) {
+        for (let i = 0; i < myListRows.length; i += 500) {
+          await ml
+            .createQueryBuilder()
+            .insert()
+            .values(myListRows.slice(i, i + 500))
+            .onConflict('("profileId","movieId") DO NOTHING')
+            .execute();
+        }
+      }
+    });
 
     this.logger.log(
       `Seeded interactions for profile: ${profile.profileName} (${moviesToWatch.length} watched, interactions created)`,

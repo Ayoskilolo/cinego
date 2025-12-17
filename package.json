@@ -28,7 +28,8 @@
     "seed:user-interactions:dense": "set DATA_DENSITY=dense && node dist/src/seeder",
     "seed:user-interactions:drop": "node dist/src/clear-user-interactions-runner",
     "db:truncate": "node dist/src/truncate.js",
-    "db:reset-and-seed": "pnpm build && pnpm db:truncate && pnpm seed"
+    "db:reset-and-seed": "pnpm build && pnpm db:truncate && pnpm seed",
+    "db:count-types": "node dist/src/count-content-types.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.879.0",
