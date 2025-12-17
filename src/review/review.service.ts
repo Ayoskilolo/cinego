@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -10,6 +11,7 @@ import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { MovieService } from '../movie/movie.service';
 import { PaginateQuery, paginate, PaginateConfig } from 'nestjs-paginate';
+import { MovieContentType } from '../movie/enums/movie-content-type.enum';
 
 @Injectable()
 export class ReviewService {
@@ -39,6 +41,12 @@ export class ReviewService {
     if (!movie || !movie.id) {
       throw new NotFoundException(
         `Movie with ID "${createReviewDto.movieId}" not found or invalid movie data returned`,
+      );
+    }
+
+    if (movie.contentType === MovieContentType.EPISODE) {
+      throw new ForbiddenException(
+        'Reviews are not allowed on episodes. Review the series or film instead.',
       );
     }
 

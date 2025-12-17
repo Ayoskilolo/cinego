@@ -13,6 +13,7 @@ import { ItemSimilarity } from './entities/item-similarity.entity';
 import { WatchHistory } from '../user/entities/watch-history.entity';
 import { Cron } from '@nestjs/schedule';
 import { MyListService } from '../my-list/my-list.service';
+import { MovieContentType } from '../movie/enums/movie-content-type.enum';
 
 @Injectable()
 export class RecommendationService {
@@ -745,19 +746,40 @@ export class RecommendationService {
   ): Promise<Record<string, boolean>> {
     if (movieIds.length === 0) return {};
 
-    const userListItems = await this.myListRepository.find({
-      where: {
-        profile: { id: profileId },
-        movieId: In(movieIds),
-      },
+    const minimalMovieRows = await this.movieRepository.find({
+      where: movieIds.map((id) => ({ id })),
+      select: ['id', 'contentType', 'seriesId'],
     });
 
-    return userListItems.reduce(
-      (acc, item) => {
-        acc[item.movieId] = true;
-        return acc;
-      },
-      {} as Record<string, boolean>,
+    const idsToCheckSet = new Set<string>();
+    minimalMovieRows.forEach((movieRow) => {
+      idsToCheckSet.add(movieRow.id);
+      if (
+        movieRow.contentType === MovieContentType.EPISODE &&
+        movieRow.seriesId
+      ) {
+        idsToCheckSet.add(movieRow.seriesId);
+      }
+    });
+
+    const presentIds = await this.myListService.getMyListItemsBatch(
+      profileId,
+      Array.from(idsToCheckSet),
     );
+
+    const inListChecks: Record<string, boolean> = {};
+    minimalMovieRows.forEach((movieRow) => {
+      const isSelfInList = presentIds.includes(movieRow.id);
+      const isParentSeriesInList = movieRow.seriesId
+        ? presentIds.includes(movieRow.seriesId)
+        : false;
+      inListChecks[movieRow.id] = isSelfInList || isParentSeriesInList;
+    });
+
+    movieIds.forEach((id) => {
+      if (!(id in inListChecks)) inListChecks[id] = false;
+    });
+
+    return inListChecks;
   }
 }

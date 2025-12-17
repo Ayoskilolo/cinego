@@ -1,12 +1,22 @@
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  Unique,
+} from 'typeorm';
 import { BaseEntity } from '../../base-entity/base-entity.entity';
 import { ProvidersEntity } from 'src/providers/entities/providers.entity';
 import { MyListEntity } from 'src/my-list/entities/my-list.entity';
 import { Comment } from '../../comment/entities/comment.entity';
 import { Review } from '../../review/entities/review.entity';
-import { MovieNews } from '../../movie-news/entity/movie-news.entity'
+import { MovieNews } from '../../movie-news/entity/movie-news.entity';
+import { MovieContentType } from 'src/movie/enums/movie-content-type.enum';
 
 @Entity()
+@Unique(['providerId', 'providerTitleId', 'contentType'])
+@Unique(['seriesId', 'seasonNumber', 'episodeNumber'])
 export class Movie extends BaseEntity {
   @Column()
   title: string;
@@ -19,6 +29,13 @@ export class Movie extends BaseEntity {
 
   @Column()
   programType: string;
+
+  @Column({
+    type: 'enum',
+    enum: MovieContentType,
+    default: MovieContentType.FILM,
+  })
+  contentType: MovieContentType;
 
   @Column('text')
   synopsis: string;
@@ -77,10 +94,29 @@ export class Movie extends BaseEntity {
   comments: Comment[];
 
   @OneToMany(() => Review, (review) => review.movie)
-  reviews: Review[]
+  reviews: Review[];
 
   @OneToMany(() => MovieNews, (news) => news.movie)
-  news: MovieNews[]
+  news: MovieNews[];
 
-  isInMyList?: boolean
+  @ManyToOne(() => Movie, (m) => m.episodes, {
+    nullable: true,
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'seriesId' })
+  series?: Movie | null;
+
+  @Column({ nullable: true })
+  seriesId?: string | null;
+
+  @OneToMany(() => Movie, (m) => m.series)
+  episodes: Movie[];
+
+  @Column({ nullable: true })
+  seasonNumber?: number | null;
+
+  @Column({ nullable: true })
+  episodeNumber?: number | null;
+
+  isInMyList?: boolean;
 }

@@ -85,6 +85,109 @@ export class MovieController {
     return await this.movieService.findAllGenres();
   }
 
+  @Get('series')
+  @ApiOperation({ summary: 'Get a paginated list of series' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page',
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    type: String,
+    description: 'Sort by column:direction (e.g., dateCreated:DESC)',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search term (title, director, synopsis, genres, languages)',
+  })
+  @ApiQuery({
+    name: 'filter',
+    required: false,
+    type: String,
+    description: 'Filter by column:value',
+  })
+  @ApiResponse({ status: 200, description: 'Successfully retrieved series.' })
+  @ApiBearerAuth()
+  async getSeries(@Paginate() query: PaginateQuery, @Req() req: Request) {
+    const user = req['user'];
+    const result = await this.movieService.getSeriesList(
+      query,
+      user?.profileId,
+    );
+    return { data: result };
+  }
+
+  @Get('series/:seriesId')
+  @ApiOperation({ summary: 'Get a series with its episodes' })
+  @ApiParam({ name: 'seriesId', type: 'string' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully retrieved series detail with episodes.',
+  })
+  @ApiResponse({ status: 404, description: 'Series not found.' })
+  @ApiBearerAuth()
+  async getSeriesDetail(
+    @Param('seriesId') seriesId: string,
+    @Req() req: Request,
+  ) {
+    const user = req['user'];
+    const result = await this.movieService.getSeriesDetail(
+      seriesId,
+      user?.profileId,
+    );
+    return { data: result };
+  }
+
+  @Get('series/:seriesId/episodes')
+  @ApiOperation({ summary: 'Get episodes for a series' })
+  @ApiParam({ name: 'seriesId', type: 'string' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page',
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    type: String,
+    description:
+      'Sort by column:direction (e.g., seasonNumber:ASC,episodeNumber:ASC)',
+  })
+  @ApiResponse({ status: 200, description: 'Successfully retrieved episodes.' })
+  @ApiResponse({ status: 404, description: 'Series not found.' })
+  @ApiBearerAuth()
+  async getEpisodesForSeries(
+    @Param('seriesId') seriesId: string,
+    @Paginate() query: PaginateQuery,
+    @Req() req: Request,
+  ) {
+    const user = req['user'];
+    const result = await this.movieService.getEpisodesBySeries(
+      seriesId,
+      query,
+      user?.profileId,
+    );
+    return { data: result };
+  }
+
   @Get('fetch-from-providers')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Comment } from './entities/comment.entity';
@@ -20,6 +20,9 @@ export class CommentService {
     profileId: string,
     user: { sub: string; role: string },
   ): Promise<Comment> {
+    if (!createCommentDto.content || !createCommentDto.content.trim()) {
+      throw new BadRequestException('Comment content must be non-empty');
+    }
     const movie = await this.movieService.findOne(
       createCommentDto.movieId,
       user.sub,

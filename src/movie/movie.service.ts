@@ -4,12 +4,14 @@ import {
   NotFoundException,
   ForbiddenException,
   InternalServerErrorException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Movie } from './entities/movie.entity';
 import { Repository } from 'typeorm';
 import { PaginateQuery, paginate, PaginateConfig } from 'nestjs-paginate';
 import { ProvidersService } from 'src/providers/providers.service';
+import { MovieContentType } from './enums/movie-content-type.enum';
 import { MyListService } from '../my-list/my-list.service';
 import { UserService } from '../user/user.service';
 import { SubscriptionType } from '../user/enum/userType';
@@ -71,17 +73,40 @@ export class MovieService {
   ): Promise<Record<string, boolean>> {
     if (movieIds.length === 0) return {};
 
-    const result = await this.myListService.getMyListItemsBatch(
-      profileId,
-      movieIds,
-    );
-
-    const checks: Record<string, boolean> = {};
-    movieIds.forEach((id) => {
-      checks[id] = result.includes(id);
+    const minimalMovieRows = await this.movieRepository.find({
+      where: movieIds.map((id) => ({ id })),
+      select: ['id', 'contentType', 'seriesId'],
+    });
+    const idsToCheckSet = new Set<string>();
+    minimalMovieRows.forEach((movieRow) => {
+      idsToCheckSet.add(movieRow.id);
+      if (
+        movieRow.contentType === MovieContentType.EPISODE &&
+        movieRow.seriesId
+      ) {
+        idsToCheckSet.add(movieRow.seriesId);
+      }
     });
 
-    return checks;
+    const presentIds = await this.myListService.getMyListItemsBatch(
+      profileId,
+      Array.from(idsToCheckSet),
+    );
+
+    const inListChecks: Record<string, boolean> = {};
+    minimalMovieRows.forEach((movieRow) => {
+      const isSelfInList = presentIds.includes(movieRow.id);
+      const isParentSeriesInList = movieRow.seriesId
+        ? presentIds.includes(movieRow.seriesId)
+        : false;
+      inListChecks[movieRow.id] = isSelfInList || isParentSeriesInList;
+    });
+
+    // Ensure all ids have a boolean
+    movieIds.forEach((id) => {
+      if (!(id in inListChecks)) inListChecks[id] = false;
+    });
+    return inListChecks;
   }
 
   /**
@@ -351,13 +376,21 @@ export class MovieService {
         this.logger.log(`Found ${movies.length} movies from ${provider.name}`);
 
         for (const movie of movies) {
-          // Check for existing movie by providerTitleId to prevent duplicates
+          const where = {
+            providerId: provider.id,
+            providerTitleId: movie.providerTitleId,
+            contentType: movie.contentType ?? MovieContentType.FILM,
+          };
           const existingMovie = await this.movieRepository.findOne({
-            where: { providerTitleId: movie.providerTitleId },
+            where,
           });
 
           if (!existingMovie) {
-            await this.movieRepository.save(movie);
+            const toSave = this.movieRepository.create({
+              ...movie,
+              contentType: movie.contentType ?? MovieContentType.FILM,
+            });
+            await this.movieRepository.save(toSave);
             newMovies++;
           } else {
             skippedDuplicates++;
@@ -437,8 +470,6 @@ export class MovieService {
       ],
     };
 
-    
-
     const result = await paginate(query, this.movieRepository, paginateConfig);
 
     // Enrich movies with MyList data using batch optimization
@@ -502,8 +533,6 @@ export class MovieService {
     const queryBuilder = this.movieRepository
       .createQueryBuilder('movie')
       .where(':genre = ANY(movie.genres)', { genre: genre.toLowerCase() });
-
-    
 
     // Select specific fields to avoid exposing sensitive ones like mediaKeys by default
     queryBuilder.select([
@@ -582,11 +611,35 @@ export class MovieService {
     if (!movie) {
       throw new NotFoundException(`Movie with ID "${movieId}" not found`);
     }
-    movie.isPremium = isPremium;
-    await this.movieRepository.save(movie);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { mediaKeys, providerId, ...movieData } = movie; // Exclude sensitive fields
-    return movieData as Movie; // Ensure the returned type matches, adjust if necessary
+    if (movie.contentType === MovieContentType.SERIES) {
+      movie.isPremium = isPremium;
+      await this.movieRepository.save(movie);
+      await this.movieRepository
+        .createQueryBuilder()
+        .update(Movie)
+        .set({ isPremium })
+        .where('seriesId = :sid', { sid: movie.id })
+        .execute();
+    } else if (movie.contentType === MovieContentType.EPISODE) {
+      if (movie.seriesId) {
+        const parent = await this.movieRepository.findOne({
+          where: { id: movie.seriesId },
+        });
+        if (parent) {
+          movie.isPremium = parent.isPremium;
+        } else {
+          movie.isPremium = isPremium;
+        }
+      } else {
+        movie.isPremium = isPremium;
+      }
+      await this.movieRepository.save(movie);
+    } else {
+      movie.isPremium = isPremium;
+      await this.movieRepository.save(movie);
+    }
+    const { mediaKeys, providerId, ...movieData } = movie as any;
+    return movieData as Movie;
   }
 
   // Admin-only helpers (no subscription gating, sanitized fields)
@@ -710,13 +763,279 @@ export class MovieService {
         movie[key] = update[key as keyof typeof update] as any;
       }
     }
-    const saved = await this.movieRepository.save(movie);
+
+    const duplicateByProviderIdentity = await this.movieRepository
+      .createQueryBuilder('m')
+      .where('m.providerId = :pid', { pid: movie.providerId })
+      .andWhere('m.providerTitleId = :ptid', {
+        ptid: movie.providerTitleId,
+      })
+      .andWhere('m.contentType = :ct', { ct: movie.contentType })
+      .andWhere('m.id != :id', { id: movie.id })
+      .getOne();
+    if (duplicateByProviderIdentity) {
+      throw new BadRequestException(
+        'Duplicate provider identity for this content type',
+      );
+    }
+
+    const contentType = movie.contentType;
+    const mediaKeys = movie.mediaKeys as any;
+    const hasMainMedia = !!(
+      mediaKeys &&
+      typeof mediaKeys.main === 'string' &&
+      mediaKeys.main.trim().length > 0
+    );
+    if (contentType === MovieContentType.SERIES) {
+      if (movie.seriesId) {
+        throw new BadRequestException('Series cannot have seriesId');
+      }
+      if (hasMainMedia) {
+        throw new BadRequestException('Series cannot have main media');
+      }
+    } else if (contentType === MovieContentType.EPISODE) {
+      if (!movie.seriesId) {
+        throw new BadRequestException('Episode must have seriesId');
+      }
+      if (movie.seriesId === movie.id) {
+        throw new BadRequestException(
+          'Episode cannot reference itself as parent',
+        );
+      }
+      const parentSeries = await this.movieRepository.findOne({
+        where: { id: movie.seriesId },
+      });
+      if (!parentSeries) {
+        throw new BadRequestException('Episode parent series not found');
+      }
+      if (parentSeries.contentType !== MovieContentType.SERIES) {
+        throw new BadRequestException('Episode parent must be a series');
+      }
+      if (parentSeries.providerId !== movie.providerId) {
+        throw new BadRequestException(
+          'Episode providerId must match parent series providerId',
+        );
+      }
+      if (!hasMainMedia) {
+        throw new BadRequestException('Episode must have main media');
+      }
+      if (
+        typeof movie.seasonNumber !== 'undefined' &&
+        movie.seasonNumber !== null &&
+        movie.seasonNumber < 1
+      ) {
+        throw new BadRequestException('seasonNumber must be >= 1 for episodes');
+      }
+      if (
+        typeof movie.episodeNumber !== 'undefined' &&
+        movie.episodeNumber !== null &&
+        movie.episodeNumber < 1
+      ) {
+        throw new BadRequestException(
+          'episodeNumber must be >= 1 for episodes',
+        );
+      }
+      if (
+        movie.seasonNumber !== null &&
+        typeof movie.seasonNumber !== 'undefined' &&
+        movie.episodeNumber !== null &&
+        typeof movie.episodeNumber !== 'undefined'
+      ) {
+        const conflict = await this.movieRepository
+          .createQueryBuilder('m')
+          .where('m.seriesId = :sid', { sid: movie.seriesId })
+          .andWhere('m.seasonNumber = :season', { season: movie.seasonNumber })
+          .andWhere('m.episodeNumber = :episode', {
+            episode: movie.episodeNumber,
+          })
+          .andWhere('m.id != :id', { id: movie.id })
+          .getOne();
+        if (conflict) {
+          throw new BadRequestException(
+            'Another episode with the same seasonNumber and episodeNumber exists in this series',
+          );
+        }
+      }
+    } else if (contentType === MovieContentType.FILM) {
+      if (movie.seriesId) {
+        throw new BadRequestException('Film cannot have seriesId');
+      }
+      if (!hasMainMedia) {
+        throw new BadRequestException('Film must have main media');
+      }
+    }
+
+    let savedMovie = await this.movieRepository.save(movie);
+    if (Object.prototype.hasOwnProperty.call(update, 'isPremium')) {
+      if (savedMovie.contentType === MovieContentType.SERIES) {
+        await this.movieRepository
+          .createQueryBuilder()
+          .update(Movie)
+          .set({ isPremium: savedMovie.isPremium })
+          .where('seriesId = :sid', { sid: savedMovie.id })
+          .execute();
+      } else if (
+        savedMovie.contentType === MovieContentType.EPISODE &&
+        savedMovie.seriesId
+      ) {
+        const parentSeries = await this.movieRepository.findOne({
+          where: { id: savedMovie.seriesId },
+        });
+        if (parentSeries) {
+          savedMovie.isPremium = parentSeries.isPremium;
+          savedMovie = await this.movieRepository.save(savedMovie);
+        }
+      }
+    }
     // Return full entity for admin update (including providerId and mediaKeys)
-    return saved as any;
+    return savedMovie as any;
   }
 
   async adminDelete(id: string) {
     const result = await this.movieRepository.delete({ id });
     return result.affected ?? 0;
+  }
+
+  async getSeriesList(query: PaginateQuery, profileId: string) {
+    const queryBuilder = this.movieRepository
+      .createQueryBuilder('movie')
+      .where('movie.contentType = :ct', { ct: MovieContentType.SERIES });
+    queryBuilder.select([
+      'movie.id',
+      'movie.title',
+      'movie.providerTitleId',
+      'movie.programType',
+      'movie.contentType',
+      'movie.synopsis',
+      'movie.productionYear',
+      'movie.marketRating',
+      'movie.isHD',
+      'movie.director',
+      'movie.cast',
+      'movie.genres',
+      'movie.languages',
+      'movie.duration',
+      'movie.images',
+      'movie.dateCreated',
+      'movie.isPremium',
+    ]);
+    const paginateConfig: PaginateConfig<Movie> = {
+      sortableColumns: ['dateCreated', 'productionYear'],
+      defaultSortBy: [['dateCreated', 'DESC']],
+      searchableColumns: [
+        'title',
+        'director',
+        'synopsis',
+        'genres',
+        'languages',
+      ],
+      defaultLimit: 10,
+    };
+    const result = await paginate(query, queryBuilder, paginateConfig);
+    const enriched = await this.enrichMoviesWithMyListDataBatch(
+      result.data,
+      profileId,
+    );
+    return { ...result, data: enriched };
+  }
+
+  async getEpisodesBySeries(
+    seriesId: string,
+    query: PaginateQuery,
+    profileId: string,
+  ) {
+    const series = await this.movieRepository.findOne({
+      where: { id: seriesId },
+    });
+    if (!series || series.contentType !== MovieContentType.SERIES) {
+      throw new NotFoundException('Series not found');
+    }
+    const queryBuilder = this.movieRepository
+      .createQueryBuilder('movie')
+      .where('movie.seriesId = :sid', { sid: seriesId });
+    queryBuilder.select([
+      'movie.id',
+      'movie.title',
+      'movie.providerTitleId',
+      'movie.programType',
+      'movie.contentType',
+      'movie.synopsis',
+      'movie.productionYear',
+      'movie.marketRating',
+      'movie.isHD',
+      'movie.director',
+      'movie.cast',
+      'movie.genres',
+      'movie.languages',
+      'movie.duration',
+      'movie.images',
+      'movie.dateCreated',
+      'movie.isPremium',
+      'movie.mediaKeys',
+      'movie.seasonNumber',
+      'movie.episodeNumber',
+    ]);
+    queryBuilder
+      .orderBy('COALESCE(movie.seasonNumber, 0)', 'ASC')
+      .addOrderBy('COALESCE(movie.episodeNumber, 0)', 'ASC')
+      .addOrderBy('movie.dateCreated', 'ASC');
+    const paginateConfig: PaginateConfig<Movie> = {
+      sortableColumns: ['seasonNumber', 'episodeNumber', 'dateCreated'],
+      defaultSortBy: [
+        ['seasonNumber', 'ASC'],
+        ['episodeNumber', 'ASC'],
+      ],
+      defaultLimit: 10,
+    };
+    const result = await paginate(query, queryBuilder, paginateConfig);
+    const enriched = await this.enrichMoviesWithMyListDataBatch(
+      result.data,
+      profileId,
+    );
+    return { ...result, data: enriched };
+  }
+
+  async getSeriesDetail(seriesId: string, profileId: string) {
+    const series = await this.movieRepository.findOne({
+      where: { id: seriesId },
+    });
+    if (!series || series.contentType !== MovieContentType.SERIES) {
+      throw new NotFoundException('Series not found');
+    }
+    const episodes = await this.movieRepository
+      .createQueryBuilder('movie')
+      .where('movie.seriesId = :sid', { sid: seriesId })
+      .select([
+        'movie.id',
+        'movie.title',
+        'movie.providerTitleId',
+        'movie.programType',
+        'movie.contentType',
+        'movie.synopsis',
+        'movie.productionYear',
+        'movie.marketRating',
+        'movie.isHD',
+        'movie.director',
+        'movie.cast',
+        'movie.genres',
+        'movie.languages',
+        'movie.duration',
+        'movie.images',
+        'movie.dateCreated',
+        'movie.isPremium',
+        'movie.mediaKeys',
+        'movie.seasonNumber',
+        'movie.episodeNumber',
+      ])
+      .orderBy('COALESCE(movie.seasonNumber, 0)', 'ASC')
+      .addOrderBy('COALESCE(movie.episodeNumber, 0)', 'ASC')
+      .addOrderBy('movie.dateCreated', 'ASC')
+      .getMany();
+    const enrichedEpisodes = await this.enrichMoviesWithMyListDataBatch(
+      episodes,
+      profileId,
+    );
+    const { providerId, ...seriesData } = series as any;
+    return { series: seriesData, episodes: enrichedEpisodes };
   }
 }

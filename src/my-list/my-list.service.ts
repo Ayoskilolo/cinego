@@ -1,32 +1,44 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { MyListEntity } from './entities/my-list.entity';
+import { Movie } from '../movie/entities/movie.entity';
+import { MovieContentType } from '../movie/enums/movie-content-type.enum';
 
 @Injectable()
 export class MyListService {
   constructor(
     @InjectRepository(MyListEntity)
     private readonly myListRepository: Repository<MyListEntity>,
+    @InjectRepository(Movie)
+    private readonly movieRepository: Repository<Movie>,
   ) {}
 
   async addToMyList(profileId: string, movieId: string) {
+    const movie = await this.movieRepository.findOne({ where: { id: movieId } });
+    if (!movie) {
+      throw new NotFoundException(`Movie with ID "${movieId}" not found`);
+    }
+    let targetMovieId = movieId;
+    if (movie.contentType === MovieContentType.EPISODE) {
+      if (!movie.seriesId) {
+        throw new BadRequestException('Episode is missing seriesId');
+      }
+      targetMovieId = movie.seriesId;
+    }
     const existingItem = await this.myListRepository.findOne({
       where: {
         profile: { id: profileId },
-        movie: { id: movieId },
+        movie: { id: targetMovieId },
       },
     });
-
     if (existingItem) {
       return existingItem;
     }
-
     const myListItem = this.myListRepository.create({
       profile: { id: profileId },
-      movie: { id: movieId },
+      movie: { id: targetMovieId },
     });
-
     return await this.myListRepository.save(myListItem);
   }
 

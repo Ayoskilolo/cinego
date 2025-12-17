@@ -8,6 +8,7 @@ import { Comment } from '../comment/entities/comment.entity';
 import { MyListEntity } from '../my-list/entities/my-list.entity';
 import { Profile } from './entities/profile.entity';
 import { Movie } from '../movie/entities/movie.entity';
+import { MovieContentType } from '../movie/enums/movie-content-type.enum';
 import { faker } from '@faker-js/faker';
 
 export enum DataDensity {
@@ -285,7 +286,8 @@ export class UserInteractionsSeeder implements Seeder {
         if (isCompleted) {
           // Review probability based on data density
           if (
-            faker.datatype.boolean({ probability: config.reviewProbability })
+            faker.datatype.boolean({ probability: config.reviewProbability }) &&
+            movie.contentType !== MovieContentType.EPISODE
           ) {
             const rating = faker.helpers.weightedArrayElement([
               { value: 1, weight: 5 },
@@ -324,13 +326,23 @@ export class UserInteractionsSeeder implements Seeder {
 
         // MyList probability based on data density
         if (faker.datatype.boolean({ probability: config.myListProbability })) {
-          const myListItem: Partial<MyListEntity> = {
-            profileId: profile.id,
-            movieId: movie.id,
-          };
-
-          const myListEntity = this.myListRepository.create(myListItem);
-          await this.myListRepository.save(myListEntity);
+          const targetId =
+            movie.contentType === MovieContentType.EPISODE && movie.seriesId
+              ? movie.seriesId
+              : movie.id;
+          try {
+            const exists = await this.myListRepository.findOne({
+              where: { profileId: profile.id, movieId: targetId },
+            });
+            if (!exists) {
+              const myListItem: Partial<MyListEntity> = {
+                profileId: profile.id,
+                movieId: targetId,
+              };
+              const myListEntity = this.myListRepository.create(myListItem);
+              await this.myListRepository.save(myListEntity);
+            }
+          } catch {}
         }
       } catch (error) {
         this.logger.error(
@@ -356,13 +368,21 @@ export class UserInteractionsSeeder implements Seeder {
 
       for (const movie of moviesForFutureWatching) {
         try {
-          const myListItem: Partial<MyListEntity> = {
-            profileId: profile.id,
-            movieId: movie.id,
-          };
-
-          const myListEntity = this.myListRepository.create(myListItem);
-          await this.myListRepository.save(myListEntity);
+          const targetId =
+            movie.contentType === MovieContentType.EPISODE && movie.seriesId
+              ? movie.seriesId
+              : movie.id;
+          const exists = await this.myListRepository.findOne({
+            where: { profileId: profile.id, movieId: targetId },
+          });
+          if (!exists) {
+            const myListItem: Partial<MyListEntity> = {
+              profileId: profile.id,
+              movieId: targetId,
+            };
+            const myListEntity = this.myListRepository.create(myListItem);
+            await this.myListRepository.save(myListEntity);
+          }
         } catch (error) {
           this.logger.error(
             `Unable to seed my-list entry for profile ${profile.profileName} and movie ${movie.title}`,

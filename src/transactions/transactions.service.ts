@@ -761,6 +761,7 @@ export class TransactionsService {
       );
     }
 
+
     // 1. Ensure user exists (optional but recommended)
     try {
       await this.userService.findOne(userId); // Assuming findOne exists

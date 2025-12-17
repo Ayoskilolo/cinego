@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Seeder } from 'nestjs-seeder';
 import { Repository } from 'typeorm';
 import { Movie } from './entities/movie.entity';
+import { MovieContentType } from './enums/movie-content-type.enum';
 import { ProvidersEntity } from '../providers/entities/providers.entity';
 import { faker } from '@faker-js/faker';
 
@@ -136,10 +137,10 @@ export class MovieSeeder implements Seeder {
       'Mini-Series',
     ];
 
-    // Generate and save movies
-    const numberOfMovies = 50; // Generate 50 movies
+    // Generate and save films
+    const numberOfFilms = 40;
 
-    for (let i = 0; i < numberOfMovies; i++) {
+    for (let i = 0; i < numberOfFilms; i++) {
       const title = faker.helpers.arrayElement(movieTitles);
       const year = faker.number.int({ min: 1990, max: 2024 }).toString();
       const duration = `${faker.number.int({ min: 80, max: 180 })} min`;
@@ -184,6 +185,7 @@ export class MovieSeeder implements Seeder {
           posterLandscape: `https://picsum.photos/800/450?random=${i + 1000}`,
           thumbnail: `https://picsum.photos/200/150?random=${i + 2000}`,
         },
+        contentType: MovieContentType.FILM,
         mediaKeys: this._generateTestMediaKeys(
           selectedProvider.slug,
           providerTitleId,
@@ -199,7 +201,110 @@ export class MovieSeeder implements Seeder {
       }
     }
 
-    this.logger.log(`Successfully seeded ${numberOfMovies} movies`);
+    this.logger.log(`Successfully seeded ${numberOfFilms} films`);
+
+    // Generate and save series with episodes
+    const numberOfSeries = 10;
+    for (let s = 0; s < numberOfSeries; s++) {
+      const seriesTitle = `${faker.word.noun()} ${faker.word.adjective()} Series`.replace(
+        /\b\w/g,
+        (c) => c.toUpperCase(),
+      );
+      const year = faker.number.int({ min: 1995, max: 2024 }).toString();
+      const selectedProvider = faker.helpers.arrayElement(validProviders);
+      const seriesProviderTitleId = faker.string.uuid();
+
+      const seriesEntity = this.movieRepository.create({
+        title: seriesTitle,
+        providerId: selectedProvider.id,
+        providerTitleId: seriesProviderTitleId,
+        programType: 'TV Show',
+        synopsis: faker.lorem.paragraph(3),
+        productionYear: year,
+        marketRating: faker.helpers.arrayElement(marketRatings),
+        isHD: true,
+        director: faker.person.fullName(),
+        cast: Array.from({ length: faker.number.int({ min: 3, max: 8 }) }, () =>
+          faker.person.fullName(),
+        ),
+        genres: faker.helpers.arrayElements(genres, faker.number.int({ min: 1, max: 3 })),
+        languages: faker.helpers.arrayElements(languages, faker.number.int({ min: 1, max: 2 })),
+        duration: `${faker.number.int({ min: 20, max: 60 })} min`,
+        isPremium: faker.datatype.boolean(),
+        images: {
+          poster: `https://picsum.photos/300/450?random=${10000 + s}`,
+          posterLandscape: `https://picsum.photos/800/450?random=${20000 + s}`,
+          thumbnail: `https://picsum.photos/200/150?random=${30000 + s}`,
+        },
+        contentType: MovieContentType.SERIES,
+        mediaKeys: {
+          trailer: this._generateTestMediaKeys(
+            selectedProvider.slug,
+            seriesProviderTitleId,
+          ).trailer,
+        },
+      });
+
+      let savedSeries: Movie;
+      try {
+        savedSeries = await this.movieRepository.save(seriesEntity);
+        this.logger.log(`Seeded series: ${seriesTitle}`);
+      } catch (error) {
+        this.logger.error(`Unable to seed series ${seriesTitle}`, error);
+        continue;
+      }
+
+      const seasons = faker.number.int({ min: 1, max: 3 });
+      for (let season = 1; season <= seasons; season++) {
+        const episodesInSeason = faker.number.int({ min: 4, max: 8 });
+        for (let ep = 1; ep <= episodesInSeason; ep++) {
+          const episodeProviderTitleId = faker.string.uuid();
+          const episodeDuration = `${faker.number.int({ min: 20, max: 60 })} min`;
+          const episodeEntity = this.movieRepository.create({
+            title: `${seriesTitle} S${season}E${ep}`,
+            providerId: selectedProvider.id,
+            providerTitleId: episodeProviderTitleId,
+            programType: 'TV Episode',
+            synopsis: faker.lorem.paragraph(2),
+            productionYear: year,
+            marketRating: faker.helpers.arrayElement(marketRatings),
+            isHD: true,
+            director: faker.person.fullName(),
+            cast: Array.from({ length: faker.number.int({ min: 3, max: 8 }) }, () =>
+              faker.person.fullName(),
+            ),
+            genres: faker.helpers.arrayElements(genres, faker.number.int({ min: 1, max: 3 })),
+            languages: faker.helpers.arrayElements(languages, faker.number.int({ min: 1, max: 2 })),
+            duration: episodeDuration,
+            isPremium: savedSeries.isPremium,
+            images: {
+              poster: `https://picsum.photos/300/450?random=${40000 + s * 100 + season * 10 + ep}`,
+              posterLandscape: `https://picsum.photos/800/450?random=${50000 + s * 100 + season * 10 + ep}`,
+              thumbnail: `https://picsum.photos/200/150?random=${60000 + s * 100 + season * 10 + ep}`,
+            },
+            contentType: MovieContentType.EPISODE,
+            seriesId: savedSeries.id,
+            seasonNumber: season,
+            episodeNumber: ep,
+            mediaKeys: this._generateTestMediaKeys(
+              selectedProvider.slug,
+              episodeProviderTitleId,
+            ),
+          });
+          try {
+            await this.movieRepository.save(episodeEntity);
+            this.logger.log(`Seeded episode: ${seriesTitle} S${season}E${ep}`);
+          } catch (error) {
+            this.logger.error(
+              `Unable to seed episode ${seriesTitle} S${season}E${ep}`,
+              error,
+            );
+          }
+        }
+      }
+    }
+
+    this.logger.log(`Successfully seeded ${numberOfSeries} series with episodes`);
   }
 
   /**
