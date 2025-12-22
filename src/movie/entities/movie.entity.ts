@@ -119,4 +119,5 @@ export class Movie extends BaseEntity {
   episodeNumber?: number | null;
 
   isInMyList?: boolean;
+  myListCount?: number;
 }

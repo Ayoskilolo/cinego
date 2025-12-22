@@ -607,6 +607,9 @@ export class RecommendationService {
           .andWhere('movie.genres && ARRAY[:...genres]', {
             genres: sourceMovie.genres,
           })
+          .andWhere('movie.contentType != :episode', {
+            episode: MovieContentType.EPISODE,
+          })
           .orderBy('RANDOM()')
           .limit(topN)
           .getMany();
@@ -624,6 +627,9 @@ export class RecommendationService {
       const fallbackMovies = await this.movieRepository
         .createQueryBuilder('movie')
         .where('movie.id != :movieId', { movieId })
+        .andWhere('movie.contentType != :episode', {
+          episode: MovieContentType.EPISODE,
+        })
         .orderBy('RANDOM()')
         .limit(topN)
         .getMany();
@@ -651,6 +657,9 @@ export class RecommendationService {
           .andWhere('movie.id NOT IN (:...existingIds)', {
             existingIds: similarMovies.map((s) => s.similarMovieId),
           })
+          .andWhere('movie.contentType != :episode', {
+            episode: MovieContentType.EPISODE,
+          })
           .orderBy('RANDOM()')
           .limit(topN - similarMovies.length)
           .getMany();
@@ -673,11 +682,14 @@ export class RecommendationService {
       }
     }
 
-    const relatedMovies = await this.movieRepository.find({
+    const relatedMoviesRaw = await this.movieRepository.find({
       where: {
         id: In(similarMovies.map((similarity) => similarity.similarMovieId)),
       },
     });
+    const relatedMovies = relatedMoviesRaw.filter(
+      (m) => m.contentType !== MovieContentType.EPISODE,
+    );
 
     // Enrich movies with MyList data to match the format of other movie endpoints
     return {
@@ -693,7 +705,7 @@ export class RecommendationService {
   private async enrichMoviesWithMyListData(
     movies: Movie[],
     profileId: string | null,
-  ) {
+  ): Promise<Movie[]> {
     if (movies.length === 0) return movies;
 
     const movieIds = movies.map((movie) => movie.id);
@@ -704,12 +716,59 @@ export class RecommendationService {
       profileId ? this.getUserMyListChecksBatch(profileId, movieIds) : {},
     ]);
 
-    // Enrich each movie with the batch data
-    return movies.map((movie) => ({
-      ...movie,
-      myListCount: counts[movie.id] || 0,
-      isInMyList: profileId ? userChecks[movie.id] || false : undefined,
-    }));
+    // Populate episodes for any series present in the batch (empty for others)
+    let episodesBySeriesId: Record<string, Movie[]> = {};
+    if (movieIds.length) {
+      const episodeRows = await this.movieRepository
+        .createQueryBuilder('m')
+        .where('m.seriesId IN (:...seriesIds)', { seriesIds: movieIds })
+        .select([
+          'm.id',
+          'm.title',
+          'm.providerTitleId',
+          'm.programType',
+          'm.contentType',
+          'm.synopsis',
+          'm.productionYear',
+          'm.marketRating',
+          'm.isHD',
+          'm.director',
+          'm.cast',
+          'm.genres',
+          'm.languages',
+          'm.duration',
+          'm.images',
+          'm.dateCreated',
+          'm.isPremium',
+          'm.seasonNumber',
+          'm.episodeNumber',
+          'm.seriesId',
+        ])
+        .orderBy('COALESCE(m.seasonNumber, 0)', 'ASC')
+        .addOrderBy('COALESCE(m.episodeNumber, 0)', 'ASC')
+        .addOrderBy('m.dateCreated', 'ASC')
+        .getMany();
+
+      episodesBySeriesId = episodeRows.reduce(
+        (acc, ep) => {
+          const sid = (ep as any).seriesId as string;
+          if (!sid) return acc;
+          (acc[sid] = acc[sid] || []).push(ep);
+          return acc;
+        },
+        {} as Record<string, Movie[]>,
+      );
+    }
+
+    // Enrich each movie with the batch data (mutate into Movie shape)
+    return movies.map((movie) => {
+      const enriched = Object.assign(movie, {
+        episodes: episodesBySeriesId[movie.id] || [],
+        myListCount: counts[movie.id] || 0,
+        isInMyList: profileId ? userChecks[movie.id] || false : undefined,
+      });
+      return enriched as Movie;
+    });
   }
 
   /**

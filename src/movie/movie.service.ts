@@ -247,17 +247,60 @@ export class MovieService {
       profileId ? this.getUserMyListChecksBatch(profileId, movieIds) : {},
     ]);
 
+    // Populate episodes for any series present in the batch (empty for others)
+    let episodesBySeriesId: Record<string, Movie[]> = {};
+    if (movieIds.length) {
+      const episodeRows = await this.movieRepository
+        .createQueryBuilder('m')
+        .where('m.seriesId IN (:...seriesIds)', { seriesIds: movieIds })
+        .select([
+          'm.id',
+          'm.title',
+          'm.providerTitleId',
+          'm.programType',
+          'm.contentType',
+          'm.synopsis',
+          'm.productionYear',
+          'm.marketRating',
+          'm.isHD',
+          'm.director',
+          'm.cast',
+          'm.genres',
+          'm.languages',
+          'm.duration',
+          'm.images',
+          'm.dateCreated',
+          'm.isPremium',
+          'm.seasonNumber',
+          'm.episodeNumber',
+          'm.seriesId',
+        ])
+        .orderBy('COALESCE(m.seasonNumber, 0)', 'ASC')
+        .addOrderBy('COALESCE(m.episodeNumber, 0)', 'ASC')
+        .addOrderBy('m.dateCreated', 'ASC')
+        .getMany();
+
+      episodesBySeriesId = episodeRows.reduce(
+        (acc, ep) => {
+          const sid = (ep as any).seriesId as string;
+          if (!sid) return acc;
+          (acc[sid] = acc[sid] || []).push(ep);
+          return acc;
+        },
+        {} as Record<string, Movie[]>,
+      );
+    }
+
     // Enrich each movie with the batch data
     const enrichedMovies = await Promise.all(
       movies.map(async (movie) => {
-        // Do not generate or include mediaUrls anymore; using CloudFront cookies
         const { providerId, ...movieData } = movie as any;
-
-        return {
-          ...movieData, // keep mediaKeys in public responses
+        Object.assign(movieData, {
+          episodes: episodesBySeriesId[movie.id] || [],
           myListCount: counts[movie.id] || 0,
           isInMyList: profileId ? userChecks[movie.id] || false : undefined,
-        };
+        });
+        return movieData as Movie;
       }),
     );
 
@@ -450,27 +493,35 @@ export class MovieService {
         languages: true,
         // isPremium is NOT filterable by user query params, enforced server-side
       },
-      select: [
-        'id',
-        'title',
-        'providerTitleId',
-        'programType',
-        'synopsis',
-        'productionYear',
-        'marketRating',
-        'isHD',
-        'director',
-        'cast',
-        'genres',
-        'languages',
-        'duration',
-        'images',
-        'dateCreated',
-        'isPremium', // Ensure isPremium is selected
-      ],
     };
 
-    const result = await paginate(query, this.movieRepository, paginateConfig);
+    const queryBuilder = this.movieRepository
+      .createQueryBuilder('movie')
+      .where('movie.contentType != :episode', {
+        episode: MovieContentType.EPISODE,
+      });
+
+    queryBuilder.select([
+      'movie.id',
+      'movie.title',
+      'movie.providerTitleId',
+      'movie.programType',
+      'movie.contentType',
+      'movie.synopsis',
+      'movie.productionYear',
+      'movie.marketRating',
+      'movie.isHD',
+      'movie.director',
+      'movie.cast',
+      'movie.genres',
+      'movie.languages',
+      'movie.duration',
+      'movie.images',
+      'movie.dateCreated',
+      'movie.isPremium',
+    ]);
+
+    const result = await paginate(query, queryBuilder, paginateConfig);
 
     // Enrich movies with MyList data using batch optimization
     const enrichedMovies = await this.enrichMoviesWithMyListDataBatch(
@@ -532,7 +583,10 @@ export class MovieService {
 
     const queryBuilder = this.movieRepository
       .createQueryBuilder('movie')
-      .where(':genre = ANY(movie.genres)', { genre: genre.toLowerCase() });
+      .where(':genre = ANY(movie.genres)', { genre: genre.toLowerCase() })
+      .andWhere('movie.contentType != :episode', {
+        episode: MovieContentType.EPISODE,
+      });
 
     // Select specific fields to avoid exposing sensitive ones like mediaKeys by default
     queryBuilder.select([
@@ -540,6 +594,7 @@ export class MovieService {
       'movie.title',
       'movie.providerTitleId',
       'movie.programType',
+      'movie.contentType',
       'movie.synopsis',
       'movie.productionYear',
       'movie.marketRating',
@@ -675,6 +730,7 @@ export class MovieService {
         'providerId',
         'providerTitleId',
         'programType',
+        'contentType',
         'synopsis',
         'productionYear',
         'marketRating',

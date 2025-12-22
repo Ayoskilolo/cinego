@@ -133,6 +133,37 @@ function buildEpisodeData(
   };
 }
 
+function buildFilmData(
+  provider: ProvidersEntity,
+  overrides: DeepPartial<Movie> = {},
+): DeepPartial<Movie> {
+  const unique = Date.now().toString();
+  return {
+    title: `E2E Film ${unique}`,
+    providerId: provider.id,
+    providerTitleId: `prov-film-${unique}`,
+    programType: 'Movie',
+    synopsis: 'E2E film synopsis',
+    productionYear: '2024',
+    marketRating: 'PG-13',
+    isHD: true,
+    director: 'E2E Director',
+    cast: ['Actor A', 'Actor B'],
+    genres: ['sci-fi', 'adventure'],
+    languages: ['English'],
+    duration: '120 min',
+    isPremium: false,
+    images: {
+      poster: 'https://example.com/film-poster.jpg',
+      posterLandscape: 'https://example.com/film-poster-land.jpg',
+      thumbnail: 'https://example.com/film-thumb.jpg',
+    },
+    contentType: MovieContentType.FILM,
+    mediaKeys: { main: 'film/main/variants/film_master.m3u8' },
+    ...overrides,
+  };
+}
+
 async function seedSeriesWithEpisodes(
   ds: DataSource,
   provider: ProvidersEntity,
@@ -296,5 +327,105 @@ describe('Movie Series Endpoints (e2e)', () => {
       expect(item.episodeNumber).toBeDefined();
       expect(item.mediaKeys?.main).toBeDefined();
     }
+  });
+
+  it('should return movies list with contentType and correct episodes by type', async () => {
+    const { accessToken } = await createAndLoginUserWithProfile(httpServer);
+    const provider = await ensureProvider(ds);
+    const { series, episodes } = await seedSeriesWithEpisodes(ds, provider, 3);
+
+    const filmRepo: Repository<Movie> = ds.getRepository(Movie);
+    const filmEntity = filmRepo.create(
+      buildFilmData(provider) as DeepPartial<Movie>,
+    ) as Movie;
+    const film = await filmRepo.save(filmEntity);
+
+    // Search for items by a shared genre to get both film and series in one page
+    const res = await request(httpServer)
+      .get('/movie')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .query({ limit: 10, page: 1, search: 'sci-fi' })
+      .expect(200);
+
+    const items: any[] = res.body?.data?.data ?? [];
+    expect(Array.isArray(items)).toBe(true);
+
+    const seriesItem = items.find((m) => m.id === series.id);
+    const filmItem = items.find((m) => m.id === film.id);
+
+    expect(seriesItem).toBeDefined();
+    expect(seriesItem.contentType).toBe('series');
+    expect(Array.isArray(seriesItem.episodes)).toBe(true);
+    expect(seriesItem.episodes.length).toBeGreaterThanOrEqual(episodes.length);
+    expect(seriesItem.episodes[0]?.contentType).toBe('episode');
+
+    expect(filmItem).toBeDefined();
+    expect(filmItem.contentType).toBe('film');
+    expect(Array.isArray(filmItem.episodes)).toBe(true);
+    expect(filmItem.episodes.length).toBe(0);
+
+    // Ensure top-level items never include episodes
+    expect(items.some((m) => m.contentType === 'episode')).toBe(false);
+
+    // Validate episode object returned by single movie endpoint has empty episodes and correct contentType
+    const episodeId = episodes[0].id;
+    const singleEpisodeRes = await request(httpServer)
+      .get(`/movie/${episodeId}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+    const singleEpisode = singleEpisodeRes.body?.data;
+    expect(singleEpisode?.contentType).toBe('episode');
+    expect(Array.isArray(singleEpisode?.episodes)).toBe(true);
+    expect(singleEpisode?.episodes?.length).toBe(0);
+  });
+
+  it('should return related movies without episode items; series attach episodes', async () => {
+    const { accessToken } = await createAndLoginUserWithProfile(httpServer);
+    const provider = await ensureProvider(ds);
+    const { series } = await seedSeriesWithEpisodes(ds, provider, 3);
+
+    const res = await request(httpServer)
+      .get(`/recommendation/movie/${series.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .query({ limit: 5 })
+      .expect(200);
+
+    const related: any[] = res.body?.data ?? res.body?.data?.data ?? [];
+    expect(Array.isArray(related)).toBe(true);
+
+    // No episode items at top level
+    expect(related.some((m) => m.contentType === 'episode')).toBe(false);
+    // Series still attach episodes
+    for (const m of related) {
+      if (m.contentType === 'series') {
+        expect(Array.isArray(m.episodes)).toBe(true);
+        expect(m.episodes.length).toBeGreaterThanOrEqual(1);
+      } else {
+        expect(Array.isArray(m.episodes)).toBe(true);
+        expect(m.episodes.length).toBe(0);
+      }
+    }
+  });
+
+  it('should exclude episodes from genre-based listing', async () => {
+    const { accessToken } = await createAndLoginUserWithProfile(httpServer);
+    const provider = await ensureProvider(ds);
+    const { series } = await seedSeriesWithEpisodes(ds, provider, 3);
+    const filmRepo: Repository<Movie> = ds.getRepository(Movie);
+    await filmRepo.save(
+      filmRepo.create(
+        buildFilmData(provider, { genres: ['sci-fi', 'adventure'] }),
+      ) as Movie,
+    );
+
+    const byGenre = await request(httpServer)
+      .get('/movie/genres/sci-fi')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    const genreItems: any[] =
+      byGenre.body?.data?.data ?? byGenre.body?.data ?? [];
+    expect(Array.isArray(genreItems)).toBe(true);
+    expect(genreItems.some((m) => m.contentType === 'episode')).toBe(false);
   });
 });
