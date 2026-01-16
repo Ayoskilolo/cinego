@@ -723,6 +723,7 @@ export class MovieService {
         languages: true,
         isPremium: true,
         providerId: true,
+        contentType: true,
       },
       select: [
         'id',
