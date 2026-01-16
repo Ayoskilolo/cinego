@@ -4,27 +4,32 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  ValidateIf,
 } from 'class-validator';
 
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LoginDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'user@example.com',
-    description: 'User email address (optional if phone number is provided)',
+    description: 'User email address (optional; required if phone number is not provided)',
     required: false,
   })
-  @IsEmail()
   @IsOptional()
+  @IsEmail()
+  @ValidateIf((o) => !o.phoneNumber)
+  @IsNotEmpty({ message: 'Email is required when phone number is not provided.' })
   email?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: '08012345678',
-    description: 'User phone number (optional if email is provided)',
+    description: 'User phone number (optional; required if email is not provided)',
     required: false,
   })
-  @IsMobilePhone('en-NG')
   @IsOptional()
+  @IsMobilePhone('en-NG')
+  @ValidateIf((o) => !o.email)
+  @IsNotEmpty({ message: 'Phone number is required when email is not provided.' })
   phoneNumber?: string;
 
   @ApiProperty({ example: 'P@$$wOrd', description: 'User password' })

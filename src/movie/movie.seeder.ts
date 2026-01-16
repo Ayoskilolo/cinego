@@ -43,6 +43,12 @@ export class MovieSeeder implements Seeder {
       return;
     }
 
+    const posterChoices = [
+      'https://res.cloudinary.com/djelopmav/image/upload/v1767772453/zootopia_two_ver5_uwezay.jpg',
+      'https://res.cloudinary.com/djelopmav/image/upload/v1767772911/five_nights_at_freddys_two_ver2_iwyw1a.jpg',
+      'https://res.cloudinary.com/djelopmav/image/upload/v1767772926/now_you_see_me_now_you_dont_yvwaer.jpg',
+    ];
+
     // Movie titles with realistic patterns
     const movieTitles = [
       'The Last Sunset',
@@ -165,6 +171,7 @@ export class MovieSeeder implements Seeder {
       const selectedProvider = faker.helpers.arrayElement(validProviders);
       const providerTitleId = faker.string.uuid();
 
+      const selectedImage = faker.helpers.arrayElement(posterChoices);
       const movie: Partial<Movie> = {
         title: title,
         providerId: selectedProvider.id,
@@ -181,9 +188,9 @@ export class MovieSeeder implements Seeder {
         duration: duration,
         isPremium: faker.datatype.boolean(),
         images: {
-          poster: `https://picsum.photos/300/450?random=${i}`,
-          posterLandscape: `https://picsum.photos/800/450?random=${i + 1000}`,
-          thumbnail: `https://picsum.photos/200/150?random=${i + 2000}`,
+          poster: selectedImage,
+          posterLandscape: selectedImage,
+          thumbnail: selectedImage,
         },
         contentType: MovieContentType.FILM,
         mediaKeys: this._generateTestMediaKeys(
@@ -206,14 +213,16 @@ export class MovieSeeder implements Seeder {
     // Generate and save series with episodes
     const numberOfSeries = 10;
     for (let s = 0; s < numberOfSeries; s++) {
-      const seriesTitle = `${faker.word.noun()} ${faker.word.adjective()} Series`.replace(
-        /\b\w/g,
-        (c) => c.toUpperCase(),
-      );
+      const seriesTitle =
+        `${faker.word.noun()} ${faker.word.adjective()} Series`.replace(
+          /\b\w/g,
+          (c) => c.toUpperCase(),
+        );
       const year = faker.number.int({ min: 1995, max: 2024 }).toString();
       const selectedProvider = faker.helpers.arrayElement(validProviders);
       const seriesProviderTitleId = faker.string.uuid();
 
+      const seriesSelectedImage = faker.helpers.arrayElement(posterChoices);
       const seriesEntity = this.movieRepository.create({
         title: seriesTitle,
         providerId: selectedProvider.id,
@@ -227,14 +236,20 @@ export class MovieSeeder implements Seeder {
         cast: Array.from({ length: faker.number.int({ min: 3, max: 8 }) }, () =>
           faker.person.fullName(),
         ),
-        genres: faker.helpers.arrayElements(genres, faker.number.int({ min: 1, max: 3 })),
-        languages: faker.helpers.arrayElements(languages, faker.number.int({ min: 1, max: 2 })),
+        genres: faker.helpers.arrayElements(
+          genres,
+          faker.number.int({ min: 1, max: 3 }),
+        ),
+        languages: faker.helpers.arrayElements(
+          languages,
+          faker.number.int({ min: 1, max: 2 }),
+        ),
         duration: `${faker.number.int({ min: 20, max: 60 })} min`,
         isPremium: faker.datatype.boolean(),
         images: {
-          poster: `https://picsum.photos/300/450?random=${10000 + s}`,
-          posterLandscape: `https://picsum.photos/800/450?random=${20000 + s}`,
-          thumbnail: `https://picsum.photos/200/150?random=${30000 + s}`,
+          poster: seriesSelectedImage,
+          posterLandscape: seriesSelectedImage,
+          thumbnail: seriesSelectedImage,
         },
         contentType: MovieContentType.SERIES,
         mediaKeys: {
@@ -260,6 +275,8 @@ export class MovieSeeder implements Seeder {
         for (let ep = 1; ep <= episodesInSeason; ep++) {
           const episodeProviderTitleId = faker.string.uuid();
           const episodeDuration = `${faker.number.int({ min: 20, max: 60 })} min`;
+          const episodeSelectedImage =
+            faker.helpers.arrayElement(posterChoices);
           const episodeEntity = this.movieRepository.create({
             title: `${seriesTitle} S${season}E${ep}`,
             providerId: selectedProvider.id,
@@ -270,17 +287,24 @@ export class MovieSeeder implements Seeder {
             marketRating: faker.helpers.arrayElement(marketRatings),
             isHD: true,
             director: faker.person.fullName(),
-            cast: Array.from({ length: faker.number.int({ min: 3, max: 8 }) }, () =>
-              faker.person.fullName(),
+            cast: Array.from(
+              { length: faker.number.int({ min: 3, max: 8 }) },
+              () => faker.person.fullName(),
             ),
-            genres: faker.helpers.arrayElements(genres, faker.number.int({ min: 1, max: 3 })),
-            languages: faker.helpers.arrayElements(languages, faker.number.int({ min: 1, max: 2 })),
+            genres: faker.helpers.arrayElements(
+              genres,
+              faker.number.int({ min: 1, max: 3 }),
+            ),
+            languages: faker.helpers.arrayElements(
+              languages,
+              faker.number.int({ min: 1, max: 2 }),
+            ),
             duration: episodeDuration,
             isPremium: savedSeries.isPremium,
             images: {
-              poster: `https://picsum.photos/300/450?random=${40000 + s * 100 + season * 10 + ep}`,
-              posterLandscape: `https://picsum.photos/800/450?random=${50000 + s * 100 + season * 10 + ep}`,
-              thumbnail: `https://picsum.photos/200/150?random=${60000 + s * 100 + season * 10 + ep}`,
+              poster: episodeSelectedImage,
+              posterLandscape: episodeSelectedImage,
+              thumbnail: episodeSelectedImage,
             },
             contentType: MovieContentType.EPISODE,
             seriesId: savedSeries.id,
@@ -304,7 +328,9 @@ export class MovieSeeder implements Seeder {
       }
     }
 
-    this.logger.log(`Successfully seeded ${numberOfSeries} series with episodes`);
+    this.logger.log(
+      `Successfully seeded ${numberOfSeries} series with episodes`,
+    );
   }
 
   /**
