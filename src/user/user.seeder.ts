@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Seeder } from 'nestjs-seeder';
 import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
 import { User } from './entities/user.entity';
 import { Profile } from './entities/profile.entity';
 import { faker } from '@faker-js/faker';
@@ -17,6 +18,7 @@ export class UserSeeder implements Seeder {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Profile)
     private readonly profileRepository: Repository<Profile>,
+    private readonly configService: ConfigService,
   ) {}
   private readonly logger = new Logger(UserSeeder.name);
 
@@ -24,9 +26,25 @@ export class UserSeeder implements Seeder {
     const existingUserCount = await this.userRepository.count();
     this.logger.log(`Found ${existingUserCount} existing users`);
 
+    // Get admin credentials from environment variables
+    const adminEmail = this.configService.get<string>('ADMIN_USER_EMAIL');
+    const adminPassword = this.configService.get<string>('ADMIN_USER_PASSWORD');
+
+    if (!adminEmail) {
+      throw new Error(
+        'ADMIN_USER_EMAIL environment variable is required but not set',
+      );
+    }
+
+    if (!adminPassword) {
+      throw new Error(
+        'ADMIN_USER_PASSWORD environment variable is required but not set',
+      );
+    }
+
     // Check if admin user already exists
     const existingAdmin = await this.userRepository.findOne({
-      where: { email: 'admin@cinego.com' },
+      where: { email: adminEmail },
     });
 
     if (existingAdmin) {
@@ -35,13 +53,12 @@ export class UserSeeder implements Seeder {
       // Create constant admin user
       try {
         // Hash the admin password
-        const adminPassword = 'admin123';
         const hashedPassword = await hash(adminPassword, 10);
 
         const adminUser: Partial<User> = {
           firstName: 'Admin',
           lastName: 'User',
-          email: 'admin@cinego.com',
+          email: adminEmail,
           password: hashedPassword,
           isEmailVerified: true,
           phoneNumber: '+1234567890',

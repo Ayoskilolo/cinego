@@ -14,6 +14,9 @@ import { WatchHistory } from './user/entities/watch-history.entity';
 import { MyListEntity } from './my-list/entities/my-list.entity';
 import { Comment } from './comment/entities/comment.entity';
 import { Review } from './review/entities/review.entity';
+import { Blog } from './blogs/entity/blog.entity';
+import { BlogComment } from './blogs/entity/blog-comment.entity';
+import { MovieNews } from './movie-news/entity/movie-news.entity';
 import { PaymentPartnerSeeder } from './payment/payment.method.seeder';
 import { ProvidersSeeder } from './providers/providers.seeder';
 import { MovieSeeder } from './movie/movie.seeder';
@@ -21,6 +24,8 @@ import { UserSeeder } from './user/user.seeder';
 import { SessionSeeder } from './auth/session.seeder';
 import { UserInteractionsSeeder } from './user/user-interactions.seeder';
 import { TransactionsSeeder } from './transactions/transactions.seeder';
+import { BlogSeeder } from './blogs/blogs.seeder';
+import { MovieNewsSeeder } from './movie-news/movie-news.seeder';
 
 seeder({
   imports: [
@@ -43,6 +48,9 @@ seeder({
       MyListEntity,
       Comment,
       Review,
+      Blog,
+      BlogComment,
+      MovieNews,
     ]),
   ],
 }).run(

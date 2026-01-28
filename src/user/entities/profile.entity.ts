@@ -15,6 +15,7 @@ import { MyListEntity } from '../../my-list/entities/my-list.entity';
 import { Comment } from '../../comment/entities/comment.entity';
 import { Review } from '../../review/entities/review.entity';
 import { SessionEntity } from 'src/auth/entities/session.entity';
+import { BlogComment } from '../../blogs/entity/blog-comment.entity';
 
 @Entity()
 @Unique(['userId', 'pin'])
@@ -64,6 +65,9 @@ export class Profile extends BaseEntity {
 
   @OneToMany(() => Review, (review) => review.profile)
   reviews: Review[];
+
+  @OneToMany(() => BlogComment, (blogComment) => blogComment.profile)
+  blogComments: BlogComment[];
 
   @OneToMany(() => SessionEntity, (session) => session.currentProfile)
   sessions: SessionEntity[];

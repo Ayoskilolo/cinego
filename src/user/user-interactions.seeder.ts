@@ -5,6 +5,8 @@ import { Repository, DeepPartial } from 'typeorm';
 import { WatchHistory } from './entities/watch-history.entity';
 import { Review } from '../review/entities/review.entity';
 import { Comment } from '../comment/entities/comment.entity';
+import { BlogComment } from '../blogs/entity/blog-comment.entity';
+import { Blog } from '../blogs/entity/blog.entity';
 import { MyListEntity } from '../my-list/entities/my-list.entity';
 import { Profile } from './entities/profile.entity';
 import { Movie } from '../movie/entities/movie.entity';
@@ -25,6 +27,10 @@ export class UserInteractionsSeeder implements Seeder {
     private readonly reviewRepository: Repository<Review>,
     @InjectRepository(Comment)
     private readonly commentRepository: Repository<Comment>,
+    @InjectRepository(BlogComment)
+    private readonly blogCommentRepository: Repository<BlogComment>,
+    @InjectRepository(Blog)
+    private readonly blogRepository: Repository<Blog>,
     @InjectRepository(MyListEntity)
     private readonly myListRepository: Repository<MyListEntity>,
     @InjectRepository(Profile)
@@ -48,24 +54,37 @@ export class UserInteractionsSeeder implements Seeder {
     const dataDensity =
       (process.env.DATA_DENSITY as DataDensity) || DataDensity.SPARSE;
 
-    const [hasWatchHistory, hasReviews, hasComments, hasMyList] =
-      await Promise.all([
-        this.hasAny(this.watchHistoryRepository),
-        this.hasAny(this.reviewRepository),
-        this.hasAny(this.commentRepository),
-        this.hasAny(this.myListRepository),
-      ]);
+    const [
+      hasWatchHistory,
+      hasReviews,
+      hasComments,
+      hasMyList,
+      hasBlogComments,
+    ] = await Promise.all([
+      this.hasAny(this.watchHistoryRepository),
+      this.hasAny(this.reviewRepository),
+      this.hasAny(this.commentRepository),
+      this.hasAny(this.myListRepository),
+      this.hasAny(this.blogCommentRepository),
+    ]);
 
-    if (hasWatchHistory || hasReviews || hasComments || hasMyList) {
+    if (
+      hasWatchHistory ||
+      hasReviews ||
+      hasComments ||
+      hasMyList ||
+      hasBlogComments
+    ) {
       this.logger.log('User interactions already seeded, skipping...');
       return;
     }
 
-    const [profiles, movies] = await Promise.all([
+    const [profiles, movies, blogs] = await Promise.all([
       this.profileRepository.find({ select: { id: true, profileName: true } }),
       this.movieRepository.find({
         select: { id: true, contentType: true, seriesId: true, genres: true },
       }),
+      this.blogRepository.find({ select: { id: true, title: true } }),
     ]);
 
     if (profiles.length === 0) {
@@ -78,8 +97,12 @@ export class UserInteractionsSeeder implements Seeder {
       return;
     }
 
+    if (blogs.length === 0) {
+      this.logger.warn('No blogs found. Skipping blog comment seeding.');
+    }
+
     this.logger.log(
-      `Found ${profiles.length} profiles and ${movies.length} movies. Using ${dataDensity} data density.`,
+      `Found ${profiles.length} profiles, ${movies.length} movies, and ${blogs.length} blogs. Using ${dataDensity} data density.`,
     );
 
     // Sample comment templates for realistic content
@@ -106,6 +129,25 @@ export class UserInteractionsSeeder implements Seeder {
       "I can't stop thinking about this movie. It really made an impact on me.",
     ];
 
+    // Blog comment templates for realistic content
+    const blogCommentTemplates = [
+      'Great article! Very informative and well-written.',
+      'Thanks for sharing this. I learned a lot from reading it.',
+      'I completely agree with your points. Well said!',
+      'This is exactly what I was looking for. Thank you!',
+      'Interesting perspective. I never thought about it this way.',
+      'Love the insights in this post. Keep up the great work!',
+      'Very helpful article. I will definitely share this with my friends.',
+      'The analysis in this piece is spot on. Excellent work!',
+      'I have a slightly different view, but I appreciate the well-researched content.',
+      'This blog post really opened my eyes to new ideas. Thanks for writing it!',
+      'Bookmarking this for future reference. Such valuable information.',
+      'The writing style is engaging and easy to follow. Great job!',
+      'I had no idea about this topic before reading. Very enlightening!',
+      'This is why I love reading this blog. Always quality content.',
+      "Couldn't agree more with the main points. Well articulated!",
+    ];
+
     // Configure data density parameters
     const config = this.getDataDensityConfig(dataDensity, movies.length);
 
@@ -126,6 +168,8 @@ export class UserInteractionsSeeder implements Seeder {
             popularMovies,
             config,
             commentTemplates,
+            blogs,
+            blogCommentTemplates,
           ),
         ),
       );
@@ -148,6 +192,9 @@ export class UserInteractionsSeeder implements Seeder {
           myListProbability: 0.6,
           futureWatchingMin: 2,
           futureWatchingMax: 8,
+          blogCommentProbability: 0.2,
+          blogsToCommentMin: 1,
+          blogsToCommentMax: 3,
         };
       case DataDensity.DENSE:
         return {
@@ -159,6 +206,9 @@ export class UserInteractionsSeeder implements Seeder {
           myListProbability: 0.9, // Higher my list rate
           futureWatchingMin: 8,
           futureWatchingMax: 20,
+          blogCommentProbability: 0.6,
+          blogsToCommentMin: 3,
+          blogsToCommentMax: 8,
         };
       default:
         // Default to sparse if density is not recognized
@@ -171,6 +221,9 @@ export class UserInteractionsSeeder implements Seeder {
           myListProbability: 0.6,
           futureWatchingMin: 2,
           futureWatchingMax: 8,
+          blogCommentProbability: 0.2,
+          blogsToCommentMin: 1,
+          blogsToCommentMax: 3,
         };
     }
   }
@@ -211,6 +264,8 @@ export class UserInteractionsSeeder implements Seeder {
     popularMovies: Movie[],
     config: any,
     commentTemplates: string[],
+    blogs: Blog[],
+    blogCommentTemplates: string[],
   ) {
     let moviesToWatch: Movie[];
 
@@ -265,55 +320,74 @@ export class UserInteractionsSeeder implements Seeder {
     const profileWatchedMovies = new Set<string>();
     const watchHistoryRows: DeepPartial<WatchHistory>[] = [];
     const reviewRows: DeepPartial<Review>[] = [];
+    const reviewedMovieIds = new Set<string>(); // Track reviewed movies to avoid duplicates
     const commentRows: DeepPartial<Comment>[] = [];
+    const blogCommentRows: DeepPartial<BlogComment>[] = [];
     const myListRows: DeepPartial<MyListEntity>[] = [];
     const myListKeySet = new Set<string>();
 
     for (const movie of moviesToWatch) {
-      const watchDurationInSeconds = faker.number.int({ min: 300, max: 7200 });
-      const watchProgress = faker.number.float({
-        min: 10,
-        max: 100,
-        fractionDigits: 1,
-      });
-      const isCompleted = watchProgress >= 90;
-      const lastWatchedAt = faker.date.recent({ days: 30 });
+      // Skip watch history for SERIES (only FILM and EPISODE are watchable)
+      if (movie.contentType !== MovieContentType.SERIES) {
+        const watchDurationInSeconds = faker.number.int({
+          min: 300,
+          max: 7200,
+        });
+        const watchProgress = faker.number.float({
+          min: 10,
+          max: 100,
+          fractionDigits: 1,
+        });
+        const isCompleted = watchProgress >= 90;
+        const lastWatchedAt = faker.date.recent({ days: 30 });
 
-      watchHistoryRows.push({
-        profileId: profile.id,
-        movieId: movie.id,
-        lastWatchedAt,
-        watchDurationInSeconds,
-        watchProgress,
-        isCompleted,
-      });
+        watchHistoryRows.push({
+          profileId: profile.id,
+          movieId: movie.id,
+          lastWatchedAt,
+          watchDurationInSeconds,
+          watchProgress,
+          isCompleted,
+        });
 
-      profileWatchedMovies.add(movie.id);
+        profileWatchedMovies.add(movie.id);
 
-      if (isCompleted) {
-        if (
-          faker.datatype.boolean({ probability: config.reviewProbability }) &&
-          movie.contentType !== MovieContentType.EPISODE
-        ) {
-          const rating = faker.helpers.weightedArrayElement([
-            { value: 1, weight: 5 },
-            { value: 2, weight: 10 },
-            { value: 3, weight: 25 },
-            { value: 4, weight: 40 },
-            { value: 5, weight: 20 },
-          ]);
-          reviewRows.push({ profileId: profile.id, movieId: movie.id, rating });
+        if (isCompleted) {
+          // Reviews can be on any content type (film, series, or episode)
+          if (
+            faker.datatype.boolean({ probability: config.reviewProbability })
+          ) {
+            // Only add review if we haven't already reviewed this movie/episode
+            if (!reviewedMovieIds.has(movie.id)) {
+              const rating = faker.helpers.weightedArrayElement([
+                { value: 1, weight: 5 },
+                { value: 2, weight: 10 },
+                { value: 3, weight: 25 },
+                { value: 4, weight: 40 },
+                { value: 5, weight: 20 },
+              ]);
+              reviewRows.push({
+                profileId: profile.id,
+                movieId: movie.id,
+                rating,
+              });
+              reviewedMovieIds.add(movie.id);
+            }
+          }
+          if (
+            faker.datatype.boolean({ probability: config.commentProbability })
+          ) {
+            const content = faker.helpers.arrayElement(commentTemplates);
+            commentRows.push({
+              profileId: profile.id,
+              movieId: movie.id,
+              content,
+            });
+          }
         }
-        if (
-          faker.datatype.boolean({ probability: config.commentProbability })
-        ) {
-          const content = faker.helpers.arrayElement(commentTemplates);
-          commentRows.push({
-            profileId: profile.id,
-            movieId: movie.id,
-            content,
-          });
-        }
+      } else {
+        // For SERIES, just track as "watched" for future watchlist logic
+        profileWatchedMovies.add(movie.id);
       }
 
       if (faker.datatype.boolean({ probability: config.myListProbability })) {
@@ -355,10 +429,35 @@ export class UserInteractionsSeeder implements Seeder {
       }
     }
 
+    // Generate blog comments
+    if (
+      blogs.length > 0 &&
+      faker.datatype.boolean({ probability: config.blogCommentProbability })
+    ) {
+      const numberOfBlogsToComment = faker.number.int({
+        min: config.blogsToCommentMin,
+        max: Math.min(config.blogsToCommentMax, blogs.length),
+      });
+      const blogsToComment = faker.helpers.arrayElements(
+        blogs,
+        numberOfBlogsToComment,
+      );
+
+      for (const blog of blogsToComment) {
+        const content = faker.helpers.arrayElement(blogCommentTemplates);
+        blogCommentRows.push({
+          profileId: profile.id,
+          blogId: blog.id,
+          content,
+        });
+      }
+    }
+
     await this.watchHistoryRepository.manager.transaction(async (em) => {
       const wh = em.getRepository(WatchHistory);
       const rv = em.getRepository(Review);
       const cm = em.getRepository(Comment);
+      const bc = em.getRepository(BlogComment);
       const ml = em.getRepository(MyListEntity);
 
       if (watchHistoryRows.length) {
@@ -389,6 +488,15 @@ export class UserInteractionsSeeder implements Seeder {
             .execute();
         }
       }
+      if (blogCommentRows.length) {
+        for (let i = 0; i < blogCommentRows.length; i += 500) {
+          await bc
+            .createQueryBuilder()
+            .insert()
+            .values(blogCommentRows.slice(i, i + 500))
+            .execute();
+        }
+      }
       if (myListRows.length) {
         for (let i = 0; i < myListRows.length; i += 500) {
           await ml
@@ -411,6 +519,7 @@ export class UserInteractionsSeeder implements Seeder {
       this.watchHistoryRepository.delete({}),
       this.reviewRepository.delete({}),
       this.commentRepository.delete({}),
+      this.blogCommentRepository.delete({}),
       this.myListRepository.delete({}),
     ]);
   }

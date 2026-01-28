@@ -56,6 +56,8 @@ async function bootstrap() {
     // Also allow calling from/to port 3000
     'http://localhost:3000',
     'https://localhost:3000',
+
+    'https://cinego-admin-frontend.onrender.com',
   ]
     .flatMap((s) => (s ? s.split(',') : []))
     .map((s) => s.trim())

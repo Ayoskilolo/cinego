@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm'
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm'
+import { BlogComment } from './blog-comment.entity'
 
 @Entity('blogs')
 export class Blog {
@@ -22,4 +23,7 @@ export class Blog {
 
   @UpdateDateColumn()
   updatedAt: Date
+
+  @OneToMany(() => BlogComment, (comment) => comment.blog)
+  comments: BlogComment[]
 }
