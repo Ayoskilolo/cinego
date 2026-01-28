@@ -11,7 +11,12 @@ import { ProvidersEntity } from './entities/providers.entity';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '@nestjs/config';
-import { PaginateQuery, paginate, PaginateConfig, FilterOperator } from 'nestjs-paginate';
+import {
+  PaginateQuery,
+  paginate,
+  PaginateConfig,
+  FilterOperator,
+} from 'nestjs-paginate';
 
 @Injectable()
 export class ProvidersService {
@@ -52,26 +57,29 @@ export class ProvidersService {
         });
 
         movies = this._extractAllritesMoviesMetadata(response).map((movie) => {
-          const s3Keys = this._getMovieS3Key(
-            movie.providerTitleId,
-            provider.slug,
-          );
+          // Placeholder assignment of media keys using test keys from seeder
+          // const s3Keys = this._getMovieS3Key(
+          //   movie.providerTitleId,
+          //   provider.slug,
+          // );
+          // this.logger.debug(
+          //   `Generated S3 keys for movie ${movie.providerTitleId}:`,
+          //   {
+          //     main: s3Keys.main,
+          //     trailer: s3Keys.trailer,
+          //   },
+          // );
 
+          const testKeys = this._getRandomTestMediaKeys();
           this.logger.debug(
-            `Generated S3 keys for movie ${movie.providerTitleId}:`,
-            {
-              main: s3Keys.main,
-              trailer: s3Keys.trailer,
-            },
+            `Assigned placeholder mediaKeys for movie ${movie.providerTitleId}:`,
+            testKeys,
           );
 
           return {
             ...movie,
             providerId: provider.id,
-            mediaKeys: {
-              main: s3Keys.main,
-              trailer: s3Keys.trailer,
-            },
+            mediaKeys: testKeys,
           };
         });
       } else {
@@ -242,10 +250,35 @@ export class ProvidersService {
     return this._getMovieS3Key(providerTitleId, providerSlug);
   }
 
+  // Placeholder test media keys (mirrors seeder test keys for temporary usage)
+  private _getRandomTestMediaKeys() {
+    const testContent = [
+      {
+        main: 'fast-6/trailer/variants/fast6_master.m3u8',
+        trailer: 'fast-6/trailer/variants/fast6_master.m3u8',
+      },
+      {
+        main: 'simpsons/trailer/variants/simpsons_master.m3u8',
+        trailer: 'simpsons/trailer/variants/simpsons_master.m3u8',
+      },
+      {
+        main: 'the-batman/trailer/variants/batman_master.m3u8',
+        trailer: 'the-batman/trailer/variants/batman_master.m3u8',
+      },
+    ];
+    return testContent[Math.floor(Math.random() * testContent.length)];
+  }
+
   // Admin-only helpers for Providers CRUD
   async adminFindAllPaginated(query: PaginateQuery) {
     const paginateConfig: PaginateConfig<ProvidersEntity> = {
-      sortableColumns: ['dateCreated', 'dateUpdated', 'name', 'slug', 'isActive'],
+      sortableColumns: [
+        'dateCreated',
+        'dateUpdated',
+        'name',
+        'slug',
+        'isActive',
+      ],
       defaultSortBy: [['dateCreated', 'DESC']],
       searchableColumns: ['name', 'slug'],
       defaultLimit: 10,
@@ -296,7 +329,12 @@ export class ProvidersService {
 
   async adminUpdate(
     id: string,
-    update: Partial<{ name: string; slug: string; baseUrl: string; isActive: boolean }>,
+    update: Partial<{
+      name: string;
+      slug: string;
+      baseUrl: string;
+      isActive: boolean;
+    }>,
   ) {
     const provider = await this.providersRepository.findOne({ where: { id } });
     if (!provider) {

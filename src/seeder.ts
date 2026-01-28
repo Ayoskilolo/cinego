@@ -69,17 +69,28 @@ seeder({
       sessions: SessionSeeder,
       transactions: TransactionsSeeder,
       user_interactions: UserInteractionsSeeder,
+      blogs: BlogSeeder,
+      movie_news: MovieNewsSeeder,
     };
 
     if (list.length === 0) {
-      // No default full run; require explicit SEED_ONLY entries
+      return Array.from(new Set(Object.values(registry)));
+    }
+
+    const unknown = list.filter((key) => !(key in registry));
+    if (unknown.length > 0) {
       console.log(
-        'No SEED_ONLY specified. Nothing to seed. Use SEED_ONLY=movies,providers,etc.',
+        'Unknown seeder keys:',
+        unknown.join(', '),
+        'Valid keys:',
+        Object.keys(registry).join(', '),
       );
       return [];
     }
 
-    const picked = list.map((key) => registry[key]).filter((s) => !!s);
+    const picked = Array.from(
+      new Set(list.map((key) => registry[key]).filter((s) => !!s)),
+    );
 
     if (picked.length === 0) {
       console.log(
