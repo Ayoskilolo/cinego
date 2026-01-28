@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Text Display App</title>
+    <style>
+      #container {
+        width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      #textDisplay {
+        width: 100%;
+        height: 800px;
+        border: 1px solid #b0b0b0;
+        margin-bottom: 20px;
+        overflow: auto;
+        text-align: left;
+        padding: 10px;
+        box-sizing: border-box;
+      }
+      #inputContainer {
+        display: flex;
+        align-items: center;
+      }
+      #textInput {
+        width: calc(100% - 100px);
+        padding: 5px;
+        margin-right: 10px;
+      }
+      #submitButton {
+        width: 90px;
+        padding: 5px;
+      }
+    </style>
+    <!-- <script src="./AgoraRTM-production.js"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/agora-rtm-sdk@2.2.3-1/agora-rtm.min.js"></script>
+  </head>
+  <body>
+    <script type="module">
+      const { RTM } = AgoraRTM;
+      let rtm;
+
+      // Fill in the App ID of your project.
+      const appId = 'd7a84ff10a2b408dbcf20c882df9fe00';
+      // Fill in your user ID.
+      const userId = Math.random().toString(36).slice(2, 10);
+      // Fill in your channel name.
+      const msChannelName = 'Chat_room';
+      const buttonClick = () => {
+        var input = document.getElementById('textInput');
+        publishMessage(input.value);
+        input.value = '';
+      };
+      window.buttonClick = buttonClick;
+      const setupRTM = async () => {
+        const inputEl = document.getElementById('textInput');
+        if (inputEl) {
+          inputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              buttonClick();
+            }
+          });
+        }
+        // Initialize the RTM client.
+        try {
+          rtm = new RTM(appId, userId);
+        } catch (status) {
+          console.log('Error');
+          console.log(status);
+        }
+        if (!rtm) {
+          console.error(
+            '[RTM] setupRTM: rtm is undefined; initialization failed',
+            { appId, userId },
+          );
+          return;
+        }
+        // Add the event listener.
+        // Message event handler.
+        rtm.addEventListener('message', (event) => {
+          if (event.publisher === userId) return;
+          showMessage(event.publisher, event.message);
+        });
+        // Presence event handler.
+        rtm.addEventListener('presence', (event) => {
+          if (event.eventType === 'SNAPSHOT') {
+            showMessage('INFO', 'I Join');
+          } else {
+            showMessage('INFO', event.publisher + ' is ' + event.eventType);
+          }
+        });
+        // Connection state changed event handler.
+        rtm.addEventListener('status', (event) => {
+          // The current connection state.
+          const currentState = event.state;
+          // The reason why the connection state changes.
+          const changeReason = event.reason;
+          showMessage('INFO', JSON.stringify(event));
+        });
+        // Log in the RTM server.
+        try {
+          let token;
+          try {
+            // const apiBase = `${window.location.protocol}//localhost:3000`;
+            const apiBase = `https://localhost:3000`;
+            const resp = await fetch(`${apiBase}/watch-party/rtm/token`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ uid: userId }),
+            });
+            const json = await resp.json();
+            token = json?.data?.token;
+            console.log('[RTM] Token fetched', { userId, ok: resp.ok });
+          } catch (e) {
+            console.error('[RTM] Token fetch failed', e);
+          }
+          if (!token) {
+            console.error('[RTM] setupRTM: token is undefined; aborting login');
+            return;
+          }
+          const result = await rtm.login({ token });
+          console.log(result);
+        } catch (status) {
+          console.log(status);
+        }
+        // Subscribe to a channel.
+        try {
+          const result = await rtm.subscribe(msChannelName);
+          console.log(result);
+        } catch (status) {
+          console.log(status);
+        }
+      };
+      const publishMessage = async (message) => {
+        if (!rtm) {
+          console.warn(
+            '[RTM] publishMessage: rtm is undefined; message not sent',
+            { message },
+          );
+          return;
+        }
+        const payload = { type: 'text', message: message };
+        const publishMessage = JSON.stringify(payload);
+        const publishOptions = { channelType: 'MESSAGE' };
+        try {
+          const result = await rtm.publish(
+            msChannelName,
+            publishMessage,
+            publishOptions,
+          );
+          showMessage(userId, publishMessage);
+          console.log(result);
+        } catch (status) {
+          console.log(status);
+        }
+      };
+      const showMessage = (user, msg) => {
+        const textDisplayEl = document.getElementById('textDisplay');
+        const newText = document.createTextNode(user + ': ' + msg);
+        const newLine = document.createElement('br');
+        textDisplayEl.appendChild(newText);
+        textDisplayEl.appendChild(newLine);
+      };
+      window.onload = setupRTM;
+    </script>
+    <div id="container">
+      <h1>Hello RTM !</h1>
+      <div>
+        <div id="textDisplay"></div>
+      </div>
+      <div id="inputContainer">
+        <input type="text" id="textInput" placeholder="Enter text" />
+        <button id="submitButton" onclick="buttonClick()">Send</button>
+      </div>
+    </div>
+  </body>
+</html>
