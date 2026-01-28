@@ -1,0 +1,147 @@
+Minimal “done list” (frontend)
+
+ RTM login → subscribe → listeners for messages/presence/token.
+
+ Channel attributes for {state, mediaTime, at, hostId} with notifications. 
+
+ Control messages + anchor/heartbeat sync with drift tolerance.
+
+ Presence for roster, join/leave/host-reconnect.
+
+ Rate-limit within ≤20 API calls/sec per client. 
+
+
+ 
+
+What a typical watch party looks like (runtime flow)
+
+    Client authenticates → asks your backend to join a party or starts a party
+    your server verifies access, returns:
+
+    the Signaling (RTM) token,
+
+    the channel name (e.g., wp:party_123),
+
+    party metadata (who is host, drift tolerance, etc.).
+
+    Client then logs into Signaling with the token and subscribes to the message channel. This gives you ultra-low-latency pub/sub for control messages and chat.
+
+    Presence & roster
+    Clients use Signaling Presence to detect join/leave/status events (used for “X joined”, “host reconnected”, etc.). 
+
+    Who is host & current shared state
+    Keep tiny, authoritative bits of party state in channel attributes (e.g., {hostId, lastAction, lastActionAt, mediaTimeAtLastAction}) so late joiners can fetch one read and “snap” into state without waiting for someone to chat. Updates can fan-out a notification to all members. Channel attributes are an agora rtm thing not from backend
+
+    Playback sync over Signaling (not video over RTC)
+    The host controls the media player locally.
+
+    On play/pause/seek, host publishes a compact message to the channel, e.g.:
+    { "t":"seek", "mediaTime": 845.7, "at": 1731836400123 } 
+
+    Clients compute the correct currentTime from that anchor (details below).
+    Signaling is built for low-latency metadata sync; you’re just sending small messages, not media.
+
+    Chat
+    Use the same channel for text chat (or a second channel if you want to separate traffic). Rate-limit on the client to respect SDK send limits.
+
+    Disconnects & recovery
+    On reconnect, clients check connection state and then either:
+    read channel attributes to snap back, or
+    send a “sync-please” message and the host replies with the current anchor.
+    The Signaling SDK exposes connection state transitions to implement this cleanly.
+
+
+How the playback sync actually works (no media over Agora)
+You’ll use a simple, proven anchor + drift-correction algorithm. The platform-agnostic idea:
+
+A) Define an anchor on every control action
+When host hits Play (or Seek), publish:
+{
+  "t": "play",                 // or "pause"/"seek"
+  "mediaTime": 512.20,         // seconds at the moment of action
+  "at": 1731836400123          // host wall-clock ms when action happened
+}
+
+
+Each client, on receipt at local time nowClient, estimates the correct currentTime:
+target = mediaTime + (nowClient - at)/1000     // if state is "playing"
+target = mediaTime                              // if state is "paused"
+
+Then seek (or nudge the playbackRate briefly) toward target. This “reference-time” model is the standard way to synchronize players and works even for late joiners.
+
+B) Heartbeats to bound drift
+Host sends a tiny heartbeat every ~2–5s while playing:
+{ "t":"hb", "mediaTime": 734.1, "at": 1731836405123 }
+
+Clients compare their own video.currentTime with the recomputed target and only correct if |drift| > tolerance (e.g., 300–500 ms). This reduces jitter while keeping the room aligned. Real-world teams do exactly this over websockets; Signaling is just a managed, global version of that bus
+
+C) Late join flow
+On subscribe, client first reads channel attributes to get the last {state, mediaTime, at} anchor, then seeks instantly before rendering UI
+
+D) Reconnect flow
+On RECONNECTED, re-read attributes (or request a sync event from host) and snap back. The SDK exposes these transitions so you can automate it. 
+
+E) Rate limiting & batching
+Don’t spam seeks; debounce user scrubs and send one final seek when they release the scrubber.
+Keep message frequency within SDK limits (e.g., client send rate constraints); 
+
+
+Minimal message schema (copy/paste)
+type PartyMsg =
+  | { t: 'play';  mediaTime: number; at: number }
+  | { t: 'pause'; mediaTime: number; at: number }
+  | { t: 'seek';  mediaTime: number; at: number }
+  | { t: 'hb';    mediaTime: number; at: number } // heartbeat
+  | { t: 'chat';  id: string; from: string; text: string; at: number };
+
+type ChannelAttrs = {
+  hostId: string;
+  state: 'playing'|'paused';
+  mediaTime: number;   // at the moment of last action
+  at: number;          // wall-clock ms when that action occurred
+};
+
+Update ChannelAttrs on every control action (host only). Enable “notify members” so joiners and existing clients get an event.
+
+
+Putting it together (concise sequence)
+Client → Backend: /join → returns {channel, rtmToken, role, config}. 
+Client (Signaling): login → subscribe(channel) (start listening).
+Client (init): read ChannelAttrs → set player state/seek; show roster via Presence.
+Host action (play/pause/seek):
+Host updates ChannelAttrs and publishes a control message.
+All clients: compute target from anchor; correct if drift > tolerance. 
+While playing: host sends hb every few seconds; clients gently correct drift. 
+Reconnect/late join: use connection state + ChannelAttrs to snap in; if missing, send a “sync-please” and host replies with a one-off anchor
+
+
+
+Frontend checklist
+Frontend: Signaling wiring
+
+ Login with RTM token → subscribe to channel. Handle connection state changes.
+
+ Presence: show join/leave/online status; update roster.
+
+ Channel attributes: keep tiny shared state (hostId, state, mediaTime, at) and enable member notifications on updates.
+ Message schema (control + chat), e.g.:
+        {t:'play'|'pause'|'seek', mediaTime:number, at:number}
+
+        {t:'hb', mediaTime:number, at:number} (heartbeat)
+
+        {t:'chat', id, from, text, at}
+
+Playback sync logic
+ Anchor model: on host action, send (mediaTime, at) (host wall-clock ms). Clients compute target = mediaTime + (now − at)/1000 if playing; else mediaTime if paused.
+ Drift tolerance: choose ~250–500 ms; only correct when exceeded to avoid jitter.
+ Heartbeats while playing (every 2–5 s) so late minor drift gets trimmed smoothly (don’t spam).
+ Late join: read channel attributes first and seek immediately before rendering UI. 
+ Reconnect: on reconnected state, re-read attributes (or send a one-off “sync-pls” to host).
+
+Chat (lightweight, same channel)
+ Send/receive small text payloads (≤32 KB per message).
+ Respect rate limits (typical: ≤60 msgs/sec per channel and general API call frequency caps). You’re far below this with heartbeats + chat.
+
+IDs & roles
+ Use stable user IDs (≤64 chars, supported charset) when logging in/sending.
+ Define host (controls attributes) vs audience (read-only for control events).

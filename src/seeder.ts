@@ -45,12 +45,41 @@ seeder({
       Review,
     ]),
   ],
-}).run([
-  PaymentPartnerSeeder,
-  ProvidersSeeder,
-  MovieSeeder,
-  UserSeeder,
-  SessionSeeder,
-  TransactionsSeeder,
-  UserInteractionsSeeder,
-]);
+}).run(
+  (() => {
+    const list = (process.env.SEED_ONLY || '')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter((s) => !!s);
+
+    const registry: Record<string, any> = {
+      payment_partners: PaymentPartnerSeeder,
+      payments: PaymentPartnerSeeder,
+      providers: ProvidersSeeder,
+      movies: MovieSeeder,
+      users: UserSeeder,
+      sessions: SessionSeeder,
+      transactions: TransactionsSeeder,
+      user_interactions: UserInteractionsSeeder,
+    };
+
+    if (list.length === 0) {
+      // No default full run; require explicit SEED_ONLY entries
+      console.log(
+        'No SEED_ONLY specified. Nothing to seed. Use SEED_ONLY=movies,providers,etc.',
+      );
+      return [];
+    }
+
+    const picked = list.map((key) => registry[key]).filter((s) => !!s);
+
+    if (picked.length === 0) {
+      console.log(
+        'No valid seeders selected. Valid keys:',
+        Object.keys(registry).join(', '),
+      );
+      return [];
+    }
+    return picked;
+  })(),
+);
