@@ -1010,6 +1010,12 @@ export class UserService {
       // Ensure isSubscribed aligns with effective semantics (coercion for non-recurring types)
       updateObj.isSubscribed = effectiveIsSubscribed;
 
+      // Clear freemium tracking fields when switching to FREEMIUM or FREE_TIER
+      if (updateObj.subscriptionType === SubscriptionType.FREEMIUM || updateObj.subscriptionType === SubscriptionType.FREE_TIER) {
+        updateObj.lastFreemiumActivePartyId = null;
+        updateObj.lastFreemiumMovieId = null;
+      }
+
       // Persist update
       return await this.userRepository.update(userId, updateObj);
     } catch (error) {

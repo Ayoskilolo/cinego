@@ -1,0 +1,1110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agora RTC Playground</title>
+    <style>
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Ubuntu,
+          Cantarell,
+          Noto Sans,
+          sans-serif;
+        margin: 0;
+        background: #0f1115;
+        color: #e5e7eb;
+      }
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .card {
+        background: #151822;
+        border: 1px solid #22273a;
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .row .col {
+        flex: 1 1 260px;
+        min-width: 260px;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        color: #9aa4b2;
+        margin-bottom: 6px;
+      }
+      input {
+        width: 100%;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #2a3147;
+        background: #0f1320;
+        color: #dce3ec;
+      }
+      button {
+        padding: 10px 14px;
+        border-radius: 8px;
+        border: 1px solid #2a3147;
+        background: #1b2134;
+        color: #e5e7eb;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #202742;
+      }
+      .controls {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .status {
+        font-size: 13px;
+        margin-top: 8px;
+      }
+      .logs {
+        height: 160px;
+        overflow: auto;
+        background: #0d111c;
+        border: 1px solid #22273a;
+        border-radius: 8px;
+        padding: 10px;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+      }
+      .videos {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .pane {
+        background: #0d111c;
+        border: 1px solid #22273a;
+        border-radius: 10px;
+        padding: 10px;
+      }
+      .title {
+        font-size: 14px;
+        color: #9aa4b2;
+        margin-bottom: 8px;
+      }
+      .player {
+        width: 100%;
+        aspect-ratio: 16/9;
+        background: #0a0d14;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #6b7280;
+      }
+      .remote-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 10px;
+      }
+      .remote-card {
+        border: 1px solid #22273a;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #111522;
+      }
+      .remote-meta {
+        padding: 6px 8px;
+        font-size: 12px;
+        color: #9aa4b2;
+        border-top: 1px solid #22273a;
+      }
+      .vol-wrap {
+        width: 100%;
+        height: 10px;
+        background: #1b2134;
+        border: 1px solid #2a3147;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      .vol-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(
+          to right,
+          #16a34a,
+          #22c55e,
+          #f59e0b,
+          #ef4444
+        );
+        transition: width 0.2s ease;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="row">
+          <div class="col">
+            <label>API Base URL</label>
+            <input
+              id="apiBase"
+              placeholder="http://localhost:3000"
+              value="http://localhost:3000"
+            />
+          </div>
+          <div class="col">
+            <label>Access Token</label>
+            <input id="accessToken" placeholder="Bearer JWT token" />
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <label>Email</label>
+            <input
+              id="email"
+              placeholder="user@example.com"
+              value="admin@cinego.com"
+            />
+          </div>
+          <div class="col">
+            <label>Phone Number</label>
+            <input id="phoneNumber" placeholder="08012345678" />
+          </div>
+          <div class="col">
+            <label>Password</label>
+            <input id="password" type="password" value="admin123" />
+          </div>
+        </div>
+        <div class="controls" style="margin-top: 10px">
+          <button id="btnLogin">Login</button>
+          <select id="profileSelect" style="min-width: 200px">
+            <option value="">Select profile</option>
+          </select>
+          <button id="btnLoginProfile">Use Selected Profile</button>
+          <button id="btnLogout">Logout</button>
+        </div>
+        <div class="status" id="authStatus"></div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div class="col">
+            <label>Agora App ID</label>
+            <input
+              id="appId"
+              placeholder="AGORA_APP_ID"
+              value="d7a84ff10a2b408dbcf20c882df9fe00"
+            />
+          </div>
+          <div class="col">
+            <label>Channel Name</label>
+            <input
+              id="channelName"
+              placeholder="channel-name"
+              value="rtc-playground"
+            />
+          </div>
+          <div class="col">
+            <label>Token Expiry (seconds)</label>
+            <input id="expireSeconds" type="number" value="7200" />
+          </div>
+        </div>
+        <div class="controls" style="margin-top: 10px">
+          <button id="btnGetToken">Get Tokens</button>
+          <button id="btnJoin">Join</button>
+          <button id="btnLeave">Leave</button>
+          <button id="btnMute">Toggle Mic</button>
+          <button id="btnCam">Toggle Camera</button>
+          <button id="btnRefresh">Refresh Token</button>
+        </div>
+        <div class="status" id="status"></div>
+      </div>
+
+      <div class="card" style="display: none" id="logsCard">
+        <div class="title">Logs</div>
+        <div class="logs" id="logs"></div>
+      </div>
+
+      <div class="videos">
+        <div class="pane">
+          <div class="title">Local</div>
+          <div class="status" style="margin-bottom: 6px">Mic</div>
+          <div id="local-mic" class="vol-wrap" style="margin-bottom: 8px">
+            <div id="local-mic-fill" class="vol-fill"></div>
+          </div>
+          <div id="local-player" class="player">Local Video</div>
+          <div id="local-meta" class="remote-meta">UID -</div>
+        </div>
+        <div class="pane">
+          <div class="title">Remote</div>
+          <div id="remote-list" class="remote-list"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="title">Roster</div>
+        <div id="roster" class="logs" style="height: 120px"></div>
+      </div>
+      <!-- Watch party specific inputs removed to keep this page focused on RTC/RTM -->
+      <div class="card">
+        <div class="title">Group Chat</div>
+        <div id="chatDisplay" class="logs" style="height: 160px"></div>
+        <div class="controls" style="margin-top: 8px">
+          <input id="chatInput" placeholder="Type a message" style="flex: 1" />
+          <button id="btnSendChat">Send</button>
+        </div>
+      </div>
+      <div class="controls" style="margin-top: 8px">
+        <button id="btnLogs">Toggle Logs</button>
+      </div>
+    </div>
+
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/agora-rtm-sdk@2.2.3-1/agora-rtm.min.js"></script>
+    <script>
+      const els = {
+        apiBase: document.getElementById('apiBase'),
+        accessToken: document.getElementById('accessToken'),
+        email: document.getElementById('email'),
+        phoneNumber: document.getElementById('phoneNumber'),
+        password: document.getElementById('password'),
+        btnLogin: document.getElementById('btnLogin'),
+        btnLoginProfile: document.getElementById('btnLoginProfile'),
+        btnLogout: document.getElementById('btnLogout'),
+        profileSelect: document.getElementById('profileSelect'),
+        authStatus: document.getElementById('authStatus'),
+        appId: document.getElementById('appId'),
+        channelName: document.getElementById('channelName'),
+        expireSeconds: document.getElementById('expireSeconds'),
+        btnGetToken: document.getElementById('btnGetToken'),
+        btnJoin: document.getElementById('btnJoin'),
+        btnLeave: document.getElementById('btnLeave'),
+        btnMute: document.getElementById('btnMute'),
+        btnCam: document.getElementById('btnCam'),
+        btnRefresh: document.getElementById('btnRefresh'),
+        btnLogs: document.getElementById('btnLogs'),
+        status: document.getElementById('status'),
+        logs: document.getElementById('logs'),
+        logsCard: document.getElementById('logsCard'),
+        localPlayer: document.getElementById('local-player'),
+        localMeta: document.getElementById('local-meta'),
+        remoteList: document.getElementById('remote-list'),
+        roster: document.getElementById('roster'),
+        localMic: document.getElementById('local-mic'),
+        localMicFill: document.getElementById('local-mic-fill'),
+        chatDisplay: document.getElementById('chatDisplay'),
+        chatInput: document.getElementById('chatInput'),
+        btnSendChat: document.getElementById('btnSendChat'),
+      };
+
+      const st = {
+        client: null,
+        localAudio: null,
+        localVideo: null,
+        joined: false,
+        tempAccessToken: null,
+        fullAccessToken: null,
+        userData: null,
+        token: '',
+        appId: '',
+        channelName: '',
+        uid: '',
+        remotes: {},
+        rtmClient: null,
+        rtmToken: '',
+        roster: {},
+        _volTimer: null,
+        _syncTimer: null,
+        nameMap: {},
+        currentProfileName: '',
+        codec: '',
+      };
+
+      function savePref(k, v) {
+        try {
+          localStorage.setItem(k, v ?? '');
+        } catch {}
+      }
+      function getPref(k, d = '') {
+        try {
+          const v = localStorage.getItem(k);
+          return v ?? d;
+        } catch {
+          return d;
+        }
+      }
+      function initPrefs() {
+        els.apiBase.value = getPref('rtc.apiBase', els.apiBase.value);
+        els.appId.value = getPref('rtc.appId', els.appId.value);
+        els.channelName.value = getPref(
+          'rtc.channelName',
+          els.channelName.value,
+        );
+        els.expireSeconds.value = getPref(
+          'rtc.expireSeconds',
+          els.expireSeconds.value,
+        );
+        els.email.value = getPref('rtc.email', els.email.value);
+        els.phoneNumber.value = getPref('rtc.phone', els.phoneNumber.value);
+        els.password.value = getPref('rtc.password', els.password.value);
+        const at = getPref('rtc.accessToken', '');
+        if (at) els.accessToken.value = at;
+        const lv = getPref('rtc.logsVisible', '0') === '1';
+        if (els.logsCard) els.logsCard.style.display = lv ? '' : 'none';
+        if (els.btnLogs)
+          els.btnLogs.textContent = lv ? 'Hide Logs' : 'Show Logs';
+      }
+      initPrefs();
+      [
+        'apiBase',
+        'appId',
+        'channelName',
+        'expireSeconds',
+        'email',
+        'phoneNumber',
+        'password',
+      ].forEach((id) => {
+        const e = els[id];
+        if (e)
+          e.addEventListener('input', () => {
+            const key =
+              id === 'apiBase'
+                ? 'rtc.apiBase'
+                : id === 'appId'
+                  ? 'rtc.appId'
+                  : id === 'channelName'
+                    ? 'rtc.channelName'
+                    : id === 'expireSeconds'
+                      ? 'rtc.expireSeconds'
+                      : id === 'email'
+                        ? 'rtc.email'
+                        : id === 'phoneNumber'
+                          ? 'rtc.phone'
+                          : id === 'password'
+                            ? 'rtc.password'
+                            : '';
+            if (key) savePref(key, e.value);
+          });
+      });
+
+      function setStatus(msg, kind) {
+        els.status.textContent = msg;
+        els.status.style.color =
+          kind === 'err' ? '#ef4444' : kind === 'warn' ? '#f59e0b' : '#9aa4b2';
+        log(msg);
+      }
+      function log(msg) {
+        const t = new Date().toISOString();
+        els.logs.textContent += '[' + t + '] ' + msg + '\n';
+        els.logs.scrollTop = els.logs.scrollHeight;
+      }
+      function decodeJwt(token) {
+        try {
+          const parts = token.split('.');
+          const json = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
+          return JSON.parse(decodeURIComponent(escape(json)));
+        } catch {
+          return null;
+        }
+      }
+      function headers() {
+        const v = els.accessToken.value.trim();
+        return {
+          'Content-Type': 'application/json',
+          Authorization: v.startsWith('Bearer ') ? v : 'Bearer ' + v,
+        };
+      }
+
+      async function decideCodec() {
+        if (st.codec) return st.codec;
+        try {
+          const r = await AgoraRTC.getSupportedCodec();
+          const vids = Array.isArray(r?.video) ? r.video : [];
+          const ua = (navigator.userAgent || '').toLowerCase();
+          const isEdge = ua.includes('edg');
+          if (isEdge && vids.includes('H264')) {
+            st.codec = 'h264';
+          } else {
+            st.codec = vids.includes('VP8')
+              ? 'vp8'
+              : vids.includes('H264')
+                ? 'h264'
+                : 'vp8';
+          }
+        } catch {
+          st.codec = 'vp8';
+        }
+        return st.codec;
+      }
+
+      function ensureRemoteCard(id) {
+        const sid = String(id || '');
+        if (!sid) return null;
+        if (!st.remotes[sid]) {
+          const card = document.createElement('div');
+          card.className = 'remote-card';
+          const player = document.createElement('div');
+          player.className = 'player';
+          player.id = 'remote-player-' + sid;
+          const meta = document.createElement('div');
+          meta.className = 'remote-meta';
+          const name = st.nameMap[sid];
+          meta.textContent = name || 'UID ' + sid;
+          const barWrap = document.createElement('div');
+          barWrap.className = 'vol-wrap';
+          const barFill = document.createElement('div');
+          barFill.className = 'vol-fill';
+          barWrap.appendChild(barFill);
+          card.appendChild(player);
+          card.appendChild(meta);
+          card.appendChild(barWrap);
+          els.remoteList.appendChild(card);
+          st.remotes[sid] = {
+            card,
+            player,
+            meta,
+            bar: barFill,
+            _videoPlaying: false,
+            _audioPlaying: false,
+          };
+        }
+        return st.remotes[sid];
+      }
+
+      async function syncRemoteSubscriptions() {
+        if (!st.client) return;
+        const users = Array.isArray(st.client.remoteUsers)
+          ? st.client.remoteUsers
+          : [];
+        for (const u of users) {
+          const id = String(u.uid || u.userId || '');
+          if (!id) continue;
+          const r = ensureRemoteCard(id);
+          try {
+            if (u.hasVideo && !u.videoTrack) {
+              await st.client.subscribe(u, 'video');
+              log('Subscribed video ' + id);
+            }
+          } catch {}
+          try {
+            if (u.hasAudio && !u.audioTrack) {
+              await st.client.subscribe(u, 'audio');
+              log('Subscribed audio ' + id);
+            }
+          } catch {}
+          try {
+            if (u.videoTrack && !r._videoPlaying) {
+              u.videoTrack.play(r.player);
+              r._videoPlaying = true;
+              log('Playing video ' + id);
+            }
+          } catch (e) {
+            r._videoPlaying = false;
+            setStatus('Play video failed ' + id, 'warn');
+          }
+          try {
+            if (u.audioTrack && !r._audioPlaying) {
+              u.audioTrack.play();
+              r._audioPlaying = true;
+              log('Playing audio ' + id);
+            }
+          } catch (e) {
+            r._audioPlaying = false;
+          }
+        }
+      }
+
+      function startSyncMonitor() {
+        stopSyncMonitor();
+        let runs = 0;
+        st._syncTimer = setInterval(() => {
+          if (!st.joined) return;
+          syncRemoteSubscriptions();
+          runs++;
+          if (runs >= 6) stopSyncMonitor();
+        }, 1500);
+      }
+      function stopSyncMonitor() {
+        if (st._syncTimer) {
+          clearInterval(st._syncTimer);
+          st._syncTimer = null;
+        }
+      }
+
+      async function login() {
+        const apiBase = els.apiBase.value.trim().replace(/\/$/, '');
+        const email = els.email.value.trim();
+        const phone = els.phoneNumber.value.trim();
+        const password = els.password.value;
+        if (!apiBase || !password || (!email && !phone)) {
+          els.authStatus.textContent = 'Enter base, credentials';
+          return;
+        }
+        const payload = { password };
+        if (email) payload.email = email;
+        else payload.phoneNumber = phone;
+        try {
+          const res = await fetch(apiBase + '/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const body = await res.json().catch(() => null);
+          if (!res.ok) {
+            els.authStatus.textContent = 'Login failed';
+            return;
+          }
+          const data = body?.data || body;
+          st.userData = data?.user || null;
+          st.tempAccessToken = data?.tempAccessToken || null;
+          if (!st.tempAccessToken || !st.userData) {
+            els.authStatus.textContent = 'Unexpected login response';
+            return;
+          }
+          const profiles = Array.isArray(st.userData?.profiles)
+            ? st.userData.profiles
+            : [];
+          els.profileSelect.innerHTML = '';
+          profiles.forEach((p) => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = p.profileName || p.id;
+            els.profileSelect.appendChild(opt);
+          });
+          els.authStatus.textContent = 'Login successful. Select a profile.';
+        } catch {
+          els.authStatus.textContent = 'Login error';
+        }
+      }
+
+      async function loginWithProfile() {
+        const apiBase = els.apiBase.value.trim().replace(/\/$/, '');
+        if (!st.tempAccessToken) {
+          els.authStatus.textContent = 'Login first';
+          return;
+        }
+        const profileId = els.profileSelect.value;
+        if (!profileId) {
+          els.authStatus.textContent = 'Select a profile';
+          return;
+        }
+        try {
+          const res = await fetch(apiBase + '/auth/login/profile', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: 'Bearer ' + st.tempAccessToken,
+            },
+            body: JSON.stringify({ profileId }),
+          });
+          const body = await res.json().catch(() => null);
+          if (!res.ok) {
+            els.authStatus.textContent = 'Profile login failed';
+            return;
+          }
+          const data = body?.data || body;
+          st.fullAccessToken = data?.accessToken || null;
+          if (!st.fullAccessToken) {
+            els.authStatus.textContent = 'Missing accessToken';
+            return;
+          }
+          const selectedOpt =
+            els.profileSelect.options[els.profileSelect.selectedIndex];
+          st.currentProfileName = selectedOpt ? selectedOpt.textContent : '';
+          if (profileId && st.currentProfileName)
+            st.nameMap[String(profileId)] = st.currentProfileName;
+          const bearer = 'Bearer ' + st.fullAccessToken;
+          els.accessToken.value = bearer;
+          savePref('rtc.accessToken', bearer);
+          els.authStatus.textContent = 'Session active';
+        } catch {
+          els.authStatus.textContent = 'Profile login error';
+        }
+      }
+
+      function logout() {
+        st.tempAccessToken = null;
+        st.fullAccessToken = null;
+        st.userData = null;
+        els.accessToken.value = '';
+        savePref('rtc.accessToken', '');
+        els.authStatus.textContent = 'Logged out';
+      }
+
+      async function getTokens() {
+        const base = els.apiBase.value.trim();
+        const channel = els.channelName.value.trim();
+        const exp = Number(els.expireSeconds.value) || 7200;
+        if (!base || !channel)
+          return setStatus('Enter API Base and Channel', 'err');
+        try {
+          setStatus('Requesting RTC & RTM tokens', 'info');
+          const rtcReq = fetch(base + '/watch-party/rtc/token', {
+            method: 'POST',
+            headers: headers(),
+            body: JSON.stringify({ channelName: channel, expireSeconds: exp }),
+          });
+          const rtmReq = fetch(base + '/watch-party/rtm/token', {
+            method: 'POST',
+            headers: headers(),
+            body: JSON.stringify({ expireSeconds: exp }),
+          });
+          const [rtcRes, rtmRes] = await Promise.all([rtcReq, rtmReq]);
+          const rtcJson = await rtcRes.json().catch(() => null);
+          const rtmJson = await rtmRes.json().catch(() => null);
+          if (!rtcRes.ok) {
+            return setStatus(
+              'RTC token error ' +
+                rtcRes.status +
+                ' ' +
+                JSON.stringify(rtcJson).slice(0, 200),
+              'err',
+            );
+          }
+          if (!rtmRes.ok) {
+            return setStatus(
+              'RTM token error ' +
+                rtmRes.status +
+                ' ' +
+                JSON.stringify(rtmJson).slice(0, 200),
+              'err',
+            );
+          }
+          const rtcTok =
+            (rtcJson && (rtcJson.data?.token || rtcJson.token)) || '';
+          const rtmTok =
+            (rtmJson && (rtmJson.data?.token || rtmJson.token)) || '';
+          if (!rtcTok || !rtmTok) return setStatus('Missing tokens', 'err');
+          st.token = rtcTok;
+          st.rtmToken = rtmTok;
+          st.channelName = channel;
+          setStatus('Tokens ready', 'info');
+        } catch (e) {
+          setStatus('Tokens request failed', 'err');
+        }
+      }
+
+      // RTM token is fetched together with RTC token in getTokens()
+
+      function ensureUid() {
+        const t = els.accessToken.value.trim();
+        const p = decodeJwt(t.startsWith('Bearer ') ? t.slice(7) : t);
+        const uid = p && p.profileId;
+        if (!uid) {
+          setStatus('profileId not found in token', 'err');
+          return null;
+        }
+        return uid;
+      }
+
+      async function join() {
+        const appId = els.appId.value.trim();
+        const channel = els.channelName.value.trim();
+        if (!appId || !channel)
+          return setStatus('Enter App ID and Channel', 'err');
+        const uid = ensureUid();
+        if (!uid) return;
+        if (!st.token || !st.rtmToken)
+          return setStatus('Get tokens first', 'err');
+        try {
+          await decideCodec();
+          if (!st.client)
+            st.client = AgoraRTC.createClient({
+              mode: 'rtc',
+              codec: st.codec || 'vp8',
+            });
+          registerEvents();
+          setStatus('Joining channel', 'info');
+          const joinedUid = await st.client.join(appId, channel, st.token, uid);
+          st.uid = joinedUid;
+          if (els.localMeta) {
+            const nm =
+              st.currentProfileName ||
+              st.nameMap[String(st.uid)] ||
+              String(st.uid);
+            els.localMeta.textContent = nm;
+          }
+          const tracks = await AgoraRTC.createMicrophoneAndCameraTracks();
+          st.localAudio = tracks[0];
+          st.localVideo = tracks[1];
+          st.localVideo.play(els.localPlayer);
+          await st.client.publish(tracks);
+          st.joined = true;
+          await joinRtm(appId, channel, uid);
+          startVolumeMonitor();
+          syncRemoteSubscriptions();
+          startSyncMonitor();
+          setStatus('Joined and published', 'info');
+        } catch (e) {
+          setStatus('Join failed', 'err');
+        }
+      }
+
+      function registerEvents() {
+        if (!st.client || st._eventsRegistered) return;
+        st._eventsRegistered = true;
+        if (st.client.enableAudioVolumeIndicator)
+          st.client.enableAudioVolumeIndicator();
+        if (st.client.on) {
+          st.client.on('autoplay-failed', () => {
+            setStatus('Autoplay failed; user gesture may be required', 'warn');
+          });
+        }
+        st.client.on('volume-indicator', (res) => {
+          if (!Array.isArray(res)) return;
+          res.forEach((i) => {
+            const id = String(i.uid || '');
+            const lvl = i.level ?? i.volume ?? 0;
+            if (id === String(st.uid)) {
+              setVolBar(els.localMicFill, lvl);
+            } else if (st.remotes[id] && st.remotes[id].bar) {
+              setVolBar(st.remotes[id].bar, lvl);
+            }
+          });
+        });
+        st.client.on('user-published', async (user, mediaType) => {
+          try {
+            await st.client.subscribe(user, mediaType);
+            const id = String(user.uid || user.userId || Math.random());
+            if (!st.remotes[id]) {
+              const card = document.createElement('div');
+              card.className = 'remote-card';
+              const player = document.createElement('div');
+              player.className = 'player';
+              player.id = 'remote-player-' + id;
+              const meta = document.createElement('div');
+              meta.className = 'remote-meta';
+              const name = st.nameMap[id];
+              meta.textContent = name || 'UID ' + id;
+              const barWrap = document.createElement('div');
+              barWrap.className = 'vol-wrap';
+              const barFill = document.createElement('div');
+              barFill.className = 'vol-fill';
+              barWrap.appendChild(barFill);
+              card.appendChild(player);
+              card.appendChild(meta);
+              card.appendChild(barWrap);
+              els.remoteList.appendChild(card);
+              st.remotes[id] = {
+                card,
+                player,
+                meta,
+                bar: barFill,
+                _videoPlaying: false,
+                _audioPlaying: false,
+              };
+            }
+            const target = st.remotes[id].player;
+            if (mediaType === 'video' && user.videoTrack)
+              try {
+                user.videoTrack.play(target);
+                st.remotes[id]._videoPlaying = true;
+              } catch {
+                st.remotes[id]._videoPlaying = false;
+              }
+            if (mediaType === 'audio' && user.audioTrack)
+              try {
+                user.audioTrack.play();
+                st.remotes[id]._audioPlaying = true;
+              } catch {
+                st.remotes[id]._audioPlaying = false;
+              }
+            setStatus('Subscribed ' + mediaType + ' ' + id, 'info');
+            syncRemoteSubscriptions();
+          } catch {
+            setStatus('Subscribe failed', 'err');
+          }
+        });
+        st.client.on('user-joined', () => {
+          syncRemoteSubscriptions();
+        });
+        st.client.on('user-unpublished', (user) => {
+          const id = String(user.uid || user.userId || '');
+          const r = id && st.remotes[id];
+          if (r) {
+            r.player.textContent = 'Remote Video';
+            r._videoPlaying = false;
+          }
+        });
+        st.client.on('user-left', (user) => {
+          const id = String(user.uid || user.userId || '');
+          const r = id && st.remotes[id];
+          if (r) {
+            els.remoteList.removeChild(r.card);
+            delete st.remotes[id];
+          }
+        });
+      }
+
+      async function leave() {
+        try {
+          if (st.localAudio) {
+            st.localAudio.stop();
+            st.localAudio.close();
+          }
+          if (st.localVideo) {
+            st.localVideo.stop();
+            st.localVideo.close();
+          }
+          st.localAudio = null;
+          st.localVideo = null;
+          if (st.client && st.joined) await st.client.leave();
+          await leaveRtm();
+          stopVolumeMonitor();
+          stopSyncMonitor();
+          st.joined = false;
+          els.localPlayer.textContent = 'Local Video';
+          els.remoteList.innerHTML = '';
+          els.roster.textContent = '';
+          st.remotes = {};
+          setStatus('Left channel', 'info');
+        } catch {
+          setStatus('Leave failed', 'err');
+        }
+      }
+
+      async function toggleMic() {
+        if (!st.localAudio) return;
+        const enabled = st.localAudio._enabled !== false;
+        await st.localAudio.setEnabled(!enabled);
+        setStatus(!enabled ? 'Mic on' : 'Mic off', 'info');
+      }
+
+      async function toggleCam() {
+        if (!st.localVideo) return;
+        const enabled = st.localVideo._enabled !== false;
+        await st.localVideo.setEnabled(!enabled);
+        setStatus(!enabled ? 'Camera on' : 'Camera off', 'info');
+      }
+
+      async function refreshToken() {
+        const base = els.apiBase.value.trim();
+        const channel = els.channelName.value.trim();
+        const exp = Number(els.expireSeconds.value) || 7200;
+        if (!base || !channel)
+          return setStatus('Enter API Base and Channel', 'err');
+        try {
+          const r = await fetch(base + '/watch-party/rtc/token/refresh', {
+            method: 'POST',
+            headers: headers(),
+            body: JSON.stringify({ channelName: channel, expireSeconds: exp }),
+          });
+          const j = await r.json().catch(() => null);
+          if (!r.ok)
+            return setStatus(
+              'Refresh error ' +
+                r.status +
+                ' ' +
+                JSON.stringify(j).slice(0, 200),
+              'err',
+            );
+          const tok = (j && (j.data?.token || j.token)) || '';
+          if (!tok) return setStatus('No token returned', 'err');
+          st.token = tok;
+          if (st.client && st.joined && st.client.renewToken) {
+            await st.client.renewToken(tok);
+            setStatus('Token refreshed', 'info');
+          } else {
+            setStatus('Token refreshed (join to use)', 'info');
+          }
+        } catch {
+          setStatus('Refresh request failed', 'err');
+        }
+      }
+
+      function toggleLogs() {
+        if (!els.logsCard || !els.btnLogs) return;
+        const nowHidden = els.logsCard.style.display === 'none';
+        els.logsCard.style.display = nowHidden ? '' : 'none';
+        els.btnLogs.textContent = nowHidden ? 'Hide Logs' : 'Show Logs';
+        savePref('rtc.logsVisible', nowHidden ? '1' : '0');
+      }
+
+      async function joinRtm(appId, channel, uid) {
+        try {
+          st.rtmClient = new AgoraRTM.RTM(appId, String(uid));
+          await st.rtmClient.login({ token: st.rtmToken });
+          registerRtmEvents(channel);
+          await st.rtmClient.subscribe(channel);
+          updateRosterUI();
+          broadcastPresence(channel);
+          setStatus('RTM joined', 'info');
+        } catch {
+          setStatus('RTM join failed', 'err');
+        }
+      }
+
+      async function leaveRtm() {
+        try {
+          if (st.rtmClient) {
+            try {
+              await st.rtmClient.unsubscribe(st.channelName);
+            } catch {}
+            try {
+              await st.rtmClient.logout();
+            } catch {}
+          }
+          st.roster = {};
+        } catch {}
+      }
+
+      function registerRtmEvents(channel) {
+        if (!st.rtmClient || st._rtmEventsRegistered) return;
+        st._rtmEventsRegistered = true;
+        st.rtmClient.addEventListener('message', (event) => {
+          try {
+            const txt = event && event.message;
+            const obj = txt ? JSON.parse(txt) : null;
+            const publisher = String(event.publisher || '');
+            if (obj && obj.type === 'presence') {
+              const pid = String(obj.profileId || publisher || '');
+              const name = String(obj.profileName || '');
+              if (pid) {
+                st.roster[pid] = true;
+              }
+              if (pid && name) {
+                st.nameMap[pid] = name;
+                const r = st.remotes[pid];
+                if (r && r.meta) r.meta.textContent = name;
+                if (String(st.uid) === pid && els.localMeta) {
+                  els.localMeta.textContent = name;
+                }
+              }
+              updateRosterUI();
+            } else if (obj && obj.type === 'chat') {
+              if (publisher === String(st.uid)) return;
+              const pid = publisher;
+              const name = st.nameMap[pid] || pid;
+              const msg = String(obj.message || '');
+              appendChat(name + ': ' + msg);
+            } else if (obj && obj.type === 'roster_request') {
+              broadcastPresence(channel);
+            }
+          } catch {}
+        });
+        st.rtmClient.addEventListener('presence', (event) => {
+          if (!event) return;
+          const pub = String(event.publisher || '');
+          const et = String(event.eventType || '').toUpperCase();
+          if (!pub) return;
+          if (et === 'LEFT' || et === 'OFFLINE' || et === 'UNSUBSCRIBED') {
+            delete st.roster[pub];
+          } else {
+            st.roster[pub] = true;
+          }
+          updateRosterUI();
+        });
+        st.rtmClient.addEventListener('status', (event) => {
+          log('RTM status ' + JSON.stringify(event));
+        });
+        sendRosterRequest();
+      }
+
+      async function updateRosterUI() {
+        try {
+          const ids = new Set();
+          Object.keys(st.roster || {}).forEach((k) => ids.add(String(k)));
+          if (st.uid) ids.add(String(st.uid));
+          const list = Array.from(ids);
+          els.roster.textContent =
+            list.length === 0
+              ? '(no members yet)'
+              : list
+                  .map((id) => {
+                    const name = st.nameMap[id];
+                    return '- ' + (name || id);
+                  })
+                  .join('\n');
+        } catch {}
+      }
+
+      function broadcastPresence(channelOverride) {
+        if (!st.uid) return;
+        const pid = String(st.uid);
+        const name = st.currentProfileName || st.nameMap[pid] || '';
+        const msg = JSON.stringify({
+          type: 'presence',
+          profileId: pid,
+          profileName: name,
+        });
+        try {
+          const channel = channelOverride || st.channelName;
+          st.rtmClient.publish(channel, msg, { channelType: 'MESSAGE' });
+        } catch {}
+      }
+      function sendRosterRequest() {
+        try {
+          const msg = JSON.stringify({ type: 'roster_request' });
+          st.rtmClient.publish(st.channelName, msg, { channelType: 'MESSAGE' });
+        } catch {}
+      }
+      function setVolBar(el, v) {
+        if (!el) return;
+        const lvl = Math.max(0, Math.min(100, Number(v) || 0));
+        el.style.width = lvl + '%';
+      }
+      function startVolumeMonitor() {
+        stopVolumeMonitor();
+        st._volTimer = setInterval(() => {
+          if (st.localAudio && els.localMicFill) {
+            const v =
+              typeof st.localAudio.getVolumeLevel === 'function'
+                ? Math.round((st.localAudio.getVolumeLevel() || 0) * 100)
+                : 0;
+            setVolBar(els.localMicFill, v);
+          }
+        }, 500);
+      }
+      function stopVolumeMonitor() {
+        if (st._volTimer) {
+          clearInterval(st._volTimer);
+          st._volTimer = null;
+        }
+      }
+      // Watch party code and server roster fetching removed for RTC/RTM-focused testing
+      function appendChat(line) {
+        if (!els.chatDisplay) return;
+        els.chatDisplay.textContent += line + '\n';
+        els.chatDisplay.scrollTop = els.chatDisplay.scrollHeight;
+      }
+      async function sendChat() {
+        const t = (els.chatInput.value || '').trim();
+        if (!t) return;
+        const payload = JSON.stringify({ type: 'chat', message: t });
+        try {
+          await st.rtmClient.publish(st.channelName, payload, {
+            channelType: 'MESSAGE',
+          });
+          const me = st.nameMap[String(st.uid)] || String(st.uid);
+          appendChat(me + ': ' + t);
+          els.chatInput.value = '';
+        } catch {}
+      }
+
+      els.btnGetToken.addEventListener('click', getTokens);
+      els.btnJoin.addEventListener('click', join);
+      els.btnLeave.addEventListener('click', leave);
+      els.btnMute.addEventListener('click', toggleMic);
+      els.btnCam.addEventListener('click', toggleCam);
+      els.btnRefresh.addEventListener('click', refreshToken);
+      els.btnLogin.addEventListener('click', login);
+      els.btnLoginProfile.addEventListener('click', loginWithProfile);
+      els.btnLogout.addEventListener('click', logout);
+      els.btnLogs.addEventListener('click', toggleLogs);
+      els.btnSendChat.addEventListener('click', sendChat);
+      els.chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') sendChat();
+      });
+    </script>
+  </body>
+</html>

@@ -1,1 +1,8 @@
 npx http-server -S -C certs/localhost-cert.pem -K certs/localhost-key.pem -p 5500 -d false -c-1 . 
+
+
+npx http-server -S \
+  -C certs/dev-cert.pem \
+  -K certs/dev-key.pem \
+  -p 5500 \
+  -d false -c-1 .

@@ -386,7 +386,12 @@ async function getSignedCookies() {
         Authorization: `Bearer ${accessToken}`,
       },
       credentials: 'include',
-      body: JSON.stringify({ movieId, ttlSeconds: ttl, useTrailer, partyId: wpState.partyId || null }),
+      body: JSON.stringify({
+        movieId,
+        ttlSeconds: ttl,
+        useTrailer,
+        partyId: wpState.partyId || null,
+      }),
     });
     const txt = await res.text();
     let data = null;
@@ -1451,13 +1456,38 @@ async function wpEnd() {
   wpHeartbeatStop();
 }
 async function wpLeave() {
-  if (!wpEnsureAuth()) { setStatus('Login first', 'err'); return; }
-  const apiBase = wpApiBase(); const pid = wpPartyId(); if (!apiBase || !pid) { setStatus('Provide partyId', 'err'); return; }
-  logInfo(`[POST] ${apiBase}/watch-party/party/leave`, 'WP', JSON.stringify({ partyId: pid }));
-  const res = await fetch(`${apiBase}/watch-party/party/leave`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid }) });
-  const j = await res.json().catch(()=>null);
-  if (!res.ok) { setStatus(`Leave failed: ${res.status}`, 'err'); logErr('Leave failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
-  wpSetRole(null); wpState.partyId = null; wpState.channelName = null; if (wpControls.partyIdEl) wpControls.partyIdEl.value = ''; wpHeartbeatStop(); disconnectRtm();
+  if (!wpEnsureAuth()) {
+    setStatus('Login first', 'err');
+    return;
+  }
+  const apiBase = wpApiBase();
+  const pid = wpPartyId();
+  if (!apiBase || !pid) {
+    setStatus('Provide partyId', 'err');
+    return;
+  }
+  logInfo(
+    `[POST] ${apiBase}/watch-party/party/leave`,
+    'WP',
+    JSON.stringify({ partyId: pid }),
+  );
+  const res = await fetch(`${apiBase}/watch-party/party/leave`, {
+    method: 'POST',
+    headers: wpHeaders(),
+    body: JSON.stringify({ partyId: pid }),
+  });
+  const j = await res.json().catch(() => null);
+  if (!res.ok) {
+    setStatus(`Leave failed: ${res.status}`, 'err');
+    logErr('Leave failed', 'WP', JSON.stringify(j).slice(0, 300));
+    return;
+  }
+  wpSetRole(null);
+  wpState.partyId = null;
+  wpState.channelName = null;
+  if (wpControls.partyIdEl) wpControls.partyIdEl.value = '';
+  wpHeartbeatStop();
+  disconnectRtm();
 }
 async function wpInvite() {
   const apiBase = wpApiBase();
@@ -1532,14 +1562,36 @@ async function wpModerate(path) {
   await res.text();
 }
 async function wpTransferHost() {
-  if (!wpEnsureAuth()) { setStatus('Login first', 'err'); return; }
-  const apiBase = wpApiBase(); const pid = wpPartyId(); const newHostId = wpControls.targetUserEl?.value?.trim();
-  if (!apiBase || !pid || !newHostId) { setStatus('Provide partyId and Target User ID', 'err'); return; }
-  logInfo(`[POST] ${apiBase}/watch-party/party/transfer-host`, 'WP', JSON.stringify({ partyId: pid, newHostId }));
-  const res = await fetch(`${apiBase}/watch-party/party/transfer-host`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid, newHostId }) });
-  const j = await res.json().catch(()=>null);
-  if (!res.ok) { setStatus(`Transfer failed: ${res.status}`, 'err'); logErr('Transfer failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
-  if (wpState.isHost && newHostId && newHostId !== wpState.rtmUid) { wpSetRole('PARTICIPANT'); }
+  if (!wpEnsureAuth()) {
+    setStatus('Login first', 'err');
+    return;
+  }
+  const apiBase = wpApiBase();
+  const pid = wpPartyId();
+  const newHostId = wpControls.targetUserEl?.value?.trim();
+  if (!apiBase || !pid || !newHostId) {
+    setStatus('Provide partyId and Target User ID', 'err');
+    return;
+  }
+  logInfo(
+    `[POST] ${apiBase}/watch-party/party/transfer-host`,
+    'WP',
+    JSON.stringify({ partyId: pid, newHostId }),
+  );
+  const res = await fetch(`${apiBase}/watch-party/party/transfer-host`, {
+    method: 'POST',
+    headers: wpHeaders(),
+    body: JSON.stringify({ partyId: pid, newHostId }),
+  });
+  const j = await res.json().catch(() => null);
+  if (!res.ok) {
+    setStatus(`Transfer failed: ${res.status}`, 'err');
+    logErr('Transfer failed', 'WP', JSON.stringify(j).slice(0, 300));
+    return;
+  }
+  if (wpState.isHost && newHostId && newHostId !== wpState.rtmUid) {
+    wpSetRole('PARTICIPANT');
+  }
   wpMetadata();
 }
 async function wpListScheduled() {

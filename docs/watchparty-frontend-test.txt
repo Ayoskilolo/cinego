@@ -11,9 +11,22 @@ Minimal “done list” (frontend)
  Rate-limit within ≤20 API calls/sec per client. 
 
 
- 
+Runtime flows (frontend)
+
+- Roster & identity
+- Keys use profileId only. Display names resolve from server roster. Label the local user with “(Me)” in roster and on the tile.
+- Playback sync
+- Channel attributes carry {state, mediaTime, at}. Host sends heartbeats roughly every 3s while playing. Clients apply the anchor with driftTolerance ≈ 400 ms, respecting playing vs paused.
+- RTC join & tiles
+- Join RTC automatically after party connect; join/leave controls are not exposed to end users. Camera/mic toggles remain available.
+- Remote tiles persist when a user is connected but video is temporarily unpublished. Show “Waiting for video...” and remove the overlay as soon as the video republish arrives.
+- Bitrate recovery
+- On SEND_VIDEO_BITRATE_TOO_LOW (code 1003), republish local video with progressive downscale (360p_4 → 240p_2 → 180p_2 @ 15fps). Attempt periodic upgrades (~every 2 min) when stable. Audio is unaffected.
+- Late subscribe safeguard
+- For about 60s after join, periodically ensure remote tracks are subscribed/attached in case a user-published event was missed.
 
 What a typical watch party looks like (runtime flow)
+
 
     Client authenticates → asks your backend to join a party or starts a party
     your server verifies access, returns:

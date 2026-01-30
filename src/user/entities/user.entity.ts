@@ -94,11 +94,17 @@ export class User extends BaseEntity {
   @Column({ nullable: true })
   nextBillingDate: Date | null;
 
-  @OneToMany(() => PaymentPartner, (paymentPartner) => paymentPartner.user)
-  paymentMethod: PaymentPartner;
+  @Column({ nullable: true })
+  lastFreemiumActivePartyId: string | null;
+
+  @Column({ nullable: true })
+  lastFreemiumMovieId: string | null;
 
   @Column({ default: false })
   hasUsedFreeTrial: boolean;
+
+  @OneToMany(() => PaymentPartner, (paymentPartner) => paymentPartner.user)
+  paymentMethod: PaymentPartner;
 
   @OneToMany(() => Transaction, (transaction) => transaction.user)
   transactions: Transaction[];

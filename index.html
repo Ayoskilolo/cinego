@@ -6,15 +6,16 @@
     <title>HLS Player (CloudFront Cookies)</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/agora-rtm-sdk@2.2.3-1/agora-rtm.min.js"></script>
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.20.0.js"></script>
     <style>
       :root {
-        --bg: #f5f7fb;
-        --card: #fff;
-        --ink: #101828;
-        --muted: #667085;
+        --bg: #0f1115;
+        --card: #151822;
+        --ink: #e5e7eb;
+        --muted: #9aa4b2;
         --brand: #2563eb;
-        --ok: #0f766e;
-        --warn: #93370d;
+        --ok: #16a34a;
+        --warn: #f59e0b;
       }
       * {
         box-sizing: border-box;
@@ -38,12 +39,12 @@
         color: var(--ink);
       }
       .wrap {
-        max-width: 900px;
+        max-width: 1100px;
         margin: 0 auto;
         background: var(--card);
         padding: 20px;
         border-radius: 12px;
-        box-shadow: 0 6px 24px rgba(16, 24, 40, 0.06);
+        border: 1px solid #22273a;
       }
       h1 {
         margin: 0 0 16px;
@@ -67,10 +68,31 @@
       input[type='text'],
       input[type='number'] {
         padding: 10px 12px;
-        border: 1px solid #e5e7eb;
+        border: 1px solid #2a3147;
+        background: #0f1320;
+        color: #dce3ec;
         border-radius: 8px;
         font-size: 14px;
         width: 100%;
+      }
+      select {
+        padding: 10px 12px;
+        border: 1px solid #2a3147;
+        background: #0f1320;
+        color: #dce3ec;
+        border-radius: 8px;
+        font-size: 14px;
+      }
+      select:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        background: #101426;
+        color: #7b8494;
+        border-color: #2a3147;
+      }
+      select:focus {
+        outline: none;
+        border-color: #3a4260;
       }
       .actions {
         display: flex;
@@ -79,16 +101,36 @@
         flex-wrap: wrap;
       }
       button {
-        background: var(--brand);
-        color: #fff;
-        border: 0;
         padding: 10px 14px;
         border-radius: 8px;
+        border: 1px solid #2a3147;
+        background: #1b2134;
+        color: var(--ink);
         font-weight: 600;
         cursor: pointer;
       }
       button.secondary {
-        background: #475569;
+        background: #202742;
+      }
+      button:hover {
+        background: #252d46;
+        border-color: #3a4260;
+      }
+      button.secondary:hover {
+        background: #2a324a;
+        border-color: #3a4260;
+      }
+      .tab-btn {
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid #2a3147;
+        background: #1b2134;
+        color: var(--ink);
+        cursor: pointer;
+      }
+      .tab-btn:hover {
+        background: #252d46;
+        border-color: #3a4260;
       }
       button:disabled {
         opacity: 0.6;
@@ -104,19 +146,19 @@
         font-size: 13px;
         padding: 10px;
         border-radius: 8px;
-        background: #eef2ff;
-        color: #1e293b;
-        border: 1px solid #e2e8f0;
+        background: #0d111c;
+        color: #9aa4b2;
+        border: 1px solid #22273a;
       }
       .status.ok {
-        background: #ecfdf5;
-        border-color: #d1fae5;
-        color: #064e3b;
+        background: #0e1f16;
+        border-color: #14532d;
+        color: var(--ok);
       }
       .status.err {
-        background: #fef2f2;
-        border-color: #fee2e2;
-        color: #7f1d1d;
+        background: #1b0e0e;
+        border-color: #7f1d1d;
+        color: #ef4444;
       }
       .log {
         margin-top: 12px;
@@ -149,21 +191,32 @@
 
       /* Simple accordion styling */
       details.accordion {
-        border: 1px solid #e5e7eb;
+        border: 1px solid #2a3147;
         border-radius: 8px;
         padding: 8px 12px;
-        background: #fafafa;
+        background: #0f1320;
         margin-bottom: 12px;
       }
       details.accordion[open] {
-        background: #fff;
+        background: var(--card);
       }
       details.accordion > summary {
         cursor: pointer;
         font-weight: 600;
-        color: var(--brand);
+        color: var(--muted);
         margin: 4px 0 8px;
         list-style: none;
+        transition: color 0.2s;
+      }
+      details.accordion > summary:hover {
+        color: var(--ink);
+      }
+      details.accordion:not([open]):hover {
+        background: #151926;
+        border-color: #3a4260;
+      }
+      details.accordion:not([open]) {
+        cursor: pointer;
       }
       details.accordion > summary::marker {
         display: none;
@@ -208,20 +261,20 @@
         white-space: nowrap;
       }
       .badge.info {
-        background: #e0f2fe;
-        color: #0c4a6e;
+        background: #0b2545;
+        color: #60a5fa;
       }
       .badge.warn {
-        background: #fef3c7;
-        color: #92400e;
+        background: #2f1f0f;
+        color: #f59e0b;
       }
       .badge.err {
-        background: #fee2e2;
-        color: #7f1d1d;
+        background: #2c1214;
+        color: #ef4444;
       }
       .badge.cat {
-        background: #e5e7eb;
-        color: #334155;
+        background: #1f2937;
+        color: #e5e7eb;
       }
       .log-msg {
         font-size: 13px;
@@ -244,16 +297,170 @@
         overflow: auto;
         max-height: 180px;
       }
+      .videos {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 8px;
+      }
+      @media (max-width: 720px) {
+        .videos {
+          grid-template-columns: 1fr;
+        }
+      }
+      .pane {
+        background: #0d111c;
+        border: 1px solid #22273a;
+        border-radius: 10px;
+        padding: 12px;
+      }
+      .title {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .player {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 180px;
+        background: #000;
+        color: #9aa4b2;
+        border-radius: 8px;
+      }
+      .remote-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 10px;
+      }
+      .remote-list > div {
+        background: #000;
+        border-radius: 8px;
+        height: 120px;
+      }
+      .vol-wrap {
+        height: 8px;
+        border-radius: 999px;
+        background: #0b1020;
+        border: 1px solid #1f2937;
+        overflow: hidden;
+      }
+      .vol-fill {
+        height: 100%;
+        width: 0;
+        background: #16a34a;
+      }
+      .party-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+        margin-top: 16px;
+        align-items: start;
+      }
+      .party-grid.has-video {
+        grid-template-columns: repeat(1, 1fr);
+      }
+      @media (min-width: 768px) {
+        .party-grid.has-video {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        .video-tile.active {
+          grid-column: span 2;
+          grid-row: span 2;
+        }
+      }
+      @media (min-width: 1100px) {
+        .party-grid.has-video {
+          grid-template-columns: repeat(4, 1fr);
+        }
+        .video-tile.active {
+          grid-column: span 3;
+          grid-row: span 3;
+        }
+      }
+      .video-tile {
+        display: none;
+        background: #000;
+        border-radius: 10px;
+        border: 1px solid #22273a;
+        overflow: hidden;
+        aspect-ratio: 16/9;
+        position: relative;
+      }
+      .video-tile.active {
+        display: block;
+      }
+      .video-tile video {
+        width: 100%;
+        height: 100%;
+        background: #000;
+      }
+      .meet-card {
+        background: #0d111c;
+        border: 1px solid #22273a;
+        border-radius: 10px;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        aspect-ratio: 4/3;
+      }
+      .meet-name {
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .meet-player {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        background: #000;
+        color: #9aa4b2;
+        border-radius: 6px;
+        overflow: hidden;
+        position: relative;
+      }
+      .meet-player > div {
+        width: 100%;
+        height: 100%;
+      }
+      .meet-player video,
+      .meet-player canvas {
+        width: 100%;
+        height: 100%;
+        object-fit: contain !important;
+      }
+      .meet-player > div > div {
+        width: 100%;
+        height: 100%;
+      }
+      .meet-controls {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+      }
+      .meet-controls button {
+        padding: 4px 8px;
+        font-size: 11px;
+      }
     </style>
   </head>
   <body>
-    <div style="display:flex;gap:8px;margin-bottom:12px">
+    <div style="display: flex; gap: 8px; margin-bottom: 12px">
       <button class="tab-btn" data-tab="player">Player</button>
       <button class="tab-btn" data-tab="chat">Chat</button>
       <button class="tab-btn" data-tab="auth">Auth</button>
     </div>
     <div class="wrap" id="playerWrap">
       <h1>HLS Player (CloudFront Signed Cookies)</h1>
+      <div
+        id="status"
+        class="status"
+        style="margin-bottom: 12px; display: none"
+      ></div>
 
       <!-- Auth: Two-step login and profile selection (accordion) -->
       <details class="accordion" id="authAccordion">
@@ -278,8 +485,42 @@
 
         <div class="row">
           <div class="col">
-            <label for="email">Email</label>
-            <input id="email" type="text" placeholder="user@example.com" value="admin@cinego.com" />
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              "
+            >
+              <label for="email" style="margin-bottom: 6px">Email</label>
+              <div
+                id="quickFill"
+                style="font-size: 11px; color: var(--muted); cursor: pointer"
+              >
+                Fill:
+                <span
+                  class="fill-opt"
+                  data-u="admin@cinego.com"
+                  data-p="admin123"
+                  style="color: var(--brand)"
+                  >Admin</span
+                >
+                |
+                <span
+                  class="fill-opt"
+                  data-u="premiumuser@cinego.com"
+                  data-p="password123"
+                  style="color: var(--brand)"
+                  >Premium</span
+                >
+              </div>
+            </div>
+            <input
+              id="email"
+              type="text"
+              placeholder="user@example.com"
+              value="admin@cinego.com"
+            />
             <div class="hint">Provide either email or phone number</div>
           </div>
           <div class="col">
@@ -291,7 +532,12 @@
         <div class="row" style="margin-top: 12px">
           <div class="col">
             <label for="password">Password</label>
-            <input id="password" type="password" placeholder="••••••••" value="admin123" />
+            <input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              value="admin123"
+            />
             <div class="actions" style="margin-top: 8px">
               <button id="btnLogin">Login</button>
               <button id="btnLogout" class="secondary" disabled>Logout</button>
@@ -304,115 +550,185 @@
               <option value="" selected>Select profile</option>
             </select>
             <div class="actions" style="margin-top: 8px">
-              <button id="btnLoginProfile" class="secondary" disabled>Use Selected Profile</button>
+              <button id="btnLoginProfile" class="secondary" disabled>
+                Use Selected Profile
+              </button>
             </div>
           </div>
         </div>
       </details>
 
       <div id="playerMain">
-
-      <!-- Cookies: choose movie and trailer/main -->
-      <div class="row" style="margin-top: 12px">
-        <div class="col">
-          <label for="movieId">Movie ID</label>
-          <input id="movieId" type="text" placeholder="uuid-of-movie" />
-          <div class="hint">Required for signed cookies endpoint</div>
-        </div>
-        <div class="col">
-          <label for="movieSelect">Quick Select Movie</label>
-          <div style="display:flex;gap:8px;align-items:center">
-            <select id="movieSelect" disabled>
-              <option value="" selected>Fetch and select a movie</option>
-            </select>
-            <button id="btnFetchMovies" class="secondary">Fetch Movies</button>
+        <details class="accordion" id="hlsSettingsAccordion">
+          <summary>HLS Settings</summary>
+          <div class="row" style="margin-top: 12px">
+            <div class="col">
+              <label for="movieId">Movie ID</label>
+              <input id="movieId" type="text" placeholder="uuid-of-movie" />
+              <div class="hint">Required for signed cookies endpoint</div>
+            </div>
+            <div class="col">
+              <label for="movieSelect">Quick Select Movie</label>
+              <div style="display: flex; gap: 8px; align-items: center">
+                <select id="movieSelect" disabled>
+                  <option value="" selected>Fetch and select a movie</option>
+                </select>
+                <button id="btnFetchMovies" class="secondary">
+                  Fetch Movies
+                </button>
+              </div>
+              <div class="hint">Fetch a page of movies and pick one</div>
+            </div>
+            <div class="col">
+              <label for="useTrailer">Use Trailer</label>
+              <div style="display: flex; align-items: center; gap: 8px">
+                <input id="useTrailer" type="checkbox" checked />
+                <span class="hint"
+                  >Trailer allowed for all; main requires premium</span
+                >
+              </div>
+            </div>
           </div>
-          <div class="hint">Fetch a page of movies and pick one</div>
-        </div>
-        <div class="col">
-          <label for="useTrailer">Use Trailer</label>
-          <div style="display:flex;align-items:center;gap:8px">
-            <input id="useTrailer" type="checkbox" checked />
-            <span class="hint">Trailer allowed for all; main requires premium</span>
+          <div class="row">
+            <div class="col" style="grid-column: 1 / -1">
+              <label for="serverUrl"
+                >Server-provided HLS Manifest (.m3u8)</label
+              >
+              <input
+                id="serverUrl"
+                type="url"
+                placeholder="Will be set after signed cookies"
+                readonly
+              />
+              <div class="hint">
+                This URL is returned by the API for the selected movie/profile
+              </div>
+            </div>
+          </div>
+          <div class="actions">
+            <button id="btnCookies">Get Signed Cookies</button>
+            <button id="btnLoad">Load Video</button>
+            <button id="btnStop" class="secondary" disabled>Stop</button>
+            <button id="btnProbe" class="secondary">Probe Manifest</button>
+            <div
+              style="
+                margin-left: auto;
+                display: flex;
+                gap: 8px;
+                align-items: center;
+              "
+            >
+              <input
+                id="wpPartyId"
+                type="text"
+                placeholder="party-id"
+                style="width: 140px"
+              />
+              <input
+                id="wpChannelName"
+                type="text"
+                placeholder="channel"
+                style="width: 140px"
+              />
+              <input
+                id="wpJoinCode"
+                type="text"
+                placeholder="code"
+                style="width: 240px"
+              />
+              <button id="btnWpStart" class="secondary">Start</button>
+              <button id="btnWpJoinId" class="secondary">Join using ID</button>
+              <button id="btnWpJoinCode" class="secondary">
+                Join using Code
+              </button>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 12px">
+            <div class="col" style="grid-column: 1 / -1">
+              <label for="quality">Quality</label>
+              <select id="quality" disabled>
+                <option value="-1" selected>Auto</option>
+              </select>
+              <div class="hint">
+                Available after manifest loads (Hls.js). Safari uses Auto.
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="row"
+            style="
+              margin-top: 8px;
+              border-top: 1px dashed #22273a;
+              padding-top: 8px;
+            "
+          >
+            <div class="col">
+              <label for="rtcCamSelect">Camera</label>
+              <select id="rtcCamSelect" disabled></select>
+            </div>
+            <div class="col">
+              <label for="rtcMicSelect">Microphone</label>
+              <select id="rtcMicSelect" disabled></select>
+            </div>
+          </div>
+        </details>
+
+        <div id="partyGrid" class="party-grid">
+          <!-- Movie Tile (Hidden by default) -->
+          <div id="videoTile" class="video-tile">
+            <video
+              id="video"
+              controls
+              playsinline
+              crossorigin="use-credentials"
+            ></video>
+          </div>
+
+          <!-- Local User Card -->
+          <div class="meet-card" id="local-card" style="display: none">
+            <div class="meet-name" id="local-name">You</div>
+            <div id="local-mic" class="vol-wrap" style="margin-bottom: 8px">
+              <div id="local-mic-fill" class="vol-fill"></div>
+            </div>
+            <div id="rtcLocal" class="meet-player">Local Video</div>
+            <div class="meet-controls">
+              <button id="localCamBtn">Camera</button>
+              <button id="localMicBtn" class="secondary">Mic</button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="row">
-        <div class="col" style="grid-column: 1 / -1">
-          <label for="serverUrl">Server-provided HLS Manifest (.m3u8)</label>
-          <input
-            id="serverUrl"
-            type="url"
-            placeholder="Will be set after signed cookies"
-            readonly
-          />
-          <div class="hint">This URL is returned by the API for the selected movie/profile</div>
-        </div>
-      </div>
-
-      <div class="actions">
-        <button id="btnCookies">Get Signed Cookies</button>
-        <button id="btnLoad">Load Video</button>
-        <button id="btnStop" class="secondary" disabled>Stop</button>
-        <button id="btnProbe" class="secondary">Probe Manifest</button>
-        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-          <input id="wpPartyId" type="text" placeholder="party-id" style="width:140px" />
-          <input id="wpChannelName" type="text" placeholder="channel" style="width:140px" />
-          <input id="wpJoinCode" type="text" placeholder="code" style="width:100px" />
-          <button id="btnWpStart" class="secondary">Start</button>
-          <button id="btnWpJoinId" class="secondary">Join</button>
-          <button id="btnWpJoinCode" class="secondary">Join Code</button>
-        </div>
-      </div>
-
-      <!-- Quality selector (Hls.js only; Safari uses Auto) -->
-      <div class="row" style="margin-top: 12px">
-        <div class="col" style="grid-column: 1 / -1">
-          <label for="quality">Quality</label>
-          <select id="quality" disabled>
-            <option value="-1" selected>Auto</option>
-          </select>
-          <div class="hint">
-            Available after manifest loads (Hls.js). Safari uses Auto.
+        <div class="row" style="margin-top: 16px">
+          <div class="col" style="grid-column: 1 / -1">
+            <div class="status" id="wpRoleStatus">No party</div>
+            <div class="hint" id="wpJoinCodeDisplay"></div>
           </div>
         </div>
-      </div>
-
-      <div id="status" class="status">
-        Click “Get Signed Cookies”, then “Load Video” to play
-      </div>
-
-      <!-- Important for native Safari to send cookies -->
-      <video
-        id="video"
-        controls
-        playsinline
-        crossorigin="use-credentials"
-      ></video>
-      <div class="row" style="margin-top:8px">
-        <div class="col" style="grid-column: 1 / -1">
-          <div class="status" id="wpRoleStatus">No party</div>
-          <div class="hint" id="wpJoinCodeDisplay"></div>
+        <div class="row" style="margin-top: 8px">
+          <div class="col" style="grid-column: 1 / -1">
+            <label>Roster</label>
+            <div
+              id="wpRoster"
+              class="status"
+              style="height: 140px; overflow: auto"
+            ></div>
+          </div>
         </div>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <div class="col" style="grid-column: 1 / -1">
-          <label>Roster</label>
-          <div id="wpRoster" class="status" style="height:140px;overflow:auto"></div>
-        </div>
-      </div>
       </div>
     </div>
 
-
-    <div class="wrap" id="chatWrap" style="margin-top:16px">
+    <div class="wrap" id="chatWrap" style="margin-top: 16px">
       <details class="accordion" id="rtmAccordion">
         <summary>Signaling (RTM Messaging)</summary>
         <div class="row" style="margin-bottom: 8px">
           <div class="col">
             <label for="rtmAppId">Agora App ID</label>
-            <input id="rtmAppId" type="text" value="d7a84ff10a2b408dbcf20c882df9fe00" />
+            <input
+              id="rtmAppId"
+              type="text"
+              value="d7a84ff10a2b408dbcf20c882df9fe00"
+            />
           </div>
           <div class="col">
             <label for="rtmChannel">Channel</label>
@@ -422,112 +738,323 @@
         <div class="row" style="margin-top: 12px">
           <div class="col" style="grid-column: 1 / -1">
             <label for="rtmDisplay">Messages</label>
-            <div id="rtmDisplay" class="status" style="height: 200px; overflow: auto"></div>
+            <div
+              id="rtmDisplay"
+              class="status"
+              style="height: 200px; overflow: auto"
+            ></div>
           </div>
         </div>
         <div class="actions">
-          <input id="rtmText" type="text" placeholder="Enter message" style="flex:1" />
+          <input
+            id="rtmText"
+            type="text"
+            placeholder="Enter message"
+            style="flex: 1"
+          />
           <button id="btnSendRtm">Send</button>
           <button id="btnConnectRtm" class="secondary">Connect</button>
           <button id="btnDisconnectRtm" class="secondary">Disconnect</button>
         </div>
       </details>
     </div>
-    <div class="wrap" id="watchPartyWrap" style="margin-top:16px">
+    <div class="wrap" id="watchPartyWrap" style="margin-top: 16px">
       <details class="accordion" id="watchPartyAccordion">
         <summary>Watch Party</summary>
-        <div class="row" style="margin-bottom:8px">
+        <div class="row" style="margin-bottom: 8px">
           <div class="col">
             <label for="wpPartyId">Party ID</label>
-            <input id="wpPartyId" type="text" placeholder="party-id" title="Unique party identifier. Hosts use this for management or joining by ID. Guests typically use Join Code instead." />
+            <input
+              id="wpPartyId"
+              type="text"
+              placeholder="party-id"
+              title="Unique party identifier. Hosts use this for management or joining by ID. Guests typically use Join Code instead."
+            />
           </div>
           <div class="col">
             <label for="wpChannelName">Channel Name (optional)</label>
-            <input id="wpChannelName" type="text" placeholder="custom-channel" title="Optional signal channel label. Only used when starting a party. Leave empty to auto-generate." />
+            <input
+              id="wpChannelName"
+              type="text"
+              placeholder="custom-channel"
+              title="Optional signal channel label. Only used when starting a party. Leave empty to auto-generate."
+            />
           </div>
         </div>
-        <div class="row" style="margin-bottom:8px">
+        <div class="row" style="margin-bottom: 8px">
           <div class="col">
             <label for="wpJoinCode">Join Code</label>
-            <input id="wpJoinCode" type="text" placeholder="ABC123" title="Short code provided by the host to join a scheduled or active party." />
-            <div class="hint" id="wpJoinCodeDisplay" title="Displays the current join code after starting or rotating a party."></div>
+            <input
+              id="wpJoinCode"
+              type="text"
+              placeholder="ABC123"
+              title="Short code provided by the host to join a scheduled or active party."
+              style="width: 240px"
+            />
+            <div
+              class="hint"
+              id="wpJoinCodeDisplay"
+              title="Displays the current join code after starting or rotating a party."
+            ></div>
           </div>
           <div class="col">
             <label>Role</label>
-            <div class="status" id="wpRoleStatus" title="Your role in the current party: HOST or PARTICIPANT.">No party</div>
+            <div
+              class="status"
+              id="wpRoleStatus"
+              title="Your role in the current party: HOST or PARTICIPANT."
+            >
+              No party
+            </div>
           </div>
         </div>
         <div class="actions">
-          <button id="btnWpStart" title="Host only: create a new party. Returns Party ID, Join Code, and channel.">Start Party</button>
-          <button id="btnWpJoinId" class="secondary" title="Join an ACTIVE party using its Party ID. Use this only if you know the ID.">Join by ID</button>
-          <button id="btnWpJoinCode" class="secondary" title="Join a SCHEDULED or ACTIVE party using the Join Code from the host.">Join by Code</button>
-          <button id="btnWpMetadata" class="secondary" title="Fetch details for the Party ID entered above.">Get Metadata</button>
-          <button id="btnWpRotate" class="secondary" title="Host only: generate a new Join Code; old code stops working.">Rotate Code</button>
-          <button id="btnWpEnd" class="secondary" title="Host only: end the current active party.">End Party</button>
+          <button
+            id="btnWpStart"
+            title="Host only: create a new party. Returns Party ID, Join Code, and channel."
+          >
+            Start Party
+          </button>
+          <button
+            id="btnWpJoinId"
+            class="secondary"
+            title="Join an ACTIVE party using its Party ID. Use this only if you know the ID."
+          >
+            Join using ID
+          </button>
+          <button
+            id="btnWpJoinCode"
+            class="secondary"
+            title="Join a SCHEDULED or ACTIVE party using the Join Code from the host."
+          >
+            Join using Code
+          </button>
+          <button
+            id="btnWpMetadata"
+            class="secondary"
+            title="Fetch details for the Party ID entered above."
+          >
+            Get Metadata
+          </button>
+          <button
+            id="btnWpRotate"
+            class="secondary"
+            title="Host only: generate a new Join Code; old code stops working."
+          >
+            Rotate Code
+          </button>
+          <button
+            id="btnWpEnd"
+            class="secondary"
+            title="Host only: end the current active party."
+          >
+            End Party
+          </button>
         </div>
-        <div class="row" style="margin-top:8px">
+        <div class="row" style="margin-top: 8px">
           <div class="col" style="grid-column: 1 / -1">
             <label>Roster</label>
-            <div id="wpRoster" class="status" style="height:160px;overflow:auto" title="Live list of members connected to the party's channel."></div>
+            <div
+              id="wpRoster"
+              class="status"
+              style="height: 160px; overflow: auto"
+              title="Live list of members connected to the party's channel."
+            ></div>
           </div>
         </div>
-        <div class="row" style="margin-top:8px">
+        <div class="row" style="margin-top: 8px">
           <div class="col">
             <label for="wpTargetUserId">Target User ID</label>
-            <input id="wpTargetUserId" type="text" placeholder="user-id" title="User ID to moderate. Used with Kick/Ban/Mute actions." />
+            <input
+              id="wpTargetUserId"
+              type="text"
+              placeholder="user-id"
+              title="User ID to moderate. Used with Kick/Ban/Mute actions."
+            />
           </div>
           <div class="col">
             <label>Moderation</label>
-            <div class="actions" style="margin-top:4px">
-              <button id="btnWpKick" class="secondary" title="Host only: remove a user from the party.">Kick</button>
-              <button id="btnWpBan" class="secondary" title="Host only: block a user from rejoining.">Ban</button>
-              <button id="btnWpUnban" class="secondary" title="Host only: revoke a user's ban.">Unban</button>
-              <button id="btnWpMute" class="secondary" title="Host only: mute a user's chat/control messages.">Mute</button>
-              <button id="btnWpUnmute" class="secondary" title="Host only: unmute a user.">Unmute</button>
+            <div class="actions" style="margin-top: 4px">
+              <button
+                id="btnWpKick"
+                class="secondary"
+                title="Host only: remove a user from the party."
+              >
+                Kick
+              </button>
+              <button
+                id="btnWpBan"
+                class="secondary"
+                title="Host only: block a user from rejoining."
+              >
+                Ban
+              </button>
+              <button
+                id="btnWpUnban"
+                class="secondary"
+                title="Host only: revoke a user's ban."
+              >
+                Unban
+              </button>
+              <button
+                id="btnWpMute"
+                class="secondary"
+                title="Host only: mute a user's chat/control messages."
+              >
+                Mute
+              </button>
+              <button
+                id="btnWpUnmute"
+                class="secondary"
+                title="Host only: unmute a user."
+              >
+                Unmute
+              </button>
             </div>
           </div>
         </div>
-        <div class="row" style="margin-top:8px">
+        <div class="row" style="margin-top: 8px">
           <div class="col">
             <label for="wpInviteUserIds">Invite User IDs (comma)</label>
-            <input id="wpInviteUserIds" type="text" placeholder="id1,id2" title="Comma-separated user IDs to invite to the party." />
+            <input
+              id="wpInviteUserIds"
+              type="text"
+              placeholder="id1,id2"
+              title="Comma-separated user IDs to invite to the party."
+            />
           </div>
           <div class="col">
             <label for="wpInviteEmails">Invite Emails (comma)</label>
-            <input id="wpInviteEmails" type="text" placeholder="a@b.com,c@d.com" title="Comma-separated emails to invite. Optional." />
+            <input
+              id="wpInviteEmails"
+              type="text"
+              placeholder="a@b.com,c@d.com"
+              title="Comma-separated emails to invite. Optional."
+            />
           </div>
         </div>
-        <div class="row" style="margin-top:8px">
+        <div class="row" style="margin-top: 8px">
           <div class="col">
             <label for="wpInvitePhones">Invite Phones (comma)</label>
-            <input id="wpInvitePhones" type="text" placeholder="080...,081..." title="Comma-separated phone numbers to invite. Optional." />
+            <input
+              id="wpInvitePhones"
+              type="text"
+              placeholder="080...,081..."
+              title="Comma-separated phone numbers to invite. Optional."
+            />
           </div>
           <div class="col">
             <label>Invites</label>
-            <div class="actions" style="margin-top:4px">
-              <button id="btnWpInvite" class="secondary" title="Host only: send invites to the users specified above.">Invite</button>
-              <button id="btnWpRemoveInvite" class="secondary" title="Host only: revoke an existing invite for the specified user.">Remove Invite</button>
+            <div class="actions" style="margin-top: 4px">
+              <button
+                id="btnWpInvite"
+                class="secondary"
+                title="Host only: send invites to the users specified above."
+              >
+                Invite
+              </button>
+              <button
+                id="btnWpRemoveInvite"
+                class="secondary"
+                title="Host only: revoke an existing invite for the specified user."
+              >
+                Remove Invite
+              </button>
             </div>
           </div>
         </div>
-        <div class="row" style="margin-top:8px">
+        <div class="row" style="margin-top: 8px">
           <div class="col">
             <label for="wpScheduleAt">Schedule At (ISO)</label>
-            <input id="wpScheduleAt" type="text" placeholder="2025-12-01T18:00:00Z" title="For scheduling: ISO timestamp when the party should start. Host only." />
+            <input
+              id="wpScheduleAt"
+              type="text"
+              placeholder="2025-12-01T18:00:00Z"
+              title="For scheduling: ISO timestamp when the party should start. Host only."
+            />
           </div>
           <div class="col">
             <label>Scheduling</label>
-            <div class="actions" style="margin-top:4px">
-              <button id="btnWpSchedule" class="secondary" title="Host only: create a scheduled party for the given time.">Schedule</button>
-              <button id="btnWpListScheduled" class="secondary" title="View parties you are hosting or invited to that are scheduled.">My Scheduled</button>
-              <button id="btnWpStartScheduled" class="secondary" title="Host only: activate a scheduled party once it's time.">Start Scheduled</button>
+            <div class="actions" style="margin-top: 4px">
+              <button
+                id="btnWpSchedule"
+                class="secondary"
+                title="Host only: create a scheduled party for the given time."
+              >
+                Schedule
+              </button>
+              <button
+                id="btnWpListScheduled"
+                class="secondary"
+                title="View parties you are hosting or invited to that are scheduled."
+              >
+                My Scheduled
+              </button>
+              <button
+                id="btnWpStartScheduled"
+                class="secondary"
+                title="Host only: activate a scheduled party once it's time."
+              >
+                Start Scheduled
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="row" style="margin-top: 8px">
+          <div class="col">
+            <label for="wpNewHostId">New Host User ID</label>
+            <input
+              id="wpNewHostId"
+              type="text"
+              placeholder="user-id"
+              title="User ID of participant to transfer host to."
+            />
+          </div>
+          <div class="col">
+            <label>Host Transfer</label>
+            <div class="actions" style="margin-top: 4px">
+              <button
+                id="btnWpTransferHost"
+                class="secondary"
+                title="Host only: transfer host role to the specified participant."
+              >
+                Transfer Host
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="row" style="margin-top: 8px">
+          <div class="col">
+            <label>Participation</label>
+            <div class="actions" style="margin-top: 4px">
+              <button
+                id="btnWpLeave"
+                class="secondary"
+                title="Leave the current party."
+              >
+                Leave Party
+              </button>
+              <button
+                id="btnWpRejectInvite"
+                class="secondary"
+                title="Reject an invitation to the party."
+              >
+                Reject Invite
+              </button>
+              <button
+                id="btnWpFetchRoster"
+                class="secondary"
+                title="Fetch roster, including resolved profile names, from backend."
+              >
+                Fetch Roster
+              </button>
             </div>
           </div>
         </div>
       </details>
     </div>
 
-    <div class="wrap" style="margin-top:16px">
+    <div class="wrap" style="margin-top: 16px">
       <details class="accordion" id="logsAccordion">
         <summary>Logs</summary>
         <div class="log-controls">
@@ -535,7 +1062,10 @@
           <label><input type="checkbox" id="filterWarn" checked /> Warn</label>
           <label><input type="checkbox" id="filterErr" checked /> Error</label>
           <button id="btnClearLog" class="secondary">Clear</button>
-          <label style="margin-left:auto;"><input type="checkbox" id="autoScroll" checked /> Auto-scroll</label>
+          <label style="margin-left: auto"
+            ><input type="checkbox" id="autoScroll" checked />
+            Auto-scroll</label
+          >
         </div>
         <div id="log" class="log" aria-live="polite">
           <ul id="logList" class="log-list"></ul>
@@ -578,7 +1108,8 @@
         badgesWrap.style.gap = '6px';
         const levelBadge = document.createElement('div');
         levelBadge.className = 'badge ' + (level === 'error' ? 'err' : level);
-        levelBadge.textContent = (level === 'err' ? 'ERROR' : level.toUpperCase());
+        levelBadge.textContent =
+          level === 'err' ? 'ERROR' : level.toUpperCase();
         const catBadge = document.createElement('div');
         catBadge.className = 'badge cat';
         catBadge.textContent = category || 'General';
@@ -628,11 +1159,29 @@
       function logEx(level = 'info', category = 'General', msg, detailsText) {
         const entry = createLogEntry(level, category, msg, detailsText);
         renderLogEntry(entry);
+        try {
+          const tag = `CINEGO[${category}|${level}]`;
+          if (level === 'err') {
+            console.error(tag, msg, detailsText || '');
+          } else if (level === 'warn') {
+            console.warn(tag, msg, detailsText || '');
+          } else {
+            console.log(tag, msg, detailsText || '');
+          }
+        } catch {}
       }
-      function log(msg) { logEx('info', 'General', msg); }
-      function logInfo(msg, cat = 'General', detailsText) { logEx('info', cat, msg, detailsText); }
-      function logWarn(msg, cat = 'General', detailsText) { logEx('warn', cat, msg, detailsText); }
-      function logErr(msg, cat = 'General', detailsText) { logEx('err', cat, msg, detailsText); }
+      function log(msg) {
+        logEx('info', 'General', msg);
+      }
+      function logInfo(msg, cat = 'General', detailsText) {
+        logEx('info', cat, msg, detailsText);
+      }
+      function logWarn(msg, cat = 'General', detailsText) {
+        logEx('warn', cat, msg, detailsText);
+      }
+      function logErr(msg, cat = 'General', detailsText) {
+        logEx('err', cat, msg, detailsText);
+      }
 
       // Filters and controls
       const applyFilters = () => {
@@ -650,8 +1199,10 @@
       });
       function setStatus(msg, cls = '') {
         const s = el('status');
+        if (!s) return;
         s.textContent = msg;
         s.className = `status ${cls}`;
+        s.style.display = '';
       }
 
       const video = el('video');
@@ -666,6 +1217,18 @@
       let currentProfile = null;
       let currentMovieId = null;
       let currentUseTrailer = true;
+
+      // Quick Fill Handler
+      document.getElementById('quickFill')?.addEventListener('click', (e) => {
+        if (e.target.classList.contains('fill-opt')) {
+          el('email').value = e.target.dataset.u;
+          el('password').value = e.target.dataset.p;
+          // Visual feedback
+          const originalColor = e.target.style.color;
+          e.target.style.color = '#fff';
+          setTimeout(() => (e.target.style.color = originalColor), 300);
+        }
+      });
 
       function resetQualitySelector() {
         qualitySel.innerHTML = '<option value="-1" selected>Auto</option>';
@@ -721,10 +1284,15 @@
           return setStatus('Enter email or phone number', 'err');
 
         const payload = { password };
-        if (email) payload.email = email; else payload.phoneNumber = phoneNumber;
+        if (email) payload.email = email;
+        else payload.phoneNumber = phoneNumber;
         const endpoint = apiBase + '/auth/login';
         setStatus('Logging in...');
-        logInfo(`POST ${endpoint}`, 'Auth', JSON.stringify({ ...payload, password: '••••••••' }));
+        logInfo(
+          `POST ${endpoint}`,
+          'Auth',
+          JSON.stringify({ ...payload, password: '••••••••' }),
+        );
         try {
           const res = await fetch(endpoint, {
             method: 'POST',
@@ -732,7 +1300,11 @@
             body: JSON.stringify(payload),
           });
           const body = await res.json().catch(() => null);
-          logInfo(`Response ${res.status} ${res.statusText}`, 'Auth', JSON.stringify(body).slice(0, 300));
+          logInfo(
+            `Response ${res.status} ${res.statusText}`,
+            'Auth',
+            JSON.stringify(body).slice(0, 300),
+          );
           if (!res.ok) {
             setStatus(`Login failed: HTTP ${res.status}`, 'err');
             logErr('Login failed', 'Auth', JSON.stringify(body).slice(0, 300));
@@ -742,8 +1314,15 @@
           userData = data?.user;
           tempAccessToken = data?.tempAccessToken;
           if (!tempAccessToken || !userData) {
-            setStatus('Unexpected login response. Missing token or user.', 'err');
-            logErr('Unexpected login response', 'Auth', JSON.stringify(body).slice(0, 400));
+            setStatus(
+              'Unexpected login response. Missing token or user.',
+              'err',
+            );
+            logErr(
+              'Unexpected login response',
+              'Auth',
+              JSON.stringify(body).slice(0, 400),
+            );
             return;
           }
           // Populate profiles
@@ -763,10 +1342,15 @@
           el('btnLogout').disabled = false;
           el('btnLogin').disabled = true;
           setStatus('Login successful. Select a profile to continue.', 'ok');
-          el('authStatus').textContent = `Pre-profile session ready; ${profiles.length} profiles available.`;
+          el('authStatus').textContent =
+            `Pre-profile session ready; ${profiles.length} profiles available.`;
         } catch (e) {
           setStatus(`Login error: ${e?.message || e}`, 'err');
-          logErr(`Login error: ${e?.message || e}`, 'Auth', e?.stack || String(e));
+          logErr(
+            `Login error: ${e?.message || e}`,
+            'Auth',
+            e?.stack || String(e),
+          );
         }
       }
 
@@ -776,8 +1360,7 @@
           return setStatus('Login first to get temp token.', 'err');
         const select = el('profileSelect');
         const profileId = select.value;
-        if (!profileId)
-          return setStatus('Select a profile to continue', 'err');
+        if (!profileId) return setStatus('Select a profile to continue', 'err');
         const endpoint = apiBase + '/auth/login/profile';
         setStatus('Creating full session...');
         logInfo(`POST ${endpoint}`, 'Auth', JSON.stringify({ profileId }));
@@ -791,10 +1374,18 @@
             body: JSON.stringify({ profileId }),
           });
           const body = await res.json().catch(() => null);
-          logInfo(`Response ${res.status} ${res.statusText}`, 'Auth', JSON.stringify(body).slice(0, 300));
+          logInfo(
+            `Response ${res.status} ${res.statusText}`,
+            'Auth',
+            JSON.stringify(body).slice(0, 300),
+          );
           if (!res.ok) {
             setStatus(`Profile login failed: HTTP ${res.status}`, 'err');
-            logErr('Profile login failed', 'Auth', JSON.stringify(body).slice(0, 300));
+            logErr(
+              'Profile login failed',
+              'Auth',
+              JSON.stringify(body).slice(0, 300),
+            );
             return;
           }
           const data = body?.data || body;
@@ -809,14 +1400,19 @@
           }
           el('btnLoginProfile').disabled = true;
           el('profileSelect').disabled = true;
-          el('authStatus').textContent = `Full session active for profile ${currentProfile?.profileName || currentProfile?.id}`;
+          el('authStatus').textContent =
+            `Full session active for profile ${currentProfile?.profileName || currentProfile?.id}`;
           setStatus(
             `Logged in as ${userData?.email || userData?.phoneNumber || 'user'}; active profile ${currentProfile?.profileName || currentProfile?.id}`,
             'ok',
           );
         } catch (e) {
           setStatus(`Profile login error: ${e?.message || e}`, 'err');
-          logErr(`Profile login error: ${e?.message || e}`, 'Auth', e?.stack || String(e));
+          logErr(
+            `Profile login error: ${e?.message || e}`,
+            'Auth',
+            e?.stack || String(e),
+          );
         }
       }
 
@@ -839,7 +1435,10 @@
           3600,
           Math.max(60, parseInt(el('ttl').value || '900', 10)),
         );
-        const movieId = (movieSelect && movieSelect.value) ? String(movieSelect.value).trim() : el('movieId').value.trim();
+        const movieId =
+          movieSelect && movieSelect.value
+            ? String(movieSelect.value).trim()
+            : el('movieId').value.trim();
         const useTrailer = !!el('useTrailer').checked;
         if (!apiBase) return setStatus('Please provide API Base URL', 'err');
         if (!accessToken)
@@ -850,7 +1449,11 @@
         setStatus(
           `Requesting signed cookies for movie ${movieId}${useTrailer ? ' (trailer)' : ''}...`,
         );
-        logInfo(`[POST] ${endpoint}`, 'Cookies', JSON.stringify({ movieId, ttlSeconds: ttl, useTrailer }));
+        logInfo(
+          `[POST] ${endpoint}`,
+          'Cookies',
+          JSON.stringify({ movieId, ttlSeconds: ttl, useTrailer }),
+        );
 
         try {
           const res = await fetch(endpoint, {
@@ -864,9 +1467,16 @@
           });
           const txt = await res.text();
           let data = null;
-          try { data = JSON.parse(txt); } catch {}
-          logInfo(`Response ${res.status} ${res.statusText}`, 'Cookies', txt.slice(0, 200));
-          const urlBase = (data && data.data && data.data.url) ? data.data.url : data?.url;
+          try {
+            data = JSON.parse(txt);
+          } catch {}
+          logInfo(
+            `Response ${res.status} ${res.statusText}`,
+            'Cookies',
+            txt.slice(0, 200),
+          );
+          const urlBase =
+            data && data.data && data.data.url ? data.data.url : data?.url;
           if (urlBase) {
             serverManifestUrl = urlBase;
             logInfo(`Manifest URL from API: ${urlBase}`, 'Cookies');
@@ -888,7 +1498,11 @@
           scheduleCookieRefresh(ttl);
         } catch (e) {
           setStatus(`Error requesting cookies: ${e?.message || e}`, 'err');
-          logErr(`Cookie request error: ${e?.message || e}`, 'Cookies', e?.stack || String(e));
+          logErr(
+            `Cookie request error: ${e?.message || e}`,
+            'Cookies',
+            e?.stack || String(e),
+          );
         }
       }
 
@@ -903,14 +1517,17 @@
           const when = new Date(Date.now() + ms).toLocaleTimeString();
           logInfo(
             `Scheduled cookie refresh in ${Math.round(ms / 1000)}s (at ${when})`,
-            'Cookies'
+            'Cookies',
           );
           cookieRefreshTimer = setTimeout(
             () => refreshSignedCookies('timer'),
             ms,
           );
         } catch (e) {
-          logWarn(`Failed to schedule cookie refresh: ${e?.message || e}`, 'Cookies');
+          logWarn(
+            `Failed to schedule cookie refresh: ${e?.message || e}`,
+            'Cookies',
+          );
         }
       }
 
@@ -925,15 +1542,20 @@
         );
         const movieId = currentMovieId || el('movieId').value.trim();
         const useTrailer =
-          currentUseTrailer !== undefined ? currentUseTrailer : !!el('useTrailer').checked;
+          currentUseTrailer !== undefined
+            ? currentUseTrailer
+            : !!el('useTrailer').checked;
         if (!apiBase || !movieId || !accessToken) {
-          logWarn('Cannot refresh cookies: missing API base, movieId, or accessToken', 'Cookies');
+          logWarn(
+            'Cannot refresh cookies: missing API base, movieId, or accessToken',
+            'Cookies',
+          );
           return;
         }
         const endpoint = apiBase + '/aws-services/cloudfront/signed-cookies';
         logInfo(
           `[${source}] Refreshing signed cookies for movie ${movieId}${useTrailer ? ' (trailer)' : ''}...`,
-          'Cookies'
+          'Cookies',
         );
         try {
           const res = await fetch(endpoint, {
@@ -947,13 +1569,16 @@
           });
           const txt = await res.text();
           let data = null;
-          try { data = JSON.parse(txt); } catch {}
+          try {
+            data = JSON.parse(txt);
+          } catch {}
           logInfo(
             `Refresh response: ${res.status} ${res.statusText}`,
             'Cookies',
-            txt.slice(0, 200)
+            txt.slice(0, 200),
           );
-          const newUrl = (data && data.data && data.data.url) ? data.data.url : data?.url;
+          const newUrl =
+            data && data.data && data.data.url ? data.data.url : data?.url;
           if (newUrl) {
             serverManifestUrl = newUrl;
             const serverUrlInput = el('serverUrl');
@@ -973,7 +1598,11 @@
           }
         } catch (e) {
           setStatus(`Cookie refresh error: ${e?.message || e}`, 'err');
-          logErr(`Cookie refresh error: ${e?.message || e}`, 'Cookies', e?.stack || String(e));
+          logErr(
+            `Cookie refresh error: ${e?.message || e}`,
+            'Cookies',
+            e?.stack || String(e),
+          );
         }
       }
 
@@ -981,7 +1610,8 @@
         try {
           const apiBase = el('apiBaseUrl').value.trim().replace(/\/$/, '');
           if (!apiBase) return setStatus('Please provide API Base URL', 'err');
-          if (!accessToken) return setStatus('Login and select a profile first.', 'err');
+          if (!accessToken)
+            return setStatus('Login and select a profile first.', 'err');
           const endpoint = `${apiBase}/movie?page=1&limit=25&sortBy=title:ASC`;
           logInfo(`[GET] ${endpoint}`, 'Movies');
           const res = await fetch(endpoint, {
@@ -992,14 +1622,25 @@
             credentials: 'include',
           });
           const txt = await res.text();
-          let data = null; try { data = JSON.parse(txt); } catch {}
-          logInfo(`Movies response: ${res.status} ${res.statusText}`, 'Movies', txt.slice(0, 200));
+          let data = null;
+          try {
+            data = JSON.parse(txt);
+          } catch {}
+          logInfo(
+            `Movies response: ${res.status} ${res.statusText}`,
+            'Movies',
+            txt.slice(0, 200),
+          );
           if (!res.ok) {
             setStatus(`Failed to fetch movies: HTTP ${res.status}`, 'err');
             return;
           }
           const payload = data?.data || {};
-          const items = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.items) ? payload.items : [];
+          const items = Array.isArray(payload?.data)
+            ? payload.data
+            : Array.isArray(payload?.items)
+              ? payload.items
+              : [];
           if (!items.length) {
             logWarn('No movies returned in first page.', 'Movies');
           }
@@ -1007,7 +1648,11 @@
           setStatus('Movies loaded. Select one and get cookies.', 'ok');
         } catch (e) {
           setStatus(`Error fetching movies: ${e?.message || e}`, 'err');
-          logErr(`Error fetching movies: ${e?.message || e}`, 'Movies', e?.stack || String(e));
+          logErr(
+            `Error fetching movies: ${e?.message || e}`,
+            'Movies',
+            e?.stack || String(e),
+          );
         }
       }
 
@@ -1033,19 +1678,29 @@
           // reset manual field to reflect selection changes
           const idVal = movieSelect.value || '';
           el('movieId').value = idVal;
-          movieSelect.addEventListener('change', () => {
-            const id = movieSelect.value || '';
-            el('movieId').value = id;
-            const sel = movieSelect.selectedOptions[0];
-            const hasTrailer = sel?.getAttribute('data-hasTrailer') === '1';
-            if (!hasTrailer && el('useTrailer')?.checked) {
-              logWarn('Selected movie has no trailer key; switching to main.', 'Movies');
-              el('useTrailer').checked = false;
-            }
-          }, { once: true });
+          movieSelect.addEventListener(
+            'change',
+            () => {
+              const id = movieSelect.value || '';
+              el('movieId').value = id;
+              const sel = movieSelect.selectedOptions[0];
+              const hasTrailer = sel?.getAttribute('data-hasTrailer') === '1';
+              if (!hasTrailer && el('useTrailer')?.checked) {
+                logWarn(
+                  'Selected movie has no trailer key; switching to main.',
+                  'Movies',
+                );
+                el('useTrailer').checked = false;
+              }
+            },
+            { once: true },
+          );
           logInfo(`Populated ${items.length} movies into selector`, 'Movies');
         } catch (e) {
-          logErr(`Failed to populate movie selector: ${e?.message || e}`, 'Movies');
+          logErr(
+            `Failed to populate movie selector: ${e?.message || e}`,
+            'Movies',
+          );
         }
       }
 
@@ -1106,7 +1761,7 @@
         hls.on(Hls.Events.ERROR, (_, data) => {
           logErr(
             `HLS.js error: type=${data.type}, details=${data.details}, fatal=${!!data.fatal}`,
-            'HLS'
+            'HLS',
           );
           if (is403FromHlsError(data)) {
             setStatus('Access denied (403). Refreshing cookies...', 'err');
@@ -1137,70 +1792,161 @@
 
       async function probeManifest() {
         const url = serverManifestUrl?.trim();
-        if (!url) return setStatus('Get signed cookies to obtain manifest URL first', 'err');
+        if (!url)
+          return setStatus(
+            'Get signed cookies to obtain manifest URL first',
+            'err',
+          );
 
         const pageOrigin = window.location.origin;
         let manifestOrigin = '';
-        try { manifestOrigin = new URL(url).origin; } catch {}
-        logInfo(`Page origin: ${pageOrigin}; Manifest origin: ${manifestOrigin || 'unknown'}`, 'Probe');
+        try {
+          manifestOrigin = new URL(url).origin;
+        } catch {}
+        logInfo(
+          `Page origin: ${pageOrigin}; Manifest origin: ${manifestOrigin || 'unknown'}`,
+          'Probe',
+        );
 
         // Step A: Credentialless HEAD request to infer CORS behavior without cookies
         try {
           logInfo(`HEAD (no credentials): ${url}`, 'Probe');
-          const r0 = await fetch(url, { method: 'HEAD', mode: 'cors', credentials: 'omit', cache: 'no-store' });
+          const r0 = await fetch(url, {
+            method: 'HEAD',
+            mode: 'cors',
+            credentials: 'omit',
+            cache: 'no-store',
+          });
           const ct0 = r0.headers.get('content-type') || '';
-          logInfo(`HEAD response: type=${r0.type}; status=${r0.status} ${r0.statusText}; ct=${ct0}`, 'Probe');
+          logInfo(
+            `HEAD response: type=${r0.type}; status=${r0.status} ${r0.statusText}; ct=${ct0}`,
+            'Probe',
+          );
           const acao = r0.headers.get('access-control-allow-origin');
           const acc = r0.headers.get('access-control-allow-credentials');
           if (acao || acc) {
-            logInfo(`Readable CORS headers: A-C-A-O='${acao}', A-C-A-C='${acc}'`, 'Probe');
+            logInfo(
+              `Readable CORS headers: A-C-A-O='${acao}', A-C-A-C='${acc}'`,
+              'Probe',
+            );
           } else {
-            logWarn('CORS headers not readable by JS (normal unless exposed). This does not prove absence.', 'Probe');
+            logWarn(
+              'CORS headers not readable by JS (normal unless exposed). This does not prove absence.',
+              'Probe',
+            );
           }
           if (r0.type === 'opaque') {
-            logWarn('Opaque HEAD response: origin not permitted for CORS (likely missing Access-Control-Allow-Origin).', 'Probe');
+            logWarn(
+              'Opaque HEAD response: origin not permitted for CORS (likely missing Access-Control-Allow-Origin).',
+              'Probe',
+            );
           } else {
-            logInfo('Origin appears permitted for credentialless CORS HEAD.', 'Probe');
+            logInfo(
+              'Origin appears permitted for credentialless CORS HEAD.',
+              'Probe',
+            );
           }
         } catch (e0) {
-          logWarn(`HEAD (no credentials) failed: ${e0?.message || e0}`, 'Probe');
+          logWarn(
+            `HEAD (no credentials) failed: ${e0?.message || e0}`,
+            'Probe',
+          );
           try {
-            const r0b = await fetch(url, { method: 'HEAD', mode: 'no-cors', credentials: 'omit', cache: 'no-store' });
-            logWarn(`HEAD (no-cors) returned type=${r0b.type}. Opaque indicates CORS not permitted or headers not exposed.`, 'Probe');
+            const r0b = await fetch(url, {
+              method: 'HEAD',
+              mode: 'no-cors',
+              credentials: 'omit',
+              cache: 'no-store',
+            });
+            logWarn(
+              `HEAD (no-cors) returned type=${r0b.type}. Opaque indicates CORS not permitted or headers not exposed.`,
+              'Probe',
+            );
           } catch (e0b) {
-            logErr(`HEAD (no-cors) also failed: ${e0b?.message || e0b}`, 'Probe');
+            logErr(
+              `HEAD (no-cors) also failed: ${e0b?.message || e0b}`,
+              'Probe',
+            );
           }
         }
 
         // Step B: Credentialed GET request (actual manifest fetch)
         logInfo(`GET manifest (with credentials): ${url}`, 'Probe');
         try {
-          const r = await fetch(url, { credentials: 'include', mode: 'cors', cache: 'no-store' });
+          const r = await fetch(url, {
+            credentials: 'include',
+            mode: 'cors',
+            cache: 'no-store',
+          });
           const ct = r.headers.get('content-type') || '';
-          logInfo(`Manifest response: type=${r.type}; status=${r.status} ${r.statusText}; ct=${ct}`, 'Probe');
+          logInfo(
+            `Manifest response: type=${r.type}; status=${r.status} ${r.statusText}; ct=${ct}`,
+            'Probe',
+          );
           const txt = await r.text().catch(() => '');
-          if (txt) logInfo('Body (first 500 chars):', 'Probe', txt.slice(0, 500));
+          if (txt)
+            logInfo('Body (first 500 chars):', 'Probe', txt.slice(0, 500));
           if (r.status === 403) {
-            setStatus('Manifest 403 (likely cookies expired). Refreshing...', 'err');
+            setStatus(
+              'Manifest 403 (likely cookies expired). Refreshing...',
+              'err',
+            );
             await refreshSignedCookies('reactive');
             return;
           }
-          if (r.ok && (ct.includes('application/vnd.apple.mpegurl') || txt.startsWith('#EXTM3U'))) {
-            setStatus('Manifest looks valid. If playback fails, check segment requests.');
+          if (
+            r.ok &&
+            (ct.includes('application/vnd.apple.mpegurl') ||
+              txt.startsWith('#EXTM3U'))
+          ) {
+            setStatus(
+              'Manifest looks valid. If playback fails, check segment requests.',
+            );
           } else if (txt.includes('<Error>')) {
-            setStatus('Manifest returned XML error (likely AccessDenied/MissingKey).', 'err');
+            setStatus(
+              'Manifest returned XML error (likely AccessDenied/MissingKey).',
+              'err',
+            );
           } else {
-            setStatus('Manifest fetched but content-type doesn’t look like HLS.', 'err');
+            setStatus(
+              'Manifest fetched but content-type doesn’t look like HLS.',
+              'err',
+            );
           }
         } catch (e) {
           const msg = e?.message || String(e);
           setStatus(`Manifest fetch error: ${msg}`, 'err');
-          logErr(`Manifest fetch error: ${msg}`, 'Probe', e?.stack || String(e));
+          logErr(
+            `Manifest fetch error: ${msg}`,
+            'Probe',
+            e?.stack || String(e),
+          );
           if (String(msg).toLowerCase().includes('failed to fetch')) {
             // When CORS blocks credentialed requests, the browser prevents reading response headers
-            logWarn('Credentialed CORS likely blocked. The browser prevents inspecting response headers when blocked.', 'Probe');
-            logInfo(`Ensure media origin sends: Access-Control-Allow-Origin: ${pageOrigin} and Access-Control-Allow-Credentials: true`, 'Probe');
-            logInfo('Also ensure allowed methods/headers and optionally expose headers: Accept-Ranges, Content-Length, Content-Range', 'Probe');
+            logWarn(
+              'Credentialed CORS likely blocked. The browser prevents inspecting response headers when blocked.',
+              'Probe',
+            );
+            logInfo(
+              `Ensure media origin sends: Access-Control-Allow-Origin: ${pageOrigin} and Access-Control-Allow-Credentials: true`,
+              'Probe',
+            );
+            logInfo(
+              'Also ensure allowed methods/headers and optionally expose headers: Accept-Ranges, Content-Length, Content-Range',
+              'Probe',
+            );
+          }
+        }
+      }
+
+      function updateGridState() {
+        const grid = el('partyGrid');
+        const vid = el('videoTile');
+        if (grid && vid) {
+          if (vid.classList.contains('active')) {
+            grid.classList.add('has-video');
+          } else {
+            grid.classList.remove('has-video');
           }
         }
       }
@@ -1208,7 +1954,14 @@
       function loadVideo() {
         const url = serverManifestUrl?.trim();
         if (!url || !url.includes('.m3u8'))
-          return setStatus('Get signed cookies to obtain a valid .m3u8 URL', 'err');
+          return setStatus(
+            'Get signed cookies to obtain a valid .m3u8 URL',
+            'err',
+          );
+
+        const vt = el('videoTile');
+        if (vt) vt.classList.add('active');
+        updateGridState();
 
         // reset
         if (hls) {
@@ -1269,6 +2022,9 @@
           cookieRefreshTimer = null;
         }
         setStatus('Stopped');
+        const vt = el('videoTile');
+        if (vt) vt.classList.remove('active');
+        updateGridState();
       }
 
       el('btnCookies').onclick = getSignedCookies;
@@ -1290,6 +2046,7 @@
       };
       let rtmClient = null;
       let rtmUserId = null;
+      let rtmRefreshTimer = null;
 
       function appendRtmMessage(user, msg) {
         const d = rtmControls.displayEl;
@@ -1300,43 +2057,73 @@
         d.scrollTop = d.scrollHeight;
       }
 
-      function connectRtm() {
+      async function connectRtm() {
         const appId = rtmControls.appIdEl?.value?.trim();
-        const channel = rtmControls.channelEl?.value?.trim() || 'Chat_room';
+        const channelInput =
+          rtmControls.channelEl?.value?.trim() || 'Chat_room';
         const apiBase = el('apiBaseUrl')?.value?.trim()?.replace(/\/$/, '');
         if (!appId || !apiBase) return;
-
-        rtmUserId = (currentProfile?.id || userData?.id || Math.random().toString(36).slice(2, 10));
+        if (!currentProfile?.id) {
+          logErr('RTM connect requires selected profile', 'RTM');
+          return;
+        }
+        rtmUserId = String(currentProfile.id);
+        const partyCh = wpState?.channelName || '';
+        const targetCh = String(partyCh || channelInput);
+        if (wpState?.rtm) {
+          rtmClient = wpState.rtm;
+          if (rtmControls.channelEl) rtmControls.channelEl.value = targetCh;
+          logInfo('RTM using watch party instance', 'RTM');
+          return;
+        }
+        try {
+          await wpConnectRtm(targetCh);
+          if (wpState?.rtm) {
+            rtmClient = wpState.rtm;
+            if (rtmControls.channelEl) rtmControls.channelEl.value = targetCh;
+            logInfo('RTM connected', 'RTM');
+            return;
+          }
+        } catch {}
         try {
           rtmClient = new AgoraRTM.RTM(appId, rtmUserId);
         } catch (e) {
           logErr('RTM init failed', 'RTM', e?.stack || String(e));
           return;
         }
-
         rtmClient.addEventListener('message', (event) => {
           if (event.publisher === rtmUserId) return;
           appendRtmMessage(event.publisher, event.message);
         });
         rtmClient.addEventListener('presence', (event) => {
-          appendRtmMessage('INFO', event.eventType === 'SNAPSHOT' ? 'Join snapshot' : (event.publisher + ' ' + event.eventType));
+          appendRtmMessage(
+            'INFO',
+            event.eventType === 'SNAPSHOT'
+              ? 'Join snapshot'
+              : event.publisher + ' ' + event.eventType,
+          );
         });
         rtmClient.addEventListener('status', (event) => {
           logInfo('RTM status', 'RTM', JSON.stringify(event));
         });
-
         fetch(apiBase + '/watch-party/rtm/token', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: accessToken ? `Bearer ${accessToken}` : '' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: accessToken ? `Bearer ${accessToken}` : '',
+          },
           body: JSON.stringify({}),
         })
           .then((res) => res.json())
           .then((json) => {
             const token = json?.data?.token || json?.token;
+            const ttl = json?.data?.expireSeconds || json?.expireSeconds;
             if (!token) throw new Error('token missing');
-            return rtmClient.login({ token });
+            return rtmClient.login({ token }).then(() => {
+              if (ttl) scheduleRtmRefresh(ttl);
+            });
           })
-          .then(() => rtmClient.subscribe(channel))
+          .then(() => rtmClient.subscribe(targetCh))
           .then(() => {
             logInfo('RTM connected', 'RTM');
           })
@@ -1344,15 +2131,61 @@
             logErr('RTM connect error', 'RTM', e?.stack || String(e));
           });
       }
+      function scheduleRtmRefresh(ttlSeconds) {
+        try {
+          if (rtmRefreshTimer) {
+            clearTimeout(rtmRefreshTimer);
+            rtmRefreshTimer = null;
+          }
+          const lead = Math.min(60, Math.max(15, Math.floor(ttlSeconds * 0.1)));
+          const ms = Math.max(0, (ttlSeconds - lead) * 1000);
+          rtmRefreshTimer = setTimeout(refreshRtmToken, ms);
+        } catch {}
+      }
+      function refreshRtmToken() {
+        try {
+          const apiBase = el('apiBaseUrl')?.value?.trim()?.replace(/\/$/, '');
+          if (rtmClient === wpState?.rtm) {
+            wpRefreshRtmToken();
+            return;
+          }
+          if (!apiBase || !rtmClient || !accessToken) return;
+          fetch(apiBase + '/watch-party/rtm/token/refresh', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({}),
+          })
+            .then((r) => r.json())
+            .then((j) => {
+              const token = j?.data?.token || j?.token;
+              const ttl = j?.data?.expireSeconds || j?.expireSeconds;
+              if (!token) throw new Error('missing token');
+              return rtmClient.login({ token }).then(() => {
+                if (ttl) scheduleRtmRefresh(ttl);
+              });
+            })
+            .catch(() => {
+              disconnectRtm();
+              connectRtm();
+            });
+        } catch {}
+      }
 
       function publishRtmMessage() {
-        if (!rtmClient) return;
-        const channel = rtmControls.channelEl?.value?.trim() || 'Chat_room';
+        const client = wpState?.rtm || rtmClient;
+        if (!client) return;
+        const channel =
+          wpState?.channelName ||
+          rtmControls.channelEl?.value?.trim() ||
+          'Chat_room';
         const message = rtmControls.textEl?.value || '';
         if (!message) return;
         const payload = JSON.stringify({ type: 'text', message });
         const options = { channelType: 'MESSAGE' };
-        rtmClient
+        client
           .publish(channel, payload, options)
           .then(() => {
             appendRtmMessage(rtmUserId, payload);
@@ -1365,6 +2198,19 @@
 
       function disconnectRtm() {
         if (!rtmClient) return;
+        if (rtmRefreshTimer) {
+          clearTimeout(rtmRefreshTimer);
+          rtmRefreshTimer = null;
+        }
+        if (rtmClient === wpState?.rtm) {
+          wpDisconnectRtm()
+            .catch(() => {})
+            .finally(() => {
+              rtmClient = null;
+              logInfo('RTM disconnected', 'RTM');
+            });
+          return;
+        }
         rtmClient
           .logout()
           .catch(() => {})
@@ -1393,6 +2239,7 @@
         inviteEmailsEl: el('wpInviteEmails'),
         invitePhonesEl: el('wpInvitePhones'),
         scheduleAtEl: el('wpScheduleAt'),
+        newHostIdEl: el('wpNewHostId'),
         btnStart: el('btnWpStart'),
         btnJoinId: el('btnWpJoinId'),
         btnJoinCode: el('btnWpJoinCode'),
@@ -1409,6 +2256,10 @@
         btnSchedule: el('btnWpSchedule'),
         btnListScheduled: el('btnWpListScheduled'),
         btnStartScheduled: el('btnWpStartScheduled'),
+        btnTransferHost: el('btnWpTransferHost'),
+        btnLeave: el('btnWpLeave'),
+        btnRejectInvite: el('btnWpRejectInvite'),
+        btnFetchRoster: el('btnWpFetchRoster'),
       };
       const wpState = {
         partyId: null,
@@ -1419,54 +2270,174 @@
         rtm: null,
         rtmUid: null,
         roster: new Map(),
+        nameMap: new Map(),
         driftToleranceMs: 400,
         lastAnchor: null,
         hbTimer: null,
         scrubTimer: null,
         rateBucket: { count: 0, start: 0 },
+        rtmRefreshTimer: null,
+        rosterTimer: null,
+        rosterResolved: null,
       };
 
       function wpSetRole(role) {
         wpState.role = role || null;
         wpState.isHost = role === 'HOST';
-        if (wpControls.roleStatusEl) wpControls.roleStatusEl.textContent = role ? role : 'No party';
+        if (wpControls.roleStatusEl)
+          wpControls.roleStatusEl.textContent = role ? role : 'No party';
       }
       function wpUpdateRosterView() {
-        const d = wpControls.rosterEl; if (!d) return;
+        const d = wpControls.rosterEl;
+        if (!d) return;
         d.innerHTML = '';
+        const resolved = Array.isArray(wpState.rosterResolved)
+          ? wpState.rosterResolved
+          : null;
+        if (resolved && resolved.length) {
+          const items = resolved.slice();
+          items.sort((a, b) =>
+            String(a.profileName || a.profileId).localeCompare(
+              String(b.profileName || b.profileId),
+            ),
+          );
+          items.forEach((r) => {
+            const pid = String(r.profileId || '');
+            const name = r.profileName || wpState.nameMap.get(pid) || 'unknown';
+            const isMe = pid && pid === String(currentProfile?.id || '');
+            const nameDisp = isMe ? name + ' (Me)' : name;
+            const displayPid = pid || '—';
+            const t = document.createTextNode(
+              nameDisp + ' • ' + (r.role || '') + ' • ' + displayPid,
+            );
+            const br = document.createElement('br');
+            d.appendChild(t);
+            d.appendChild(br);
+          });
+          logInfo(
+            'Roster render (resolved)',
+            'WP',
+            JSON.stringify({ count: items.length }).slice(0, 200),
+          );
+          return;
+        }
         const items = Array.from(wpState.roster.entries());
-        items.sort((a,b)=>String(a[0]).localeCompare(String(b[0])));
+        items.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
         items.forEach(([uid, status]) => {
-          const t = document.createTextNode(uid + ' • ' + status);
+          const name = wpState.nameMap.get(String(uid)) || uid;
+          const isMe = String(uid) === String(currentProfile?.id || '');
+          const nameDisp = isMe ? name + ' (Me)' : name;
+          const t = document.createTextNode(nameDisp + ' • ' + status);
           const br = document.createElement('br');
-          d.appendChild(t); d.appendChild(br);
+          d.appendChild(t);
+          d.appendChild(br);
         });
+        logInfo(
+          'Roster render (presence)',
+          'WP',
+          JSON.stringify({ count: items.length }).slice(0, 200),
+        );
+        try {
+          const details = items.map(([uid, status]) => ({
+            uid: String(uid),
+            status: String(status),
+            name: String(wpState.nameMap.get(String(uid)) || ''),
+          }));
+          logInfo(
+            'Roster render presence detail',
+            'WP',
+            JSON.stringify(details).slice(0, 500),
+          );
+        } catch {}
       }
       function wpRateLimit() {
         const now = Date.now();
-        if (!wpState.rateBucket.start || now - wpState.rateBucket.start > 1000) {
-          wpState.rateBucket.start = now; wpState.rateBucket.count = 0; return true;
+        if (
+          !wpState.rateBucket.start ||
+          now - wpState.rateBucket.start > 1000
+        ) {
+          wpState.rateBucket.start = now;
+          wpState.rateBucket.count = 0;
+          return true;
         }
         wpState.rateBucket.count++;
         return wpState.rateBucket.count <= 20;
       }
       function wpLoginRtmToken() {
         const apiBase = el('apiBaseUrl')?.value?.trim()?.replace(/\/$/, '');
-        if (!apiBase || !accessToken) return Promise.reject('missing apiBase/accessToken');
-        return fetch(apiBase + '/watch-party/rtm/token', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` }, body: JSON.stringify({}) })
-          .then((r)=>r.json()).then((j)=>j?.data?.token || j?.token);
+        if (!apiBase || !accessToken)
+          return Promise.reject('missing apiBase/accessToken');
+        return fetch(apiBase + '/watch-party/rtm/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({}),
+        })
+          .then((r) => r.json())
+          .then((j) => ({
+            token: j?.data?.token || j?.token,
+            expireSeconds: j?.data?.expireSeconds || j?.expireSeconds,
+          }));
       }
       function wpConnectRtm(channel) {
         const appId = rtmControls.appIdEl?.value?.trim();
         if (!appId) return Promise.reject('missing appId');
-        const uid = (currentProfile?.id || userData?.id || Math.random().toString(36).slice(2,10));
-        wpState.rtmUid = uid;
-        try { wpState.rtm = new AgoraRTM.RTM(appId, uid); } catch (e) { logErr('RTM init failed', 'WP', e?.stack || String(e)); return Promise.reject(e); }
+        const uid = currentProfile?.id;
+        if (!uid) return Promise.reject('missing profile');
+        wpState.rtmUid = String(uid);
+        try {
+          wpState.rtm = new AgoraRTM.RTM(appId, uid);
+        } catch (e) {
+          logErr('RTM init failed', 'WP', e?.stack || String(e));
+          return Promise.reject(e);
+        }
         wpState.rtm.addEventListener('message', (event) => {
+          try {
+            logInfo(
+              'RTM message recv',
+              'WP',
+              JSON.stringify({
+                publisher: String(event?.publisher || ''),
+                selfUid: String(uid || ''),
+                raw: String(event?.message || ''),
+              }).slice(0, 400),
+            );
+          } catch {}
           if (event.publisher === uid) return;
           try {
             const data = JSON.parse(event.message);
-            if (data && data.t && (data.t === 'play' || data.t === 'pause' || data.t === 'seek' || data.t === 'hb')) {
+            if (data && data.type === 'presence') {
+              const pid = String(data.profileId || event.publisher || '');
+              const name = String(data.profileName || '');
+              if (pid) {
+                wpState.roster.set(pid, 'ONLINE');
+              }
+              if (pid && name) {
+                wpState.nameMap.set(pid, name);
+              }
+              wpUpdateRosterView();
+              return;
+            }
+            if (data && data.type === 'roster_request') {
+              wpBroadcastPresence(channel);
+              return;
+            }
+            if (data && data.type === 'sync_please' && wpState.isHost) {
+              const mediaTime = Number(video.currentTime || 0);
+              const t = video.paused ? 'pause' : 'seek';
+              wpPublishControl(t, mediaTime);
+              return;
+            }
+            if (
+              data &&
+              data.t &&
+              (data.t === 'play' ||
+                data.t === 'pause' ||
+                data.t === 'seek' ||
+                data.t === 'hb')
+            ) {
               wpApplyAnchor(data);
               return;
             }
@@ -1476,66 +2447,431 @@
         wpState.rtm.addEventListener('presence', (event) => {
           const who = event.publisher || 'unknown';
           const status = event.eventType || 'event';
+          if (String(status) === 'SNAPSHOT') {
+            wpFetchRoster();
+            wpSendRosterRequest(channel);
+            logInfo('Presence snapshot', 'WP');
+            return;
+          }
           wpState.roster.set(who, status);
+          logInfo(
+            'Presence event',
+            'WP',
+            JSON.stringify({
+              publisher: String(who),
+              status: String(status),
+            }).slice(0, 200),
+          );
           wpUpdateRosterView();
         });
+        try {
+          wpState.rtm.addEventListener('storage', (event) => {
+            try {
+              const et = String(event?.eventType || '');
+              const ch =
+                String(event?.channelName || event?.channel || '') || '';
+              logInfo(
+                'Storage event',
+                'WP',
+                JSON.stringify({ eventType: et, channel: ch }).slice(0, 200),
+              );
+            } catch {}
+            wpReadChannelAttrs(channel).catch(() => {});
+          });
+        } catch {}
         wpState.rtm.addEventListener('status', (event) => {
           const st = String(event.state || '');
-          if (st === 'RECONNECTED') { wpReadChannelAttrs(channel).catch(()=>{}); }
+          if (st === 'RECONNECTED') {
+            logInfo('RTM reconnected', 'WP');
+            wpReadChannelAttrs(channel).catch(() => {});
+          }
         });
         return wpLoginRtmToken()
-          .then((token) => wpState.rtm.login({ token }))
-          .then(() => wpState.rtm.subscribe(channel))
-          .then(() => { logInfo('Watch party RTM connected', 'WP'); return wpReadChannelAttrs(channel); })
-          .catch((e)=>{ logErr('Watch party RTM connect error', 'WP', e?.stack || String(e)); throw e; });
+          .then(({ token, expireSeconds }) =>
+            wpState.rtm.login({ token }).then(() => {
+              if (expireSeconds) wpScheduleRtmRefresh(expireSeconds);
+            }),
+          )
+          .then(() => {
+            logInfo('RTM subscribe', 'WP', String(channel));
+            return wpState.rtm.subscribe(channel);
+          })
+          .then(() => {
+            logInfo('Watch party RTM connected', 'WP');
+            return wpReadChannelAttrs(channel).catch(() => {
+              wpSendSyncPlease(channel);
+            });
+          })
+          .then(() => {
+            wpBroadcastPresence(channel);
+            wpSendRosterRequest(channel);
+            wpFetchRoster();
+          })
+          .catch((e) => {
+            logErr(
+              'Watch party RTM connect error',
+              'WP',
+              e?.stack || String(e),
+            );
+            throw e;
+          });
+      }
+      function wpBroadcastPresence(channelOverride) {
+        try {
+          const pid = String(
+            currentProfile?.id || userData?.id || wpState.rtmUid || '',
+          );
+          const name =
+            String(currentProfile?.profileName || '') ||
+            String((wpState.nameMap && wpState.nameMap.get(pid)) || '');
+          if (pid) {
+            wpState.roster.set(pid, 'ONLINE');
+            if (name) wpState.nameMap.set(pid, name);
+            wpUpdateRosterView();
+          }
+          const msg = JSON.stringify({
+            type: 'presence',
+            profileId: pid,
+            profileName: name,
+          });
+          const ch = channelOverride || wpState.channelName;
+          if (!ch || !wpState.rtm) return;
+          logInfo(
+            'Presence publish',
+            'WP',
+            JSON.stringify({ profileId: pid, profileName: name }).slice(0, 200),
+          );
+          wpState.rtm
+            .publish(ch, msg, { channelType: 'MESSAGE' })
+            .then(() => {
+              logInfo('Presence publish ok', 'WP');
+            })
+            .catch((e) => {
+              logErr('Presence publish fail', 'WP', e?.stack || String(e));
+            });
+        } catch {}
+      }
+      function wpSendRosterRequest(channelOverride) {
+        try {
+          const ch = channelOverride || wpState.channelName;
+          if (!ch || !wpState.rtm) return;
+          const msg = JSON.stringify({ type: 'roster_request' });
+          logInfo('Roster request publish', 'WP');
+          wpState.rtm
+            .publish(ch, msg, { channelType: 'MESSAGE' })
+            .then(() => {
+              logInfo('Roster request publish ok', 'WP');
+            })
+            .catch((e) => {
+              logErr(
+                'Roster request publish fail',
+                'WP',
+                e?.stack || String(e),
+              );
+            });
+        } catch {}
+      }
+      function wpScheduleRtmRefresh(ttlSeconds) {
+        try {
+          if (wpState.rtmRefreshTimer) {
+            clearTimeout(wpState.rtmRefreshTimer);
+            wpState.rtmRefreshTimer = null;
+          }
+          const lead = Math.min(60, Math.max(15, Math.floor(ttlSeconds * 0.1)));
+          const ms = Math.max(0, (ttlSeconds - lead) * 1000);
+          wpState.rtmRefreshTimer = setTimeout(wpRefreshRtmToken, ms);
+        } catch {}
+      }
+      async function wpDisconnectRtm() {
+        try {
+          const ch = wpState.channelName;
+          if (wpState.rtm) {
+            try {
+              if (ch) await wpState.rtm.unsubscribe(ch);
+            } catch {}
+            try {
+              await wpState.rtm.logout();
+            } catch {}
+          }
+          wpState.rtm = null;
+        } catch {}
+      }
+      function wpRefreshRtmToken() {
+        try {
+          const apiBase = el('apiBaseUrl')?.value?.trim()?.replace(/\/$/, '');
+          if (!apiBase || !wpState.rtm || !accessToken) return;
+          fetch(apiBase + '/watch-party/rtm/token/refresh', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({}),
+          })
+            .then((r) => r.json())
+            .then((j) => {
+              const token = j?.data?.token || j?.token;
+              const ttl = j?.data?.expireSeconds || j?.expireSeconds;
+              if (!token) throw new Error('missing token');
+              return wpState.rtm.login({ token }).then(() => {
+                if (ttl) wpScheduleRtmRefresh(ttl);
+              });
+            })
+            .catch(() => {
+              wpState.rtm = null;
+              wpConnectRtm(wpState.channelName).catch(() => {});
+            });
+        } catch {}
+      }
+      function wpFetchRoster() {
+        const apiBase = wpApiBase();
+        const pid = wpPartyId();
+        if (!apiBase || !pid || !accessToken) return;
+        fetch(`${apiBase}/watch-party/party/${pid}/roster`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+          .then((r) => r.json())
+          .then((j) => {
+            const data = j?.data || j || {};
+            const roster = Array.isArray(data?.roster) ? data.roster : [];
+            try {
+              roster.forEach((r) => {
+                const pid = String(r?.profileId || '');
+                const name = String(r?.profileName || '');
+                if (pid && name) wpState.nameMap.set(pid, name);
+              });
+            } catch {}
+            wpState.rosterResolved = roster;
+            wpUpdateRosterView();
+            try {
+              const newMap = new Map();
+              const ids = new Set(
+                (wpState.rosterResolved || []).map((r) =>
+                  String(r?.profileId || ''),
+                ),
+              );
+              ids.forEach((pid) => {
+                if (!pid) return;
+                const prev = wpState.roster.get(pid);
+                newMap.set(pid, prev || 'ONLINE');
+              });
+              // Replace roster map with profileId-only keys
+              wpState.roster = newMap;
+              wpUpdateRosterView();
+            } catch {}
+            logInfo(
+              'Roster fetch',
+              'WP',
+              JSON.stringify({ count: roster.length }).slice(0, 200),
+            );
+            try {
+              const details = roster.map((r) => ({
+                profileId: String(r?.profileId || ''),
+                profileName: String(r?.profileName || ''),
+                role: String(r?.role || ''),
+              }));
+              logInfo(
+                'Roster resolved detail',
+                'WP',
+                JSON.stringify(details).slice(0, 500),
+              );
+            } catch {}
+          })
+          .catch(() => {});
+      }
+      function wpScheduleRosterRefresh() {
+        if (wpState.rosterTimer) {
+          clearInterval(wpState.rosterTimer);
+          wpState.rosterTimer = null;
+        }
+        wpState.rosterTimer = setInterval(() => {
+          if (wpState.partyId) wpFetchRoster();
+        }, 15000);
       }
       function wpSetChannelAttrs(channel, attrs) {
         if (!wpState.rtm) return Promise.resolve();
-        const a = { hostId: String(attrs.hostId||''), state: String(attrs.state||''), mediaTime: Number(attrs.mediaTime||0), at: Number(attrs.at||0) };
-        return wpState.rtm.setChannelAttributes(channel, a, { enableNotificationToChannelMembers: true }).catch(()=>{});
+        const kv = [
+          { key: 'hostId', value: String(attrs.hostId || '') },
+          { key: 'state', value: String(attrs.state || '') },
+          { key: 'mediaTime', value: String(Number(attrs.mediaTime || 0)) },
+          { key: 'at', value: String(Number(attrs.at || 0)) },
+        ];
+        try {
+          logInfo(
+            'Set channel metadata',
+            'WP',
+            JSON.stringify(attrs).slice(0, 200),
+          );
+          return wpState.rtm.storage
+            .setChannelMetadata(channel, 'MESSAGE', kv, {
+              enableNotificationToChannelMembers: true,
+            })
+            .catch(() => {});
+        } catch {
+          return Promise.resolve();
+        }
+      }
+      function wpExtractMetaMap(meta) {
+        try {
+          const list = Array.isArray(meta)
+            ? meta
+            : Array.isArray(meta?.metadata)
+              ? meta.metadata
+              : Array.isArray(meta?.items)
+                ? meta.items
+                : Array.isArray(meta?.kv)
+                  ? meta.kv
+                  : [];
+          const map = {};
+          list.forEach((it) => {
+            const k = String(it?.key || it?.name || it?.k || '');
+            const v = String(it?.value || it?.v || '');
+            if (k) map[k] = v;
+          });
+          return map;
+        } catch {
+          return {};
+        }
       }
       function wpReadChannelAttrs(channel) {
         if (!wpState.rtm) return Promise.resolve();
-        return wpState.rtm.getChannelAttributes(channel).then((a)=>{
-          const hostId = a?.hostId; const state = a?.state; const mediaTime = Number(a?.mediaTime||0); const at = Number(a?.at||0);
-          if (hostId && (state === 'playing' || state === 'paused')) {
-            wpApplyAnchor({ t: state === 'playing' ? 'play' : 'pause', mediaTime, at });
-          }
-        }).catch(()=>{});
+        try {
+          return wpState.rtm.storage
+            .getChannelMetadata(channel, 'MESSAGE')
+            .then((res) => {
+              const m = wpExtractMetaMap(res);
+              const hostId = m?.hostId;
+              const state = m?.state;
+              const mediaTime = Number(m?.mediaTime || 0);
+              const at = Number(m?.at || 0);
+              logInfo(
+                'Read channel metadata',
+                'WP',
+                JSON.stringify({ hostId, state, mediaTime, at }).slice(0, 200),
+              );
+              if (hostId && (state === 'playing' || state === 'paused')) {
+                wpApplyAnchor({
+                  t: state === 'playing' ? 'play' : 'pause',
+                  mediaTime,
+                  at,
+                });
+              } else {
+                wpSendSyncPlease(channel);
+              }
+            })
+            .catch(() => {});
+        } catch {
+          return Promise.resolve();
+        }
+      }
+      function wpSendSyncPlease(channelOverride) {
+        try {
+          const ch = channelOverride || wpState.channelName;
+          if (!ch || !wpState.rtm) return;
+          const msg = JSON.stringify({ type: 'sync_please' });
+          wpState.rtm
+            .publish(ch, msg, { channelType: 'MESSAGE' })
+            .catch(() => {});
+          logInfo('Sync request publish', 'WP');
+        } catch {}
       }
       function wpPublishControl(t, mediaTime) {
         if (!wpState.rtm || !wpRateLimit()) return;
-        const payload = JSON.stringify({ t, mediaTime: Number(mediaTime||0), at: Date.now() });
+        const payload = JSON.stringify({
+          t,
+          mediaTime: Number(mediaTime || 0),
+          at: Date.now(),
+          state: video && video.paused ? 'paused' : 'playing',
+        });
         const opts = { channelType: 'MESSAGE' };
-        wpState.rtm.publish(wpState.channelName, payload, opts).catch(()=>{});
+        logInfo('Control publish', 'WP', payload.slice(0, 200));
+        wpState.rtm
+          .publish(wpState.channelName, payload, opts)
+          .then(() => {
+            logInfo('Control publish ok', 'WP');
+          })
+          .catch((e) => {
+            logErr('Control publish fail', 'WP', e?.stack || String(e));
+          });
       }
       function wpApplyAnchor(msg) {
         const now = Date.now();
-        const playing = msg.t === 'play' || msg.t === 'seek' || msg.t === 'hb';
-        const target = playing ? Number(msg.mediaTime || 0) + (now - Number(msg.at || now))/1000 : Number(msg.mediaTime || 0);
+        const playing =
+          typeof msg.state === 'string'
+            ? msg.state === 'playing'
+            : msg.t === 'play' || msg.t === 'seek' || msg.t === 'hb';
+        const target = playing
+          ? Number(msg.mediaTime || 0) + (now - Number(msg.at || now)) / 1000
+          : Number(msg.mediaTime || 0);
         const cur = Number(video.currentTime || 0);
         const driftMs = Math.abs((target - cur) * 1000);
-        if (driftMs > wpState.driftToleranceMs) { try { video.currentTime = target; } catch {} }
-        if (playing) { if (video.paused) { video.play().catch(()=>{}); } } else { try { video.pause(); } catch {} }
+        logInfo(
+          'Anchor apply',
+          'WP',
+          JSON.stringify({ t: msg.t, cur, target, driftMs }).slice(0, 200),
+        );
+        if (driftMs > wpState.driftToleranceMs) {
+          try {
+            video.currentTime = target;
+          } catch {}
+        }
+        if (playing) {
+          if (video.paused) {
+            video.play().catch(() => {});
+          }
+        } else {
+          try {
+            video.pause();
+          } catch {}
+        }
         wpState.lastAnchor = { t: msg.t, mediaTime: msg.mediaTime, at: msg.at };
       }
       function wpHeartbeatStart() {
-        if (wpState.hbTimer) { clearInterval(wpState.hbTimer); wpState.hbTimer = null; }
-        wpState.hbTimer = setInterval(()=>{ if (wpState.isHost) { wpPublishControl('hb', video.currentTime || 0); } }, 3000);
+        if (wpState.hbTimer) {
+          clearInterval(wpState.hbTimer);
+          wpState.hbTimer = null;
+        }
+        wpState.hbTimer = setInterval(() => {
+          if (wpState.isHost) {
+            logInfo(
+              'Heartbeat tick',
+              'WP',
+              JSON.stringify({
+                mediaTime: Number(video.currentTime || 0),
+              }).slice(0, 200),
+            );
+            wpPublishControl('hb', video.currentTime || 0);
+          }
+        }, 3000);
       }
-      function wpHeartbeatStop() { if (wpState.hbTimer) { clearInterval(wpState.hbTimer); wpState.hbTimer = null; } }
+      function wpHeartbeatStop() {
+        if (wpState.hbTimer) {
+          clearInterval(wpState.hbTimer);
+          wpState.hbTimer = null;
+        }
+      }
       function wpOnPlay() {
         if (!wpState.partyId || !wpState.isHost) return;
         const mediaTime = Number(video.currentTime || 0);
         wpPublishControl('play', mediaTime);
-        wpSetChannelAttrs(wpState.channelName, { hostId: wpState.rtmUid, state: 'playing', mediaTime, at: Date.now() });
+        wpSetChannelAttrs(wpState.channelName, {
+          hostId: wpState.rtmUid,
+          state: 'playing',
+          mediaTime,
+          at: Date.now(),
+        });
         wpHeartbeatStart();
       }
       function wpOnPause() {
         if (!wpState.partyId || !wpState.isHost) return;
         const mediaTime = Number(video.currentTime || 0);
         wpPublishControl('pause', mediaTime);
-        wpSetChannelAttrs(wpState.channelName, { hostId: wpState.rtmUid, state: 'paused', mediaTime, at: Date.now() });
+        wpSetChannelAttrs(wpState.channelName, {
+          hostId: wpState.rtmUid,
+          state: 'paused',
+          mediaTime,
+          at: Date.now(),
+        });
         wpHeartbeatStop();
       }
       function wpOnSeeked() {
@@ -1543,135 +2879,1215 @@
         const fire = () => {
           const mediaTime = Number(video.currentTime || 0);
           wpPublishControl('seek', mediaTime);
-          wpSetChannelAttrs(wpState.channelName, { hostId: wpState.rtmUid, state: video.paused ? 'paused' : 'playing', mediaTime, at: Date.now() });
+          wpSetChannelAttrs(wpState.channelName, {
+            hostId: wpState.rtmUid,
+            state: video.paused ? 'paused' : 'playing',
+            mediaTime,
+            at: Date.now(),
+          });
         };
-        if (wpState.scrubTimer) { clearTimeout(wpState.scrubTimer); }
+        if (wpState.scrubTimer) {
+          clearTimeout(wpState.scrubTimer);
+        }
         wpState.scrubTimer = setTimeout(fire, 250);
       }
       video.addEventListener('play', wpOnPlay);
       video.addEventListener('pause', wpOnPause);
       video.addEventListener('seeked', wpOnSeeked);
 
-      function wpEnsureAuth() { return !!accessToken; }
-      function wpApiBase() { return el('apiBaseUrl')?.value?.trim()?.replace(/\/$/, ''); }
-      function wpMovieId() { return (movieSelect && movieSelect.value) ? String(movieSelect.value).trim() : el('movieId')?.value?.trim(); }
-      function wpPartyId() { return wpControls.partyIdEl?.value?.trim(); }
-      function wpJoinCode() { return wpControls.joinCodeEl?.value?.trim(); }
-      function wpChannelName() { return wpControls.channelNameEl?.value?.trim(); }
-      function wpHeaders() { return { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` }; }
+      function wpEnsureAuth() {
+        return !!accessToken;
+      }
+      function wpApiBase() {
+        return el('apiBaseUrl')?.value?.trim()?.replace(/\/$/, '');
+      }
+      function wpMovieId() {
+        return movieSelect && movieSelect.value
+          ? String(movieSelect.value).trim()
+          : el('movieId')?.value?.trim();
+      }
+      function wpPartyId() {
+        return wpControls.partyIdEl?.value?.trim();
+      }
+      function wpJoinCode() {
+        return wpControls.joinCodeEl?.value?.trim();
+      }
+      function wpChannelName() {
+        return wpControls.channelNameEl?.value?.trim();
+      }
+      function wpHeaders() {
+        return {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        };
+      }
       function wpSetMetadataView(meta) {
         const code = meta?.party?.joinCode || meta?.joinCode;
-        if (code && wpControls.joinCodeDisplayEl) wpControls.joinCodeDisplayEl.textContent = 'Join Code: ' + code;
-        const roster = (meta?.party?.participants || []).map((u)=>u.id||'user');
-        wpState.roster.clear(); roster.forEach((id)=>wpState.roster.set(id, 'ONLINE'));
+        if (code && wpControls.joinCodeDisplayEl)
+          wpControls.joinCodeDisplayEl.textContent = 'Join Code: ' + code;
+        const roster = (meta?.party?.participants || [])
+          .map((u) =>
+            String(u?.profileId || (u?.profile && u.profile.id) || ''),
+          )
+          .filter(Boolean);
+        wpState.roster.clear();
+        roster.forEach((id) => wpState.roster.set(id, 'ONLINE'));
         wpUpdateRosterView();
       }
       function wpConnectFromResponse(payload) {
-        const party = payload?.party; const channel = payload?.channelName || party?.channelName; const role = payload?.role;
-        if (!party || !channel) { setStatus('Party response missing channel', 'err'); return; }
-        wpState.partyId = party.id; wpState.channelName = channel; wpSetRole(role || 'PARTICIPANT');
+        const party = payload?.party;
+        const channel = payload?.channelName || party?.channelName;
+        const role = payload?.role;
+        if (!party || !channel) {
+          setStatus('Party response missing channel', 'err');
+          return;
+        }
+        wpState.partyId = party.id;
+        wpState.channelName = channel;
+        wpSetRole(role || 'PARTICIPANT');
         wpSetMetadataView({ party });
-        wpConnectRtm(channel).then(()=>{
-          if (rtmControls.channelEl) rtmControls.channelEl.value = channel;
-          if (!rtmClient) connectRtm();
-        }).catch(()=>{});
+        try {
+          const ident = {
+            profileId: String(currentProfile?.id || ''),
+            userId: String(userData?.id || ''),
+            isHost: !!wpState.isHost,
+            channel: String(channel || ''),
+            partyId: String(wpState.partyId || ''),
+          };
+          logInfo('Identity', 'WP', JSON.stringify(ident).slice(0, 300));
+        } catch {}
+        wpScheduleRosterRefresh();
+        wpConnectRtm(channel)
+          .then(() => {
+            if (rtmControls.channelEl) rtmControls.channelEl.value = channel;
+            if (!rtmClient) connectRtm();
+            rtcJoin().catch(() => {});
+            try {
+              const mid = String(party?.movieId || '');
+              if (mid) {
+                el('movieId').value = mid;
+                getSignedCookies()
+                  .then(() => loadVideo())
+                  .catch(() => {});
+              }
+            } catch {}
+          })
+          .catch(() => {});
       }
       async function wpStart() {
-        if (!wpEnsureAuth()) { setStatus('Login first', 'err'); return; }
-        const apiBase = wpApiBase(); const movieId = wpMovieId(); const channelName = wpChannelName();
-        if (!apiBase || !movieId) { setStatus('Provide API base and movieId', 'err'); return; }
+        if (!wpEnsureAuth()) {
+          setStatus('Login first', 'err');
+          return;
+        }
+        const apiBase = wpApiBase();
+        const movieId = wpMovieId();
+        const channelName = wpChannelName();
+        if (!apiBase || !movieId) {
+          setStatus('Provide API base and movieId', 'err');
+          return;
+        }
         const body = { movieId, channelName };
-        logInfo(`[POST] ${apiBase}/watch-party/party/start`, 'WP', JSON.stringify(body));
-        const res = await fetch(`${apiBase}/watch-party/party/start`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify(body) });
-        const j = await res.json().catch(()=>null);
-        if (!res.ok) { setStatus(`Start failed: ${res.status}`, 'err'); logErr('Start failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+        logInfo(
+          `[POST] ${apiBase}/watch-party/party/start`,
+          'WP',
+          JSON.stringify(body),
+        );
+        const res = await fetch(`${apiBase}/watch-party/party/start`, {
+          method: 'POST',
+          headers: wpHeaders(),
+          body: JSON.stringify(body),
+        });
+        const j = await res.json().catch(() => null);
+        if (!res.ok) {
+          setStatus(`Start failed: ${res.status}`, 'err');
+          logErr('Start failed', 'WP', JSON.stringify(j).slice(0, 300));
+          return;
+        }
         wpConnectFromResponse(j?.data || j);
       }
       async function wpJoinId() {
-        if (!wpEnsureAuth()) { setStatus('Login first', 'err'); return; }
-        const apiBase = wpApiBase(); const pid = wpPartyId(); if (!apiBase || !pid) { setStatus('Provide partyId', 'err'); return; }
-        logInfo(`[POST] ${apiBase}/watch-party/party/join`, 'WP', JSON.stringify({ partyId: pid }));
-        const res = await fetch(`${apiBase}/watch-party/party/join`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid }) });
-        const j = await res.json().catch(()=>null);
-        if (!res.ok) { setStatus(`Join failed: ${res.status}`, 'err'); logErr('Join failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+        if (!wpEnsureAuth()) {
+          setStatus('Login first', 'err');
+          return;
+        }
+        const apiBase = wpApiBase();
+        const pid = wpPartyId();
+        if (!apiBase || !pid) {
+          setStatus('Provide partyId', 'err');
+          return;
+        }
+        logInfo(
+          `[POST] ${apiBase}/watch-party/party/join`,
+          'WP',
+          JSON.stringify({ partyId: pid }),
+        );
+        const res = await fetch(`${apiBase}/watch-party/party/join`, {
+          method: 'POST',
+          headers: wpHeaders(),
+          body: JSON.stringify({ partyId: pid }),
+        });
+        const j = await res.json().catch(() => null);
+        if (!res.ok) {
+          setStatus(`Join failed: ${res.status}`, 'err');
+          logErr('Join failed', 'WP', JSON.stringify(j).slice(0, 300));
+          return;
+        }
         wpConnectFromResponse(j?.data || j);
       }
       async function wpJoinCodeAction() {
-        if (!wpEnsureAuth()) { setStatus('Login first', 'err'); return; }
-        const apiBase = wpApiBase(); const code = wpJoinCode(); if (!apiBase || !code) { setStatus('Provide join code', 'err'); return; }
-        logInfo(`[POST] ${apiBase}/watch-party/party/join-by-code`, 'WP', JSON.stringify({ code }));
-        const res = await fetch(`${apiBase}/watch-party/party/join-by-code`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ code }) });
-        const j = await res.json().catch(()=>null);
-        if (!res.ok) { setStatus(`Join-by-code failed: ${res.status}`, 'err'); logErr('Join-by-code failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+        if (!wpEnsureAuth()) {
+          setStatus('Login first', 'err');
+          return;
+        }
+        const apiBase = wpApiBase();
+        const code = wpJoinCode();
+        if (!apiBase || !code) {
+          setStatus('Provide join code', 'err');
+          return;
+        }
+        logInfo(
+          `[POST] ${apiBase}/watch-party/party/join-by-code`,
+          'WP',
+          JSON.stringify({ code }),
+        );
+        const res = await fetch(`${apiBase}/watch-party/party/join-by-code`, {
+          method: 'POST',
+          headers: wpHeaders(),
+          body: JSON.stringify({ code }),
+        });
+        const j = await res.json().catch(() => null);
+        if (!res.ok) {
+          setStatus(`Join-by-code failed: ${res.status}`, 'err');
+          logErr('Join-by-code failed', 'WP', JSON.stringify(j).slice(0, 300));
+          return;
+        }
         wpConnectFromResponse(j?.data || j);
       }
       async function wpMetadata() {
-        const apiBase = wpApiBase(); const pid = wpPartyId(); if (!apiBase || !pid || !accessToken) { return; }
+        const apiBase = wpApiBase();
+        const pid = wpPartyId();
+        if (!apiBase || !pid || !accessToken) {
+          return;
+        }
         logInfo(`[GET] ${apiBase}/watch-party/party/${pid}`, 'WP');
-        const res = await fetch(`${apiBase}/watch-party/party/${pid}`, { headers: { Authorization: `Bearer ${accessToken}` } });
-        const j = await res.json().catch(()=>null);
-        if (!res.ok) { logErr('Metadata failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+        const res = await fetch(`${apiBase}/watch-party/party/${pid}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const j = await res.json().catch(() => null);
+        if (!res.ok) {
+          logErr('Metadata failed', 'WP', JSON.stringify(j).slice(0, 300));
+          return;
+        }
         wpSetMetadataView(j?.data || j);
       }
       async function wpRotate() {
-        const apiBase = wpApiBase(); const pid = wpPartyId(); if (!apiBase || !pid || !accessToken) { return; }
-        logInfo(`[POST] ${apiBase}/watch-party/party/rotate-code`, 'WP', JSON.stringify({ partyId: pid }));
-        const res = await fetch(`${apiBase}/watch-party/party/rotate-code`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid }) });
-        const j = await res.json().catch(()=>null);
-        if (!res.ok) { logErr('Rotate failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
-        const code = (j?.data || j)?.joinCode; if (code && wpControls.joinCodeDisplayEl) wpControls.joinCodeDisplayEl.textContent = 'Join Code: ' + code;
+        const apiBase = wpApiBase();
+        const pid = wpPartyId();
+        if (!apiBase || !pid || !accessToken) {
+          return;
+        }
+        logInfo(
+          `[POST] ${apiBase}/watch-party/party/rotate-code`,
+          'WP',
+          JSON.stringify({ partyId: pid }),
+        );
+        const res = await fetch(`${apiBase}/watch-party/party/rotate-code`, {
+          method: 'POST',
+          headers: wpHeaders(),
+          body: JSON.stringify({ partyId: pid }),
+        });
+        const j = await res.json().catch(() => null);
+        if (!res.ok) {
+          logErr('Rotate failed', 'WP', JSON.stringify(j).slice(0, 300));
+          return;
+        }
+        const code = (j?.data || j)?.joinCode;
+        if (code && wpControls.joinCodeDisplayEl)
+          wpControls.joinCodeDisplayEl.textContent = 'Join Code: ' + code;
       }
       async function wpEnd() {
-        const apiBase = wpApiBase(); const pid = wpPartyId(); if (!apiBase || !pid || !accessToken) { return; }
-        logInfo(`[POST] ${apiBase}/watch-party/party/end`, 'WP', JSON.stringify({ partyId: pid }));
-        const res = await fetch(`${apiBase}/watch-party/party/end`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid }) });
-        const j = await res.json().catch(()=>null);
-        if (!res.ok) { logErr('End failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
-        wpSetRole(null); wpState.partyId = null; wpState.channelName = null; wpHeartbeatStop();
+        const apiBase = wpApiBase();
+        const pid = wpPartyId();
+        if (!apiBase || !pid || !accessToken) {
+          return;
+        }
+        logInfo(
+          `[POST] ${apiBase}/watch-party/party/end`,
+          'WP',
+          JSON.stringify({ partyId: pid }),
+        );
+        const res = await fetch(`${apiBase}/watch-party/party/end`, {
+          method: 'POST',
+          headers: wpHeaders(),
+          body: JSON.stringify({ partyId: pid }),
+        });
+        const j = await res.json().catch(() => null);
+        if (!res.ok) {
+          logErr('End failed', 'WP', JSON.stringify(j).slice(0, 300));
+          return;
+        }
+        wpSetRole(null);
+        wpState.partyId = null;
+        wpState.channelName = null;
+        wpHeartbeatStop();
+        if (wpState.rtmRefreshTimer) {
+          clearTimeout(wpState.rtmRefreshTimer);
+          wpState.rtmRefreshTimer = null;
+        }
+        if (wpState.rosterTimer) {
+          clearInterval(wpState.rosterTimer);
+          wpState.rosterTimer = null;
+        }
+        wpDisconnectRtm().catch(() => {});
+        rtcLeave().catch(() => {});
+      }
+      async function wpTransferHost() {
+        const apiBase = wpApiBase();
+        const pid = wpPartyId();
+        const newHostId = wpControls.newHostIdEl?.value?.trim();
+        if (!apiBase || !pid || !newHostId || !accessToken) return;
+        logInfo(
+          `[POST] ${apiBase}/watch-party/party/transfer-host`,
+          'WP',
+          JSON.stringify({ partyId: pid, newHostId }),
+        );
+        const res = await fetch(`${apiBase}/watch-party/party/transfer-host`, {
+          method: 'POST',
+          headers: wpHeaders(),
+          body: JSON.stringify({ partyId: pid, newHostId }),
+        });
+        await res.text().catch(() => {});
+      }
+      async function wpLeave() {
+        const apiBase = wpApiBase();
+        const pid = wpPartyId();
+        if (!apiBase || !pid || !accessToken) return;
+        logInfo(
+          `[POST] ${apiBase}/watch-party/party/leave`,
+          'WP',
+          JSON.stringify({ partyId: pid }),
+        );
+        const res = await fetch(`${apiBase}/watch-party/party/leave`, {
+          method: 'POST',
+          headers: wpHeaders(),
+          body: JSON.stringify({ partyId: pid }),
+        });
+        const t = await res.text().catch(() => '');
+        if (res.ok) {
+          wpSetRole(null);
+          wpState.partyId = null;
+          wpState.channelName = null;
+          wpHeartbeatStop();
+          if (wpState.rtmRefreshTimer) {
+            clearTimeout(wpState.rtmRefreshTimer);
+            wpState.rtmRefreshTimer = null;
+          }
+          if (wpState.rosterTimer) {
+            clearInterval(wpState.rosterTimer);
+            wpState.rosterTimer = null;
+          }
+          wpDisconnectRtm().catch(() => {});
+          rtcLeave().catch(() => {});
+        } else {
+          logErr('Leave failed', 'WP', t.slice(0, 300));
+        }
+      }
+      async function wpRejectInvite() {
+        const apiBase = wpApiBase();
+        const pid = wpPartyId();
+        if (!apiBase || !pid || !accessToken) return;
+        logInfo(
+          `[POST] ${apiBase}/watch-party/party/reject-invite`,
+          'WP',
+          JSON.stringify({ partyId: pid }),
+        );
+        const res = await fetch(`${apiBase}/watch-party/party/reject-invite`, {
+          method: 'POST',
+          headers: wpHeaders(),
+          body: JSON.stringify({ partyId: pid }),
+        });
+        await res.text().catch(() => {});
+      }
+      const rtcControls = {
+        camSelectEl: el('rtcCamSelect'),
+        micSelectEl: el('rtcMicSelect'),
+        localEl: el('rtcLocal'),
+        remoteEl: el('partyGrid'),
+        btnJoin: el('btnRtcJoin'),
+        btnLeave: el('btnRtcLeave'),
+        localCamBtn: el('localCamBtn'),
+        localMicBtn: el('localMicBtn'),
+      };
+      const rtcState = {
+        client: null,
+        joined: false,
+        uid: null,
+        tokenTTL: null,
+        refreshTimer: null,
+        volumeTimer: null,
+        localAudio: null,
+        localVideo: null,
+        channel: null,
+        remotes: new Map(),
+        _videoProfileStep: 0,
+        _upgradeTimer: null,
+        _lastVideoExceptionAt: null,
+        _syncTimer: null,
+        _syncUntilMs: null,
+      };
+      function ensureRemoteCard(uidStr) {
+        let st = rtcState.remotes.get(uidStr);
+        if (st) return st;
+        const card = document.createElement('div');
+        card.className = 'meet-card';
+        card.id = 'remote-card-' + uidStr;
+        const nameEl = document.createElement('div');
+        nameEl.className = 'meet-name';
+        const nm = (wpState.nameMap && wpState.nameMap.get(uidStr)) || uidStr;
+        nameEl.textContent = nm;
+        const playerEl = document.createElement('div');
+        playerEl.className = 'meet-player';
+        playerEl.id = 'remote-player-' + uidStr;
+        const controlsEl = document.createElement('div');
+        controlsEl.className = 'meet-controls';
+        const btnCam = document.createElement('button');
+        btnCam.id = 'remoteCamBtn-' + uidStr;
+        btnCam.textContent = 'Hide Video';
+        const btnMic = document.createElement('button');
+        btnMic.id = 'remoteMicBtn-' + uidStr;
+        btnMic.className = 'secondary';
+        btnMic.textContent = 'Mute';
+        controlsEl.appendChild(btnCam);
+        controlsEl.appendChild(btnMic);
+        card.appendChild(nameEl);
+        card.appendChild(playerEl);
+        card.appendChild(controlsEl);
+        rtcControls.remoteEl.appendChild(card);
+        updateGridState();
+        logInfo(
+          'Remote card appended',
+          'WP',
+          JSON.stringify({ parentId: rtcControls.remoteEl.id }).slice(0, 200),
+        );
+        st = {
+          card,
+          nameEl,
+          playerEl,
+          btnCam,
+          btnMic,
+          videoTrack: null,
+          audioTrack: null,
+          hidden: false,
+          muted: false,
+          firstSeenAt: Date.now(),
+          lastPublishAt: null,
+        };
+        rtcState.remotes.set(uidStr, st);
+        btnCam.addEventListener('click', () => {
+          st.hidden = !st.hidden;
+          try {
+            if (st.hidden) {
+              if (st.videoTrack && st.videoTrack.stop) st.videoTrack.stop();
+              st.playerEl.textContent = 'Video hidden';
+              btnCam.textContent = 'Show Video';
+            } else {
+              st.playerEl.textContent = '';
+              if (st.videoTrack && st.videoTrack.play)
+                st.videoTrack.play(st.playerEl);
+              btnCam.textContent = 'Hide Video';
+            }
+          } catch {}
+        });
+        btnMic.addEventListener('click', () => {
+          st.muted = !st.muted;
+          try {
+            if (
+              st.audioTrack &&
+              typeof st.audioTrack.setVolume === 'function'
+            ) {
+              st.audioTrack.setVolume(st.muted ? 0 : 100);
+            } else {
+              if (st.muted) {
+                if (st.audioTrack && st.audioTrack.stop) st.audioTrack.stop();
+              } else {
+                if (st.audioTrack && st.audioTrack.play) st.audioTrack.play();
+              }
+            }
+            btnMic.textContent = st.muted ? 'Unmute' : 'Mute';
+          } catch {}
+        });
+        return st;
+      }
+      async function rtcJoin() {
+        try {
+          const apiBase = wpApiBase();
+          const appId = rtmControls.appIdEl?.value?.trim();
+          const channel = wpState.channelName;
+          if (!apiBase || !appId || !channel || !accessToken) return;
+          const res = await fetch(`${apiBase}/watch-party/rtc/token`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ channelName: channel }),
+          });
+          const j = await res.json().catch(() => null);
+          const token = j?.data?.token || j?.token;
+          const ttl = j?.data?.expireSeconds || j?.expireSeconds;
+          if (!token) return;
+          rtcState.client = AgoraRTC.createClient({
+            mode: 'rtc',
+            codec: 'vp8',
+          });
+          const uid = currentProfile?.id;
+          if (!uid) return;
+          rtcState.uid = uid;
+          rtcState.channel = channel;
+          logInfo(
+            'RTC join details',
+            'WP',
+            JSON.stringify({
+              channel: String(channel || ''),
+              uid: String(uid || ''),
+              tokenTTL: ttl || null,
+            }).slice(0, 200),
+          );
+          try {
+            rtcState.client.on('connection-state-change', function () {
+              const args = Array.prototype.slice.call(arguments);
+              logInfo(
+                'RTC connection-state',
+                'WP',
+                JSON.stringify(args).slice(0, 300),
+              );
+            });
+          } catch {}
+          try {
+            rtcState.client.on('network-quality', function (stats) {
+              logInfo(
+                'RTC network-quality',
+                'WP',
+                JSON.stringify(stats).slice(0, 300),
+              );
+            });
+          } catch {}
+          try {
+            rtcState.client.on('exception', function (e) {
+              const info = {
+                code: Number(e?.code || 0),
+                msg: String(e?.msg || ''),
+                uid: String(e?.uid || ''),
+              };
+              logErr('RTC exception', 'WP', JSON.stringify(info).slice(0, 300));
+              try {
+                if (
+                  Number(info.code) === 1003 &&
+                  (!info.uid || info.uid === String(rtcState.uid || ''))
+                ) {
+                  rtcState._lastVideoExceptionAt = Date.now();
+                  try {
+                    if (rtcState.localVideo) {
+                      rtcState.localVideo.stop();
+                      rtcState.localVideo.close();
+                      rtcState.localVideo = null;
+                    }
+                  } catch {}
+                  if (rtcState._retryVideoTimer) {
+                    clearTimeout(rtcState._retryVideoTimer);
+                    rtcState._retryVideoTimer = null;
+                  }
+                  rtcState._retryVideoTimer = setTimeout(async () => {
+                    try {
+                      await rtcStartVideo(true);
+                      updateLocalControlLabels();
+                    } catch {}
+                  }, 3000);
+                }
+              } catch {}
+            });
+          } catch {}
+          try {
+            rtcState.client.on('user-joined', function (user) {
+              logInfo(
+                'RTC user-joined',
+                'WP',
+                JSON.stringify({ uid: String(user?.uid || '') }).slice(0, 200),
+              );
+              try {
+                const uidStr = String(user?.uid || '');
+                const st = ensureRemoteCard(uidStr);
+                if (st && st.playerEl && !st.videoTrack) {
+                  st.playerEl.textContent = 'Waiting for video...';
+                }
+                rtcSyncRemoteSubscriptions();
+              } catch {}
+            });
+            rtcState.client.on('user-left', function (user, reason) {
+              logInfo(
+                'RTC user-left',
+                'WP',
+                JSON.stringify({
+                  uid: String(user?.uid || ''),
+                  reason: String(reason || ''),
+                }).slice(0, 300),
+              );
+              try {
+                const uidStr = String(user?.uid || '');
+                const st = rtcState.remotes.get(uidStr);
+                if (st && st.card && st.card.parentNode)
+                  st.card.parentNode.removeChild(st.card);
+                rtcState.remotes.delete(uidStr);
+                updateGridState();
+              } catch {}
+            });
+          } catch {}
+          rtcState.client.on('user-published', async (user, mediaType) => {
+            logInfo(
+              'RTC user-published',
+              'WP',
+              JSON.stringify({
+                uid: String(user.uid || ''),
+                type: String(mediaType),
+              }).slice(0, 200),
+            );
+            await rtcState.client.subscribe(user, mediaType).catch(() => {});
+            logInfo(
+              'RTC subscribed',
+              'WP',
+              JSON.stringify({
+                uid: String(user.uid || ''),
+                type: String(mediaType),
+              }).slice(0, 200),
+            );
+            const uidStr = String(user.uid || '');
+            const st = ensureRemoteCard(uidStr);
+            try {
+              st.lastPublishAt = Date.now();
+            } catch {}
+            if (mediaType === 'video') {
+              st.videoTrack = user.videoTrack || null;
+              try {
+                if (st && st.playerEl) st.playerEl.textContent = '';
+              } catch {}
+              if (!st.hidden && st.videoTrack && st.videoTrack.play)
+                st.videoTrack.play(st.playerEl);
+              try {
+                wpState.roster.set(uidStr, 'ONLINE');
+                const nm =
+                  (wpState.nameMap && wpState.nameMap.get(uidStr)) || uidStr;
+                wpState.nameMap.set(uidStr, nm);
+                wpUpdateRosterView();
+                logInfo(
+                  'Roster update (remote video)',
+                  'WP',
+                  JSON.stringify({ uid: uidStr }).slice(0, 200),
+                );
+              } catch {}
+            } else if (mediaType === 'audio') {
+              st.audioTrack = user.audioTrack || null;
+              if (!st.muted && st.audioTrack && st.audioTrack.play)
+                st.audioTrack.play();
+            }
+            updateGridState();
+          });
+          rtcState.client.on('user-unpublished', (user, mediaType) => {
+            try {
+              const uidStr = String(user.uid || '');
+              const st = rtcState.remotes.get(uidStr);
+              const last = st && st.lastPublishAt ? st.lastPublishAt : null;
+              const durationMs = last ? Date.now() - last : null;
+              logInfo(
+                'RTC user-unpublished',
+                'WP',
+                JSON.stringify({
+                  uid: uidStr,
+                  type: String(mediaType || ''),
+                  sinceLastPublishMs: durationMs,
+                }).slice(0, 300),
+              );
+              if (st) {
+                st.lastUnpublishAt = Date.now();
+                if (mediaType === 'video') {
+                  st.videoTrack = null;
+                  if (st.playerEl) {
+                    st.playerEl.textContent = 'Waiting for video...';
+                  }
+                } else if (mediaType === 'audio') {
+                  st.audioTrack = null;
+                }
+              }
+            } catch {
+              logInfo(
+                'RTC user-unpublished',
+                'WP',
+                JSON.stringify({ uid: String(user.uid || '') }).slice(0, 200),
+              );
+            }
+            // Keep the card present; the user is still connected but not sending
+          });
+          rtcState.client.on('token-privilege-will-expire', () => {
+            rtcRefreshToken().catch(() => {});
+          });
+          rtcState.client.on('token-privilege-did-expire', () => {
+            rtcRefreshToken().catch(() => {});
+          });
+          await rtcState.client.join(appId, channel, token, uid);
+          logInfo(
+            'RTC joined',
+            'WP',
+            JSON.stringify({
+              channel: String(channel || ''),
+              uid: String(uid || ''),
+            }).slice(0, 200),
+          );
+          rtcState.localAudio =
+            await AgoraRTC.createMicrophoneAudioTrack().catch(() => null);
+          rtcState.localVideo = null;
+          if (rtcState.localAudio) {
+            try {
+              await rtcState.localAudio.setEnabled(false);
+            } catch {}
+            await rtcState.client
+              .publish([rtcState.localAudio])
+              .catch(() => {});
+            logInfo('RTC local audio publish (muted)', 'WP');
+          }
+          if (rtcState.localVideo) {
+            rtcControls.localEl.innerHTML = '';
+            const div = document.createElement('div');
+            div.id = 'rtc-local-player';
+            rtcControls.localEl.appendChild(div);
+            try {
+              if (
+                rtcState.localVideo &&
+                typeof rtcState.localVideo.setMirror === 'function'
+              ) {
+                rtcState.localVideo.setMirror(false);
+              }
+            } catch {}
+            rtcState.localVideo.play(div);
+          }
+          if (rtcState.volumeTimer) {
+            clearInterval(rtcState.volumeTimer);
+            rtcState.volumeTimer = null;
+          }
+          if (rtcState.localAudio) {
+            rtcState.volumeTimer = setInterval(() => {
+              let level = 0;
+              try {
+                level = rtcState.localAudio.getVolumeLevel
+                  ? rtcState.localAudio.getVolumeLevel()
+                  : 0;
+              } catch {}
+              const fill = document.getElementById('local-mic-fill');
+              if (fill)
+                fill.style.width = String(Math.round(level * 100)) + '%';
+            }, 100);
+          }
+          rtcState.joined = true;
+          const lc = el('local-card');
+          if (lc) lc.style.display = 'flex';
+          updateGridState();
+
+          rtcState.tokenTTL = ttl || null;
+          if (ttl) rtcScheduleTokenRefresh(ttl);
+          logInfo(
+            'RTC token TTL',
+            'WP',
+            JSON.stringify({
+              ttl: ttl || null,
+              expiresAt: ttl ? Date.now() + ttl * 1000 : null,
+            }).slice(0, 200),
+          );
+          try {
+            const cams = (await AgoraRTC.getCameras().catch(() => [])) || [];
+            const mics =
+              (await AgoraRTC.getMicrophones().catch(() => [])) || [];
+            rtcControls.camSelectEl.innerHTML = '';
+            rtcControls.micSelectEl.innerHTML = '';
+            cams.forEach((d, idx) => {
+              const opt = document.createElement('option');
+              opt.value = d.deviceId || '';
+              opt.textContent = d.label || 'Camera ' + (idx + 1);
+              rtcControls.camSelectEl.appendChild(opt);
+            });
+            mics.forEach((d, idx) => {
+              const opt = document.createElement('option');
+              opt.value = d.deviceId || '';
+              opt.textContent = d.label || 'Mic ' + (idx + 1);
+              rtcControls.micSelectEl.appendChild(opt);
+            });
+            rtcControls.camSelectEl.disabled = cams.length === 0;
+            rtcControls.micSelectEl.disabled = mics.length === 0;
+          } catch {}
+          updateLocalControlLabels();
+          logInfo('RTC connected', 'WP');
+          try {
+            if (rtcState._upgradeTimer) {
+              clearInterval(rtcState._upgradeTimer);
+              rtcState._upgradeTimer = null;
+            }
+            rtcState._upgradeTimer = setInterval(() => {
+              rtcMaybeUpgradeVideoQuality().catch(() => {});
+            }, 120000);
+            if (rtcState._syncTimer) {
+              clearInterval(rtcState._syncTimer);
+              rtcState._syncTimer = null;
+            }
+            rtcState._syncUntilMs = Date.now() + 60000;
+            rtcState._syncTimer = setInterval(() => {
+              try {
+                rtcSyncRemoteSubscriptions();
+                if (
+                  rtcState._syncUntilMs &&
+                  Date.now() > rtcState._syncUntilMs
+                ) {
+                  clearInterval(rtcState._syncTimer);
+                  rtcState._syncTimer = null;
+                }
+              } catch {}
+            }, 2000);
+          } catch {}
+        } catch {}
+      }
+      function rtcScheduleTokenRefresh(ttlSeconds) {
+        try {
+          if (rtcState.refreshTimer) {
+            clearTimeout(rtcState.refreshTimer);
+            rtcState.refreshTimer = null;
+          }
+          const lead = Math.min(60, Math.max(15, Math.floor(ttlSeconds * 0.1)));
+          const ms = Math.max(0, (ttlSeconds - lead) * 1000);
+          rtcState.refreshTimer = setTimeout(() => {
+            rtcRefreshToken().catch(() => {});
+          }, ms);
+        } catch {}
+      }
+      async function rtcRefreshToken() {
+        const apiBase = wpApiBase();
+        const channel = rtcState.channel;
+        if (!apiBase || !channel || !accessToken || !rtcState.client) return;
+        const res = await fetch(`${apiBase}/watch-party/rtc/token/refresh`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ channelName: channel }),
+        });
+        const j = await res.json().catch(() => null);
+        const token = j?.data?.token || j?.token;
+        const ttl = j?.data?.expireSeconds || j?.expireSeconds;
+        if (!token) return;
+        await rtcState.client.renewToken(token).catch(() => {});
+        if (ttl) rtcScheduleTokenRefresh(ttl);
+      }
+      async function rtcLeave() {
+        try {
+          if (rtcState.localVideo) {
+            rtcState.localVideo.stop();
+            rtcState.localVideo.close();
+            rtcState.localVideo = null;
+          }
+          if (rtcState.localAudio) {
+            rtcState.localAudio.stop();
+            rtcState.localAudio.close();
+            rtcState.localAudio = null;
+          }
+          if (rtcState.client) {
+            await rtcState.client.leave().catch(() => {});
+            rtcState.client = null;
+          }
+          rtcState.joined = false;
+          const lc = el('local-card');
+          if (lc) lc.style.display = 'none';
+          updateGridState();
+
+          rtcControls.localEl.innerHTML = '';
+          // Only remove remote cards tracked in state
+          rtcState.remotes.forEach((st) => {
+            if (st.card && st.card.parentNode)
+              st.card.parentNode.removeChild(st.card);
+          });
+          rtcState.remotes.clear();
+          if (rtcState.refreshTimer) {
+            clearTimeout(rtcState.refreshTimer);
+            rtcState.refreshTimer = null;
+          }
+          if (rtcState.volumeTimer) {
+            clearInterval(rtcState.volumeTimer);
+            rtcState.volumeTimer = null;
+          }
+          if (rtcState._upgradeTimer) {
+            clearInterval(rtcState._upgradeTimer);
+            rtcState._upgradeTimer = null;
+          }
+          if (rtcState._syncTimer) {
+            clearInterval(rtcState._syncTimer);
+            rtcState._syncTimer = null;
+            rtcState._syncUntilMs = null;
+          }
+        } catch {}
+      }
+      async function rtcStartVideo(lowBitrate) {
+        try {
+          if (!rtcState.client || !rtcState.joined) return;
+          if (rtcState.localVideo) {
+            const enabled = rtcState.localVideo._enabled !== false;
+            if (!enabled) await rtcState.localVideo.setEnabled(true);
+            return;
+          }
+          const devId = rtcControls.camSelectEl?.value || undefined;
+          const step = lowBitrate
+            ? Math.min(3, (rtcState._videoProfileStep || 0) + 1)
+            : rtcState._videoProfileStep || 0;
+          rtcState._videoProfileStep = step;
+          const opts = devId ? { cameraId: devId } : {};
+          if (step === 1) {
+            opts.encoderConfig = '360p_4';
+            opts.frameRate = 15;
+          } else if (step === 2) {
+            opts.encoderConfig = '240p_2';
+            opts.frameRate = 15;
+          } else if (step === 3) {
+            opts.encoderConfig = '180p_2';
+            opts.frameRate = 15;
+          }
+          rtcState.localVideo = await AgoraRTC.createCameraVideoTrack(
+            opts,
+          ).catch(() => null);
+          if (rtcState.localVideo) {
+            await rtcState.client
+              .publish([rtcState.localVideo])
+              .catch(() => {});
+            logInfo('RTC local video publish', 'WP');
+            rtcControls.localEl.innerHTML = '';
+            const div = document.createElement('div');
+            div.id = 'rtc-local-player';
+            rtcControls.localEl.appendChild(div);
+            rtcState.localVideo.play(div);
+          }
+        } catch {}
+      }
+      async function rtcSyncRemoteSubscriptions() {
+        try {
+          if (!rtcState.client || !rtcState.joined) return;
+          const users = Array.isArray(rtcState.client.remoteUsers)
+            ? rtcState.client.remoteUsers
+            : [];
+          for (const u of users) {
+            const uidStr = String(u.uid || u.userId || '');
+            if (!uidStr) continue;
+            const st = ensureRemoteCard(uidStr);
+            try {
+              if (
+                u.videoTrack &&
+                (!st.videoTrack || st.videoTrack !== u.videoTrack)
+              ) {
+                st.videoTrack = u.videoTrack;
+                if (st.playerEl) st.playerEl.textContent = '';
+                if (!st.hidden && st.videoTrack && st.videoTrack.play)
+                  st.videoTrack.play(st.playerEl);
+              } else if (u.hasVideo && !st.videoTrack) {
+                await rtcState.client.subscribe(u, 'video').catch(() => {});
+                const vt = u.videoTrack;
+                if (vt) {
+                  st.videoTrack = vt;
+                  if (st.playerEl) st.playerEl.textContent = '';
+                  if (!st.hidden && st.videoTrack && st.videoTrack.play)
+                    st.videoTrack.play(st.playerEl);
+                }
+              }
+            } catch {}
+            try {
+              if (
+                u.audioTrack &&
+                (!st.audioTrack || st.audioTrack !== u.audioTrack)
+              ) {
+                st.audioTrack = u.audioTrack;
+                if (!st.muted && st.audioTrack && st.audioTrack.play)
+                  st.audioTrack.play();
+              } else if (u.hasAudio && !st.audioTrack) {
+                await rtcState.client.subscribe(u, 'audio').catch(() => {});
+                const at = u.audioTrack;
+                if (at) {
+                  st.audioTrack = at;
+                  if (!st.muted && st.audioTrack && st.audioTrack.play)
+                    st.audioTrack.play();
+                }
+              }
+            } catch {}
+          }
+          updateGridState();
+        } catch {}
+      }
+      async function rtcMaybeUpgradeVideoQuality() {
+        try {
+          if (!rtcState.client || !rtcState.joined) return;
+          if (!rtcState.localVideo) return;
+          const step = rtcState._videoProfileStep || 0;
+          if (step <= 0) return;
+          const sinceErr =
+            rtcState._lastVideoExceptionAt &&
+            Date.now() - rtcState._lastVideoExceptionAt;
+          if (sinceErr && sinceErr < 60000) return;
+          const newStep = Math.max(0, step - 1);
+          logInfo(
+            'RTC local video upgrade attempt',
+            'WP',
+            JSON.stringify({ from: step, to: newStep }).slice(0, 200),
+          );
+          await rtcState.client
+            .unpublish([rtcState.localVideo])
+            .catch(() => {});
+          rtcState.localVideo.stop();
+          rtcState.localVideo.close();
+          rtcState.localVideo = null;
+          rtcState._videoProfileStep = newStep;
+          await rtcStartVideo(false);
+          updateLocalControlLabels();
+        } catch {}
+      }
+      async function rtcStopVideo() {
+        try {
+          if (!rtcState.localVideo) return;
+          await rtcState.localVideo.setEnabled(false);
+        } catch {}
+      }
+      async function rtcUnmuteMic() {
+        try {
+          if (!rtcState.localAudio) return;
+          await rtcState.localAudio.setEnabled(true);
+        } catch {}
+      }
+      async function rtcMuteMic() {
+        try {
+          if (!rtcState.localAudio) return;
+          await rtcState.localAudio.setEnabled(false);
+        } catch {}
+      }
+      function updateLocalControlLabels() {
+        try {
+          const camOn =
+            !!rtcState.localVideo && rtcState.localVideo._enabled !== false;
+          const micOn =
+            !!rtcState.localAudio && rtcState.localAudio._enabled !== false;
+          if (rtcControls.localCamBtn)
+            rtcControls.localCamBtn.textContent = camOn
+              ? 'Camera Off'
+              : 'Camera On';
+          if (rtcControls.localMicBtn)
+            rtcControls.localMicBtn.textContent = micOn ? 'Mic Off' : 'Mic On';
+          const ln = document.getElementById('local-name');
+          const pid = String(
+            currentProfile?.id || userData?.id || rtcState.uid || '',
+          );
+          const nm =
+            String(currentProfile?.profileName || '') ||
+            String((wpState.nameMap && wpState.nameMap.get(pid)) || '');
+          if (ln && nm) ln.textContent = nm + ' (Me)';
+        } catch {}
+      }
+      async function rtcSwitchCamera() {
+        try {
+          if (!rtcState.localVideo) return;
+          const devId = rtcControls.camSelectEl?.value;
+          if (!devId) return;
+          if (rtcState.localVideo.setDevice) {
+            await rtcState.localVideo.setDevice(devId);
+          } else {
+            await rtcState.client
+              .unpublish([rtcState.localVideo])
+              .catch(() => {});
+            rtcState.localVideo.stop();
+            rtcState.localVideo.close();
+            rtcState.localVideo = await AgoraRTC.createCameraVideoTrack({
+              cameraId: devId,
+            }).catch(() => null);
+            if (rtcState.localVideo) {
+              await rtcState.client
+                .publish([rtcState.localVideo])
+                .catch(() => {});
+              const div = document.getElementById('rtc-local-player');
+              if (div) rtcState.localVideo.play(div);
+            }
+          }
+        } catch {}
+      }
+      async function rtcSwitchMic() {
+        try {
+          if (!rtcState.localAudio) return;
+          const devId = rtcControls.micSelectEl?.value;
+          if (!devId) return;
+          if (rtcState.localAudio.setDevice) {
+            await rtcState.localAudio.setDevice(devId);
+          } else {
+            await rtcState.client
+              .unpublish([rtcState.localAudio])
+              .catch(() => {});
+            rtcState.localAudio.stop();
+            rtcState.localAudio.close();
+            rtcState.localAudio = await AgoraRTC.createMicrophoneAudioTrack({
+              microphoneId: devId,
+            }).catch(() => null);
+            if (rtcState.localAudio) {
+              await rtcState.client
+                .publish([rtcState.localAudio])
+                .catch(() => {});
+            }
+          }
+        } catch {}
       }
       async function wpInvite() {
-        const apiBase = wpApiBase(); const pid = wpPartyId(); if (!apiBase || !pid || !accessToken) { return; }
-        const ids = (wpControls.inviteUserIdsEl?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
-        const emails = (wpControls.inviteEmailsEl?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
-        const phones = (wpControls.invitePhonesEl?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
-        logInfo(`[POST] ${apiBase}/watch-party/party/invite`, 'WP', JSON.stringify({ partyId: pid, userIds: ids, emails, phones }));
-        const res = await fetch(`${apiBase}/watch-party/party/invite`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid, userIds: ids, emails, phones }) });
-        const j = await res.json().catch(()=>null);
-        if (!res.ok) { logErr('Invite failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+        const apiBase = wpApiBase();
+        const pid = wpPartyId();
+        if (!apiBase || !pid || !accessToken) {
+          return;
+        }
+        const ids = (wpControls.inviteUserIdsEl?.value || '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const emails = (wpControls.inviteEmailsEl?.value || '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const phones = (wpControls.invitePhonesEl?.value || '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        logInfo(
+          `[POST] ${apiBase}/watch-party/party/invite`,
+          'WP',
+          JSON.stringify({ partyId: pid, userIds: ids, emails, phones }),
+        );
+        const res = await fetch(`${apiBase}/watch-party/party/invite`, {
+          method: 'POST',
+          headers: wpHeaders(),
+          body: JSON.stringify({ partyId: pid, userIds: ids, emails, phones }),
+        });
+        const j = await res.json().catch(() => null);
+        if (!res.ok) {
+          logErr('Invite failed', 'WP', JSON.stringify(j).slice(0, 300));
+          return;
+        }
       }
       async function wpRemoveInvite() {
-        const apiBase = wpApiBase(); const pid = wpPartyId(); const uid = wpControls.targetUserEl?.value?.trim(); if (!apiBase || !pid || !uid || !accessToken) { return; }
-        logInfo(`[POST] ${apiBase}/watch-party/party/remove-invite`, 'WP', JSON.stringify({ partyId: pid, userId: uid }));
-        const res = await fetch(`${apiBase}/watch-party/party/remove-invite`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid, userId: uid }) });
+        const apiBase = wpApiBase();
+        const pid = wpPartyId();
+        const uid = wpControls.targetUserEl?.value?.trim();
+        if (!apiBase || !pid || !uid || !accessToken) {
+          return;
+        }
+        logInfo(
+          `[POST] ${apiBase}/watch-party/party/remove-invite`,
+          'WP',
+          JSON.stringify({ partyId: pid, userId: uid }),
+        );
+        const res = await fetch(`${apiBase}/watch-party/party/remove-invite`, {
+          method: 'POST',
+          headers: wpHeaders(),
+          body: JSON.stringify({ partyId: pid, userId: uid }),
+        });
         await res.text();
       }
       async function wpModerate(path) {
-        const apiBase = wpApiBase(); const pid = wpPartyId(); const uid = wpControls.targetUserEl?.value?.trim(); if (!apiBase || !pid || !uid || !accessToken) { return; }
-        logInfo(`[POST] ${apiBase}/watch-party/party/${path}`, 'WP', JSON.stringify({ partyId: pid, userId: uid }));
-        const res = await fetch(`${apiBase}/watch-party/party/${path}`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid, userId: uid }) });
+        const apiBase = wpApiBase();
+        const pid = wpPartyId();
+        const uid = wpControls.targetUserEl?.value?.trim();
+        if (!apiBase || !pid || !uid || !accessToken) {
+          return;
+        }
+        logInfo(
+          `[POST] ${apiBase}/watch-party/party/${path}`,
+          'WP',
+          JSON.stringify({ partyId: pid, userId: uid }),
+        );
+        const res = await fetch(`${apiBase}/watch-party/party/${path}`, {
+          method: 'POST',
+          headers: wpHeaders(),
+          body: JSON.stringify({ partyId: pid, userId: uid }),
+        });
         await res.text();
       }
       async function wpListScheduled() {
-        const apiBase = wpApiBase(); if (!apiBase || !accessToken) return;
+        const apiBase = wpApiBase();
+        if (!apiBase || !accessToken) return;
         logInfo(`[GET] ${apiBase}/watch-party/my/scheduled`, 'WP');
-        const res = await fetch(`${apiBase}/watch-party/my/scheduled`, { headers: { Authorization: `Bearer ${accessToken}` } });
-        const j = await res.json().catch(()=>null);
-        if (res.ok) { logInfo('Scheduled parties', 'WP', JSON.stringify(j).slice(0,400)); }
+        const res = await fetch(`${apiBase}/watch-party/my/scheduled`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const j = await res.json().catch(() => null);
+        if (res.ok) {
+          logInfo('Scheduled parties', 'WP', JSON.stringify(j).slice(0, 400));
+        }
       }
       async function wpSchedule() {
-        const apiBase = wpApiBase(); const movieId = wpMovieId(); const when = wpControls.scheduleAtEl?.value?.trim(); const channelName = wpChannelName(); if (!apiBase || !movieId || !when || !accessToken) return;
-        const body = { movieId, channelName, scheduledFor: when, inviteeIds: (wpControls.inviteUserIdsEl?.value||'').split(',').map(s=>s.trim()).filter(Boolean), emails: (wpControls.inviteEmailsEl?.value||'').split(',').map(s=>s.trim()).filter(Boolean), phones: (wpControls.invitePhonesEl?.value||'').split(',').map(s=>s.trim()).filter(Boolean) };
-        logInfo(`[POST] ${apiBase}/watch-party/party/schedule`, 'WP', JSON.stringify(body).slice(0,400));
-        const res = await fetch(`${apiBase}/watch-party/party/schedule`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify(body) });
-        const j = await res.json().catch(()=>null);
-        if (!res.ok) { logErr('Schedule failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+        const apiBase = wpApiBase();
+        const movieId = wpMovieId();
+        const when = wpControls.scheduleAtEl?.value?.trim();
+        const channelName = wpChannelName();
+        if (!apiBase || !movieId || !when || !accessToken) return;
+        const body = {
+          movieId,
+          channelName,
+          scheduledFor: when,
+          inviteeIds: (wpControls.inviteUserIdsEl?.value || '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean),
+          emails: (wpControls.inviteEmailsEl?.value || '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean),
+          phones: (wpControls.invitePhonesEl?.value || '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean),
+        };
+        logInfo(
+          `[POST] ${apiBase}/watch-party/party/schedule`,
+          'WP',
+          JSON.stringify(body).slice(0, 400),
+        );
+        const res = await fetch(`${apiBase}/watch-party/party/schedule`, {
+          method: 'POST',
+          headers: wpHeaders(),
+          body: JSON.stringify(body),
+        });
+        const j = await res.json().catch(() => null);
+        if (!res.ok) {
+          logErr('Schedule failed', 'WP', JSON.stringify(j).slice(0, 300));
+          return;
+        }
       }
       async function wpStartScheduled() {
-        const apiBase = wpApiBase(); const pid = wpPartyId(); if (!apiBase || !pid || !accessToken) return;
-        logInfo(`[POST] ${apiBase}/watch-party/party/start-scheduled`, 'WP', JSON.stringify({ partyId: pid }));
-        const res = await fetch(`${apiBase}/watch-party/party/start-scheduled`, { method: 'POST', headers: wpHeaders(), body: JSON.stringify({ partyId: pid }) });
-        const j = await res.json().catch(()=>null);
-        if (!res.ok) { logErr('Start scheduled failed', 'WP', JSON.stringify(j).slice(0,300)); return; }
+        const apiBase = wpApiBase();
+        const pid = wpPartyId();
+        if (!apiBase || !pid || !accessToken) return;
+        logInfo(
+          `[POST] ${apiBase}/watch-party/party/start-scheduled`,
+          'WP',
+          JSON.stringify({ partyId: pid }),
+        );
+        const res = await fetch(
+          `${apiBase}/watch-party/party/start-scheduled`,
+          {
+            method: 'POST',
+            headers: wpHeaders(),
+            body: JSON.stringify({ partyId: pid }),
+          },
+        );
+        const j = await res.json().catch(() => null);
+        if (!res.ok) {
+          logErr(
+            'Start scheduled failed',
+            'WP',
+            JSON.stringify(j).slice(0, 300),
+          );
+          return;
+        }
         wpConnectFromResponse(j?.data || j);
       }
       wpControls.btnStart?.addEventListener('click', wpStart);
@@ -1682,14 +4098,44 @@
       wpControls.btnEnd?.addEventListener('click', wpEnd);
       wpControls.btnInvite?.addEventListener('click', wpInvite);
       wpControls.btnRemoveInvite?.addEventListener('click', wpRemoveInvite);
-      wpControls.btnKick?.addEventListener('click', ()=>wpModerate('kick'));
-      wpControls.btnBan?.addEventListener('click', ()=>wpModerate('ban'));
-      wpControls.btnUnban?.addEventListener('click', ()=>wpModerate('unban'));
-      wpControls.btnMute?.addEventListener('click', ()=>wpModerate('mute'));
-      wpControls.btnUnmute?.addEventListener('click', ()=>wpModerate('unmute'));
+      wpControls.btnKick?.addEventListener('click', () => wpModerate('kick'));
+      wpControls.btnBan?.addEventListener('click', () => wpModerate('ban'));
+      wpControls.btnUnban?.addEventListener('click', () => wpModerate('unban'));
+      wpControls.btnMute?.addEventListener('click', () => wpModerate('mute'));
+      wpControls.btnUnmute?.addEventListener('click', () =>
+        wpModerate('unmute'),
+      );
       wpControls.btnListScheduled?.addEventListener('click', wpListScheduled);
       wpControls.btnSchedule?.addEventListener('click', wpSchedule);
       wpControls.btnStartScheduled?.addEventListener('click', wpStartScheduled);
+      wpControls.btnTransferHost?.addEventListener('click', wpTransferHost);
+      wpControls.btnLeave?.addEventListener('click', wpLeave);
+      wpControls.btnRejectInvite?.addEventListener('click', wpRejectInvite);
+      wpControls.btnFetchRoster?.addEventListener('click', wpFetchRoster);
+      rtcControls.btnJoin?.addEventListener('click', rtcJoin);
+      rtcControls.btnLeave?.addEventListener('click', rtcLeave);
+      rtcControls.camSelectEl?.addEventListener('change', rtcSwitchCamera);
+      rtcControls.micSelectEl?.addEventListener('change', rtcSwitchMic);
+      rtcControls.localCamBtn?.addEventListener('click', async () => {
+        try {
+          if (!rtcState.client || !rtcState.joined) return;
+          const enabled =
+            !!rtcState.localVideo && rtcState.localVideo._enabled !== false;
+          if (!rtcState.localVideo || !enabled) await rtcStartVideo();
+          else await rtcStopVideo();
+          updateLocalControlLabels();
+        } catch {}
+      });
+      rtcControls.localMicBtn?.addEventListener('click', async () => {
+        try {
+          if (!rtcState.client || !rtcState.joined) return;
+          const enabled =
+            !!rtcState.localAudio && rtcState.localAudio._enabled !== false;
+          if (!rtcState.localAudio || !enabled) await rtcUnmuteMic();
+          else await rtcMuteMic();
+          updateLocalControlLabels();
+        } catch {}
+      });
 
       const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
       function showTab(name) {
@@ -1698,28 +4144,44 @@
         const authAcc = document.getElementById('authAccordion');
         const chatWrap = document.getElementById('chatWrap');
         const watchWrap = document.getElementById('watchPartyWrap');
+        const rtcWrap = document.getElementById('rtcWrap');
         if (name === 'player') {
           playerWrap.style.display = '';
           playerMain.style.display = '';
           authAcc.style.display = 'none';
           chatWrap.style.display = 'none';
           watchWrap.style.display = '';
+          if (rtcWrap) rtcWrap.style.display = '';
         } else if (name === 'chat') {
           playerWrap.style.display = 'none';
           chatWrap.style.display = '';
           watchWrap.style.display = 'none';
+          if (rtcWrap) rtcWrap.style.display = 'none';
         } else if (name === 'auth') {
           playerWrap.style.display = '';
           playerMain.style.display = 'none';
           authAcc.style.display = '';
           chatWrap.style.display = 'none';
           watchWrap.style.display = 'none';
+          if (rtcWrap) rtcWrap.style.display = 'none';
         }
       }
-      tabButtons.forEach((b)=>{
-        b.addEventListener('click', ()=> showTab(b.getAttribute('data-tab')));
+      tabButtons.forEach((b) => {
+        b.addEventListener('click', () => showTab(b.getAttribute('data-tab')));
       });
       showTab('player');
+      (function () {
+        const acc = Array.from(document.querySelectorAll('details.accordion'));
+        acc.forEach((det) => {
+          det.addEventListener('click', (e) => {
+            if (!det.open) {
+              det.open = true;
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          });
+        });
+      })();
     </script>
   </body>
 </html>

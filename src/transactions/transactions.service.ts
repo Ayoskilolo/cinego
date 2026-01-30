@@ -353,6 +353,8 @@ export class TransactionsService {
                 updatePayload.isSubscribed = true;
                 updatePayload.subscriptionExpiresAt = null; // Freemium might not expire
                 updatePayload.nextBillingDate = null; // No billing for freemium
+                updatePayload.lastFreemiumActivePartyId = null;
+                updatePayload.lastFreemiumMovieId = null;
                 needsUpdate = true;
               }
 
@@ -509,6 +511,8 @@ export class TransactionsService {
           isSubscribed: false,
           subscriptionExpiresAt: null,
           nextBillingDate: null,
+          lastFreemiumActivePartyId: null,
+          lastFreemiumMovieId: null,
         };
 
         await this.userService.updateUser(user.id, updatePayload);
@@ -707,6 +711,8 @@ export class TransactionsService {
             isSubscribed: false,
             subscriptionExpiresAt: null,
             nextBillingDate: null,
+            lastFreemiumActivePartyId: null,
+            lastFreemiumMovieId: null,
           };
 
           await this.userService.updateUser(user.id, updatePayload);

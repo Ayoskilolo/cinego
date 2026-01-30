@@ -5,6 +5,13 @@ import { config as loadEnv } from 'dotenv';
 loadEnv();
 
 async function truncateAll() {
+  const nodeEnv = (process.env.NODE_ENV || '').toLowerCase();
+  if (nodeEnv !== 'development') {
+    console.log(
+      `Refusing to truncate tables because NODE_ENV="${process.env.NODE_ENV}" is not "development".`,
+    );
+    return;
+  }
   const args = process.argv.slice(2);
   const rawTargets =
     args.length > 0
@@ -18,13 +25,15 @@ async function truncateAll() {
     providers: ['providers_entity'],
     users: ['user'],
     profiles: ['profile'],
-    sessions: ['session_entity'],
+    sessions: ['sessions'],
     transactions: ['transaction'],
     comments: ['comments'],
     reviews: ['reviews'],
     movie_news: ['movie_news'],
     my_list: ['my_list_entity'],
     payment_partners: ['payment_partner'],
+    blogs: ['blogs'],
+    blog_comments: ['blog_comments'],
     user_interactions: [
       'comments',
       'reviews',
@@ -32,10 +41,38 @@ async function truncateAll() {
       'watch_history',
     ],
     watch_history: ['watch_history'],
+    watch_party: [
+      'watch_party_muted_users',
+      'watch_party_banned_users',
+      'watch_party_invited_users',
+      'watch_party_participants',
+      'watch_party',
+    ],
   };
   const expanded: string[] = [];
   for (const keyOrTable of rawTargets) {
     const k = keyOrTable.toLowerCase();
+    if (k === 'all' || k === '*') {
+      // Use a safe deletion order to satisfy foreign keys
+      const order: string[] = [
+        // children first
+        ...registry.blog_comments,
+        ...registry.user_interactions,
+        ...registry.sessions,
+        ...registry.transactions,
+        ...registry.movie_news,
+        ...registry.blogs,
+        ...registry.watch_party,
+        // then parents
+        ...registry.profiles,
+        ...registry.users,
+        ...registry.movies,
+        ...registry.providers,
+        ...registry.payment_partners,
+      ];
+      expanded.push(...order);
+      break;
+    }
     if (registry[k]) {
       expanded.push(...registry[k]);
     } else {

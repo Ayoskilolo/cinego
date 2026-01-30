@@ -48,13 +48,83 @@ export class UserSeeder implements Seeder {
     });
 
     if (existingAdmin) {
-      this.logger.log('Admin user already exists, skipping admin creation...');
+      this.logger.log(
+        'Admin user already exists, ensuring multiple profiles...',
+      );
+      const now = new Date();
+      const exp = new Date(now.getTime());
+      exp.setMonth(exp.getMonth() + 1);
+      const next = new Date(now.getTime());
+      next.setMonth(next.getMonth() + 1);
+      try {
+        const existingProfiles = await this.profileRepository.find({
+          where: { userId: existingAdmin.id },
+        });
+        const needProfiles = [
+          {
+            profileName: 'Admin Main',
+            maturityRatings: MaturityRatings.R,
+            profileImageUrl: 'https://picsum.photos/150/150?random=9999',
+          },
+          {
+            profileName: 'Admin Guest',
+            maturityRatings: MaturityRatings.PG_13,
+            profileImageUrl: 'https://picsum.photos/150/150?random=9998',
+          },
+          {
+            profileName: 'Admin Child',
+            maturityRatings: MaturityRatings.PG,
+            profileImageUrl: 'https://picsum.photos/150/150?random=9997',
+          },
+        ];
+        const have = new Set(
+          (existingProfiles || []).map((p) =>
+            (p.profileName || '').toLowerCase(),
+          ),
+        );
+        for (const prof of needProfiles) {
+          if (!have.has(prof.profileName.toLowerCase())) {
+            const entity = this.profileRepository.create({
+              userId: existingAdmin.id,
+              profileName: prof.profileName,
+              maturityRatings: prof.maturityRatings,
+              profileImageUrl: prof.profileImageUrl,
+              pin: null,
+            });
+            const saved = await this.profileRepository.save(entity);
+            this.logger.log(`Seeded admin profile: ${saved.profileName}`);
+          }
+        }
+      } catch (error) {
+        this.logger.error('Unable to ensure admin profiles', error);
+      }
+      try {
+        const admin = await this.userRepository.findOne({
+          where: { id: existingAdmin.id },
+        });
+        if (
+          admin &&
+          admin.subscriptionType === SubscriptionType.PREMIUM &&
+          (!admin.subscriptionExpiresAt || admin.subscriptionExpiresAt <= now)
+        ) {
+          await this.userRepository.update(admin.id, {
+            subscriptionExpiresAt: exp,
+            nextBillingDate: next,
+            isSubscribed: true,
+          });
+        }
+      } catch {}
     } else {
       // Create constant admin user
       try {
         // Hash the admin password
         const hashedPassword = await hash(adminPassword, 10);
 
+        const now = new Date();
+        const exp = new Date(now.getTime());
+        exp.setMonth(exp.getMonth() + 1);
+        const next = new Date(now.getTime());
+        next.setMonth(next.getMonth() + 1);
         const adminUser: Partial<User> = {
           firstName: 'Admin',
           lastName: 'User',
@@ -67,9 +137,8 @@ export class UserSeeder implements Seeder {
           displayPicture: 'https://picsum.photos/200/200?random=9999',
           subscriptionType: SubscriptionType.PREMIUM,
           isSubscribed: true,
-          subscriptionExpiresAt: new Date('2025-12-31'),
-          nextBillingDate: new Date('2025-01-01'),
-          hasUsedFreeTrial: false,
+          subscriptionExpiresAt: exp,
+          nextBillingDate: next,
           role: Role.ADMIN,
         };
 
@@ -79,21 +148,35 @@ export class UserSeeder implements Seeder {
           `Seeded admin user: ${savedAdmin.firstName} ${savedAdmin.lastName} (${savedAdmin.email})`,
         );
 
-        // Create admin profile
-        const adminProfile: Partial<Profile> = {
-          userId: savedAdmin.id,
-          profileName: 'Admin Profile',
-          maturityRatings: MaturityRatings.R,
-          profileImageUrl: 'https://picsum.photos/150/150?random=9999',
-          pin: null, // No PIN for admin profile
-        };
+        const adminProfiles: Partial<Profile>[] = [
+          {
+            userId: savedAdmin.id,
+            profileName: 'Admin Main',
+            maturityRatings: MaturityRatings.R,
+            profileImageUrl: 'https://picsum.photos/150/150?random=9999',
+            pin: null,
+          },
+          {
+            userId: savedAdmin.id,
+            profileName: 'Admin Guest',
+            maturityRatings: MaturityRatings.PG_13,
+            profileImageUrl: 'https://picsum.photos/150/150?random=9998',
+            pin: null,
+          },
+          {
+            userId: savedAdmin.id,
+            profileName: 'Admin Child',
+            maturityRatings: MaturityRatings.PG,
+            profileImageUrl: 'https://picsum.photos/150/150?random=9997',
+            pin: null,
+          },
+        ];
 
-        const adminProfileEntity = this.profileRepository.create(adminProfile);
-        const savedAdminProfile =
-          await this.profileRepository.save(adminProfileEntity);
-        this.logger.log(
-          `Seeded admin profile: ${savedAdminProfile.profileName}`,
-        );
+        for (const prof of adminProfiles) {
+          const entity = this.profileRepository.create(prof);
+          const saved = await this.profileRepository.save(entity);
+          this.logger.log(`Seeded admin profile: ${saved.profileName}`);
+        }
 
         // // Set admin profile as active
         // await this.userRepository.update(savedAdmin.id, {
@@ -102,6 +185,78 @@ export class UserSeeder implements Seeder {
       } catch (error) {
         this.logger.error('Unable to seed admin user', error);
       }
+    }
+
+    try {
+      const nodeEnv = (process.env.NODE_ENV || '').toLowerCase();
+      if (nodeEnv !== 'development') {
+        this.logger.log(
+          `Skipping premium user seeding because NODE_ENV="${process.env.NODE_ENV}" is not "development".`,
+        );
+        return;
+      }
+      const premiumEmail = 'premiumuser@cinego.com';
+      const existingPremium = await this.userRepository.findOne({
+        where: { email: premiumEmail },
+      });
+      if (!existingPremium) {
+        const hashedPremiumPassword = await hash('password123', 10);
+        const now = new Date();
+        const exp = new Date(now.getTime());
+        exp.setMonth(exp.getMonth() + 1);
+        const next = new Date(now.getTime());
+        next.setMonth(next.getMonth() + 1);
+        const premiumUser: Partial<User> = {
+          firstName: 'Premium',
+          lastName: 'User',
+          email: premiumEmail,
+          password: hashedPremiumPassword,
+          isEmailVerified: true,
+          phoneNumber: '+1234567800',
+          dateOfBirth: new Date('1992-05-15'),
+          preferredGenres: ['Action', 'Drama', 'Sci-Fi'],
+          displayPicture: 'https://picsum.photos/200/200?random=8888',
+          subscriptionType: SubscriptionType.PREMIUM,
+          isSubscribed: true,
+          subscriptionExpiresAt: exp,
+          nextBillingDate: next,
+          hasUsedFreeTrial: false,
+          role: Role.USER,
+        };
+        const premiumEntity = this.userRepository.create(premiumUser);
+        const savedPremium = await this.userRepository.save(premiumEntity);
+        this.logger.log(`Seeded premium user: ${savedPremium.email}`);
+        const premiumProfiles: Partial<Profile>[] = [
+          {
+            userId: savedPremium.id,
+            profileName: 'Premium Main',
+            maturityRatings: MaturityRatings.R,
+            profileImageUrl: 'https://picsum.photos/150/150?random=8889',
+            pin: null,
+          },
+          {
+            userId: savedPremium.id,
+            profileName: 'Premium Guest',
+            maturityRatings: MaturityRatings.PG_13,
+            profileImageUrl: 'https://picsum.photos/150/150?random=8890',
+            pin: null,
+          },
+          {
+            userId: savedPremium.id,
+            profileName: 'Premium Child',
+            maturityRatings: MaturityRatings.PG,
+            profileImageUrl: 'https://picsum.photos/150/150?random=8891',
+            pin: null,
+          },
+        ];
+        for (const prof of premiumProfiles) {
+          const entity = this.profileRepository.create(prof);
+          const saved = await this.profileRepository.save(entity);
+          this.logger.log(`Seeded premium profile: ${saved.profileName}`);
+        }
+      }
+    } catch (error) {
+      this.logger.error('Unable to seed premium user', error);
     }
 
     // Only create random users if no users exist (excluding admin)

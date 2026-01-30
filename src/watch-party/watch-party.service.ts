@@ -8,12 +8,14 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { RtmTokenBuilder } from 'agora-token';
+import { RtmTokenBuilder, RtcTokenBuilder, RtcRole } from 'agora-token';
 import { v4 as uuidv4 } from 'uuid';
 import { WatchParty } from './entities/watch-party.entity';
 import { Movie } from '../movie/entities/movie.entity';
 import { User } from '../user/entities/user.entity';
 import { SubscriptionType } from '../user/enum/userType';
+import { Profile } from '../user/entities/profile.entity';
+import { SessionEntity } from '../auth/entities/session.entity';
 
 @Injectable()
 export class WatchPartyService {
@@ -25,6 +27,10 @@ export class WatchPartyService {
     private readonly movieRepo: Repository<Movie>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(Profile)
+    private readonly profileRepo: Repository<Profile>,
+    @InjectRepository(SessionEntity)
+    private readonly sessionRepo: Repository<SessionEntity>,
   ) {}
 
   private rateMap = new Map<string, { windowStart: number; count: number }>();
@@ -54,11 +60,11 @@ export class WatchPartyService {
     }
 
     const appId =
-      this.configService.get<string>('AGORA_APP_ID') ||
-      this.configService.get<string>('agora.appId');
+      this.configService.get<string>('app.agoraAppId') ||
+      this.configService.get<string>('AGORA_APP_ID');
     const appCertificate =
-      this.configService.get<string>('AGORA_APP_CERTIFICATE') ||
-      this.configService.get<string>('agora.appCertificate');
+      this.configService.get<string>('app.agoraAppCertificate') ||
+      this.configService.get<string>('AGORA_APP_CERTIFICATE');
 
     if (!appId || !appCertificate) {
       throw new InternalServerErrorException(
@@ -68,15 +74,122 @@ export class WatchPartyService {
 
     const ttl = Number.isFinite(expireSeconds as number)
       ? Number(expireSeconds)
-      : Number(this.configService.get<string>('AGORA_TOKEN_EXPIRE_SECONDS')) ||
-        7200;
+      : Number(
+          this.configService.get<string>('app.agoraTokenExpiry') ??
+            this.configService.get<string>('AGORA_TOKEN_EXPIRY'),
+        ) || 7200;
 
-    const token = RtmTokenBuilder.buildToken(appId, appCertificate, profileId, ttl);
+    const token = RtmTokenBuilder.buildToken(
+      appId,
+      appCertificate,
+      profileId,
+      ttl,
+    );
     return { token, expireSeconds: ttl };
   }
 
   async refreshAgoraRTMToken(profileId: string, expireSeconds?: number) {
     return this.generateAgoraRTMToken(profileId, expireSeconds);
+  }
+
+  async generateAgoraRTCToken(
+    profileId: string,
+    channelName: string,
+    expireSeconds?: number,
+  ) {
+    if (!profileId) {
+      throw new BadRequestException('profileId is required');
+    }
+    if (!channelName) {
+      throw new BadRequestException('channelName is required');
+    }
+    const appId =
+      this.configService.get<string>('app.agoraAppId') ||
+      this.configService.get<string>('AGORA_APP_ID');
+    const appCertificate =
+      this.configService.get<string>('app.agoraAppCertificate') ||
+      this.configService.get<string>('AGORA_APP_CERTIFICATE');
+    if (!appId || !appCertificate) {
+      throw new InternalServerErrorException(
+        'Missing AGORA_APP_ID or AGORA_APP_CERTIFICATE',
+      );
+    }
+    const ttl = Number.isFinite(expireSeconds as number)
+      ? Number(expireSeconds)
+      : Number(
+          this.configService.get<string>('app.agoraTokenExpiry') ??
+            this.configService.get<string>('AGORA_TOKEN_EXPIRY'),
+        ) || 7200;
+    const role = RtcRole.PUBLISHER;
+    const token = RtcTokenBuilder.buildTokenWithUserAccount(
+      appId,
+      appCertificate,
+      channelName,
+      profileId,
+      role,
+      ttl,
+      ttl,
+    );
+    return { token, expireSeconds: ttl };
+  }
+
+  async refreshAgoraRTCToken(
+    profileId: string,
+    channelName: string,
+    expireSeconds?: number,
+  ) {
+    return this.generateAgoraRTCToken(profileId, channelName, expireSeconds);
+  }
+
+  async getPartyRoster(partyId: string) {
+    const party = await this.partyRepo.findOne({
+      where: { id: partyId },
+      relations: { participants: true, host: true },
+    });
+    if (!party) throw new NotFoundException('Party not found');
+    const users: User[] = [
+      ...(party.participants || []),
+      ...(party.host ? [party.host] : []),
+    ];
+    const userIds = Array.from(new Set(users.map((u) => u.id)));
+    const sessions = await this.sessionRepo.find({
+      where: { userId: In(userIds), isActive: true },
+      order: { dateCreated: 'DESC' },
+    });
+    const latestByUser = new Map<string, SessionEntity>();
+    for (const s of sessions) {
+      const prev = latestByUser.get(s.userId);
+      if (!prev || s.dateCreated > prev.dateCreated) {
+        latestByUser.set(s.userId, s);
+      }
+    }
+    const profileIds = Array.from(
+      new Set(
+        Array.from(latestByUser.values())
+          .map((s) => s.currentProfileId)
+          .filter((id) => !!id),
+      ),
+    );
+    const profiles = profileIds.length
+      ? await this.profileRepo.find({ where: { id: In(profileIds) } })
+      : [];
+    const nameByProfile = new Map<string, string>();
+    for (const p of profiles) {
+      nameByProfile.set(p.id, p.profileName);
+    }
+    const roster = users.map((u) => {
+      const s = latestByUser.get(u.id);
+      const pid = s?.currentProfileId || null;
+      const pname = pid ? nameByProfile.get(pid) || null : null;
+      const isHost = party.hostId === u.id;
+      return {
+        userId: u.id,
+        profileId: pid,
+        profileName: pname,
+        role: isHost ? 'HOST' : 'PARTICIPANT',
+      };
+    });
+    return { partyId, roster };
   }
 
   private ensureEligible(user: User) {
@@ -89,16 +202,6 @@ export class WatchPartyService {
     throw new ForbiddenException(
       'Your plan does not allow starting or joining watch parties. Upgrade to Freemium or Premium.',
     );
-  }
-
-  private async userHasActiveParty(userId: string) {
-    const count = await this.partyRepo
-      .createQueryBuilder('party')
-      .leftJoin('party.participants', 'p')
-      .where('party.status = :status', { status: 'ACTIVE' })
-      .andWhere('(party.hostId = :uid OR p.id = :uid)', { uid: userId })
-      .getCount();
-    return count > 0;
   }
 
   private async userHasScheduledOrActiveParty(userId: string) {
@@ -114,7 +217,68 @@ export class WatchPartyService {
   }
 
   private generateJoinCode() {
-    return Math.random().toString(36).slice(2, 8).toUpperCase();
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 9; i++) {
+      code += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return code;
+  }
+  private async generateUniqueJoinCode(
+    maxAttempts: number = 5,
+  ): Promise<string> {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const candidate = this.generateJoinCode();
+      const exists = await this.partyRepo.findOne({
+        where: { joinCode: candidate },
+      });
+      if (!exists) return candidate;
+    }
+    throw new InternalServerErrorException(
+      'Unable to allocate a unique join code. Please retry.',
+    );
+  }
+
+  private async savePartyWithJoinCodeRetry(
+    party: WatchParty,
+    maxAttempts: number = 8,
+  ): Promise<WatchParty> {
+    let lastErr: any;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        return await this.partyRepo.save(party);
+      } catch (err) {
+        lastErr = err;
+        const driverErr = (err as any)?.driverError || err;
+        const code = (driverErr && driverErr.code) || (err as any)?.code;
+        const msg = String(
+          (driverErr && driverErr.detail) || driverErr?.message || '',
+        );
+        const constraint = String((driverErr && driverErr.constraint) || '');
+        const isUniqueViolation = code === '23505';
+        const mentionsJoinCode =
+          /join[_\s]?code/i.test(msg) ||
+          /join[_\s]?code/i.test(constraint) ||
+          /watch[_\s-]?party.*join[_\s]?code/i.test(msg);
+        if (isUniqueViolation && mentionsJoinCode) {
+          party.joinCode = await this.generateUniqueJoinCode();
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw new InternalServerErrorException(
+      'Unable to save party due to join code collision. Please retry.',
+    );
+  }
+
+  private async getActivePartyForUser(userId: string) {
+    return await this.partyRepo
+      .createQueryBuilder('party')
+      .leftJoinAndSelect('party.participants', 'p')
+      .where('party.status = :status', { status: 'ACTIVE' })
+      .andWhere('(party.hostId = :uid OR p.id = :uid)', { uid: userId })
+      .getOne();
   }
 
   async startParty(
@@ -136,13 +300,41 @@ export class WatchPartyService {
     });
     if (!host) throw new NotFoundException('User not found');
     this.ensureEligible(host);
-    if (host.subscriptionType === SubscriptionType.FREEMIUM && (host as any).hasUsedWatchPartyTrial) {
+    if (
+      host.subscriptionType === SubscriptionType.FREEMIUM &&
+      (host as any).hasUsedWatchPartyTrial
+    ) {
       throw new ForbiddenException('Freemium watch party trial already used');
     }
 
-    if (await this.userHasActiveParty(host.id)) {
-      throw new ForbiddenException('You already have an active party');
+    if (host.subscriptionType === SubscriptionType.FREEMIUM) {
+      const lastMovie = (host as any).lastFreemiumMovieId;
+      if (lastMovie && lastMovie !== movieId) {
+        throw new ForbiddenException(
+          'Freemium limited to one watch party for selected movie',
+        );
+      }
     }
+
+    const activeParty = await this.getActivePartyForUser(host.id);
+    if (activeParty) {
+      if (activeParty.hostId === host.id) {
+        // NOTE: We end the previous party here.
+        // For Freemium users, endParty() triggers a downgrade to FREE_TIER (consuming their trial).
+        // However, since we fetched the 'host' object at the start of this method (before the downgrade),
+        // we use that stale, eligible 'host' object to create the new party below.
+        // This effectively allows a Freemium host to "restart" a party (e.g. for technical reasons)
+        // without being immediately locked out, while the 'lastFreemiumMovieId' check ensures
+        // they cannot switch to a different movie.
+        await this.endParty(activeParty.id, host.id);
+      } else {
+        activeParty.participants = activeParty.participants.filter(
+          (p) => p.id !== host.id,
+        );
+        await this.partyRepo.save(activeParty);
+      }
+    }
+
     if (host.subscriptionType === SubscriptionType.FREEMIUM) {
       if (await this.userHasScheduledOrActiveParty(host.id)) {
         throw new ForbiddenException(
@@ -156,7 +348,9 @@ export class WatchPartyService {
         where: { startKey: idempotencyKey, hostId: requestingUserId },
       });
       if (existing && existing.status === 'ACTIVE') {
-        const tok = await this.generateAgoraRTMToken(profileIdForToken || requestingUserId);
+        const tok = await this.generateAgoraRTMToken(
+          profileIdForToken || requestingUserId,
+        );
         return {
           party: existing,
           rtmToken: tok.token,
@@ -176,11 +370,19 @@ export class WatchPartyService {
       host,
       status: 'ACTIVE',
       participants: host ? [host] : [],
-      joinCode: this.generateJoinCode(),
+      joinCode: await this.generateUniqueJoinCode(),
       startKey: idempotencyKey,
     });
-    const saved = await this.partyRepo.save(party);
-    const tok = await this.generateAgoraRTMToken(profileIdForToken || requestingUserId);
+    const saved = await this.savePartyWithJoinCodeRetry(party);
+    if (host.subscriptionType === SubscriptionType.FREEMIUM) {
+      await this.userRepo.update(
+        { id: host.id },
+        { lastFreemiumMovieId: movieId },
+      );
+    }
+    const tok = await this.generateAgoraRTMToken(
+      profileIdForToken || requestingUserId,
+    );
     return {
       party: saved,
       rtmToken: tok.token,
@@ -190,7 +392,11 @@ export class WatchPartyService {
     };
   }
 
-  async joinParty(partyId: string, requestingUserId: string, profileIdForToken?: string) {
+  async joinParty(
+    partyId: string,
+    requestingUserId: string,
+    profileIdForToken?: string,
+  ) {
     if (!partyId || !requestingUserId) {
       throw new BadRequestException('partyId and userId are required');
     }
@@ -214,12 +420,34 @@ export class WatchPartyService {
     });
     if (!user) throw new NotFoundException('User not found');
     this.ensureEligible(user);
-    if (user.subscriptionType === SubscriptionType.FREEMIUM && (user as any).hasUsedWatchPartyTrial) {
+    if (
+      user.subscriptionType === SubscriptionType.FREEMIUM &&
+      (user as any).hasUsedWatchPartyTrial
+    ) {
       throw new ForbiddenException('Freemium watch party trial already used');
     }
+    if (user.subscriptionType === SubscriptionType.FREEMIUM) {
+      const lastMovie = (user as any).lastFreemiumMovieId;
+      if (lastMovie && lastMovie !== party.movieId) {
+        throw new ForbiddenException(
+          'Freemium limited to one watch party for selected movie',
+        );
+      }
+    }
+    const exists = (party.participants || []).some((u) => u.id === user.id);
     if (party.status === 'ACTIVE') {
-      if (await this.userHasActiveParty(user.id)) {
-        throw new ForbiddenException('You already have an active party');
+      if (!exists) {
+        const activeParty = await this.getActivePartyForUser(user.id);
+        if (activeParty && activeParty.id !== party.id) {
+          if (activeParty.hostId === user.id) {
+            await this.endParty(activeParty.id, user.id);
+          } else {
+            activeParty.participants = activeParty.participants.filter(
+              (p) => p.id !== user.id,
+            );
+            await this.partyRepo.save(activeParty);
+          }
+        }
       }
     }
     if (user.subscriptionType === SubscriptionType.FREEMIUM) {
@@ -230,13 +458,20 @@ export class WatchPartyService {
       }
     }
 
-    const exists = (party.participants || []).some((u) => u.id === user.id);
     if (!exists) {
       party.participants = [...(party.participants || []), user];
     }
     party.hostLeftAt = null;
     await this.partyRepo.save(party);
-    const tok = await this.generateAgoraRTMToken(profileIdForToken || requestingUserId);
+    if (user.subscriptionType === SubscriptionType.FREEMIUM) {
+      await this.userRepo.update(
+        { id: user.id },
+        { lastFreemiumMovieId: party.movieId },
+      );
+    }
+    const tok = await this.generateAgoraRTMToken(
+      profileIdForToken || requestingUserId,
+    );
     return {
       party,
       rtmToken: tok.token,
@@ -281,6 +516,9 @@ export class WatchPartyService {
           isSubscribed: false,
           subscriptionExpiresAt: null,
           nextBillingDate: null,
+          hasUsedWatchPartyTrial: true,
+          lastFreemiumMovieId: null,
+          lastFreemiumActivePartyId: null,
         },
       );
     }
@@ -359,12 +597,34 @@ export class WatchPartyService {
     const byPhones = phoneList.length
       ? await this.userRepo.find({ where: { phoneNumber: In(phoneList) } })
       : [];
+    const unresolvedIds = ids.filter((id) => !byIds.some((u) => u.id === id));
+    const unresolvedEmails = emailList.filter(
+      (em) => !byEmails.some((u) => u.email === em),
+    );
+    const unresolvedPhones = phoneList.filter(
+      (ph) => !byPhones.some((u) => u.phoneNumber === ph),
+    );
+    if (
+      unresolvedIds.length ||
+      unresolvedEmails.length ||
+      unresolvedPhones.length
+    ) {
+      throw new BadRequestException(
+        'Some invitees could not be resolved to existing accounts',
+      );
+    }
     const seen = new Set<string>();
     for (const u of [...byIds, ...byEmails, ...byPhones]) {
       if (!seen.has(u.id)) {
         seen.add(u.id);
         invited.push(u);
       }
+    }
+    const disallowedSched = invited.filter(
+      (u) => u.subscriptionType === SubscriptionType.FREE_TIER,
+    );
+    if (disallowedSched.length) {
+      throw new ForbiddenException('Free tier users cannot be invited');
     }
 
     const suffix = uuidv4();
@@ -379,9 +639,9 @@ export class WatchPartyService {
       scheduledFor: sched,
       participants: host ? [host] : [],
       invitedUsers: invited,
-      joinCode: this.generateJoinCode(),
+      joinCode: await this.generateUniqueJoinCode(),
     });
-    return await this.partyRepo.save(party);
+    return await this.savePartyWithJoinCodeRetry(party);
   }
 
   async inviteToParty(
@@ -412,9 +672,31 @@ export class WatchPartyService {
     const byPhones = phoneList.length
       ? await this.userRepo.find({ where: { phoneNumber: In(phoneList) } })
       : [];
+    const unresolvedIds = ids.filter((id) => !byIds.some((u) => u.id === id));
+    const unresolvedEmails = emailList.filter(
+      (em) => !byEmails.some((u) => u.email === em),
+    );
+    const unresolvedPhones = phoneList.filter(
+      (ph) => !byPhones.some((u) => u.phoneNumber === ph),
+    );
+    if (
+      unresolvedIds.length ||
+      unresolvedEmails.length ||
+      unresolvedPhones.length
+    ) {
+      throw new BadRequestException(
+        'Some invitees could not be resolved to existing accounts',
+      );
+    }
     const users = [...byIds, ...byEmails, ...byPhones];
     const existingIds = new Set((party.invitedUsers || []).map((u) => u.id));
     const toAdd = users.filter((u) => !existingIds.has(u.id));
+    const disallowed = toAdd.filter(
+      (u) => u.subscriptionType === SubscriptionType.FREE_TIER,
+    );
+    if (disallowed.length) {
+      throw new ForbiddenException('Free tier users cannot be invited');
+    }
     party.invitedUsers = [...(party.invitedUsers || []), ...toAdd];
     await this.partyRepo.save(party);
     return party;
@@ -458,9 +740,9 @@ export class WatchPartyService {
     if (party.hostId !== requestingUserId)
       throw new ForbiddenException('Only host can rotate code');
     this.checkRateLimit('rotate', requestingUserId);
-    party.joinCode = this.generateJoinCode();
+    party.joinCode = await this.generateUniqueJoinCode();
     party.rotatedAt = new Date();
-    await this.partyRepo.save(party);
+    await this.savePartyWithJoinCodeRetry(party);
     return { partyId: party.id, joinCode: party.joinCode };
   }
 
@@ -475,14 +757,24 @@ export class WatchPartyService {
       .getMany();
   }
 
-  async joinPartyByCode(code: string, requestingUserId: string, profileIdForToken?: string) {
+  async joinPartyByCode(
+    code: string,
+    requestingUserId: string,
+    profileIdForToken?: string,
+  ) {
     if (!code || !requestingUserId) {
       throw new BadRequestException('code and userId are required');
     }
     this.checkRateLimit('join', requestingUserId);
+    const normalizedCode = code.trim().toUpperCase();
     const party = await this.partyRepo.findOne({
-      where: { joinCode: code },
-      relations: { participants: true, host: true, bannedUsers: true },
+      where: { joinCode: normalizedCode },
+      relations: {
+        participants: true,
+        host: true,
+        bannedUsers: true,
+        invitedUsers: true,
+      },
     });
     if (!party) throw new NotFoundException('Party not found');
     if (party.status === 'ENDED') {
@@ -497,13 +789,36 @@ export class WatchPartyService {
     if (bannedIds.has(requestingUserId)) {
       throw new ForbiddenException('You are banned from this party');
     }
-    if (user.subscriptionType === SubscriptionType.FREEMIUM && (user as any).hasUsedWatchPartyTrial) {
-      throw new ForbiddenException('Freemium watch party trial already used');
-    }
     const exists = (party.participants || []).some((u) => u.id === user.id);
+    if (
+      user.subscriptionType === SubscriptionType.FREEMIUM &&
+      (user as any).hasUsedWatchPartyTrial
+    ) {
+      if (!exists) {
+        throw new ForbiddenException('Freemium watch party trial already used');
+      }
+    }
+    if (user.subscriptionType === SubscriptionType.FREEMIUM) {
+      const lastMovie = (user as any).lastFreemiumMovieId;
+      if (lastMovie && lastMovie !== party.movieId) {
+        throw new ForbiddenException(
+          'Freemium limited to one watch party for selected movie',
+        );
+      }
+    }
     if (party.status === 'ACTIVE') {
-      if (!exists && (await this.userHasActiveParty(user.id))) {
-        throw new ForbiddenException('You already have an active party');
+      if (!exists) {
+        const activeParty = await this.getActivePartyForUser(user.id);
+        if (activeParty && activeParty.id !== party.id) {
+          if (activeParty.hostId === user.id) {
+            await this.endParty(activeParty.id, user.id);
+          } else {
+            activeParty.participants = activeParty.participants.filter(
+              (p) => p.id !== user.id,
+            );
+            await this.partyRepo.save(activeParty);
+          }
+        }
       }
     }
     if (user.subscriptionType === SubscriptionType.FREEMIUM) {
@@ -519,8 +834,23 @@ export class WatchPartyService {
     if (party.hostId === requestingUserId) {
       party.hostLeftAt = null;
     }
+    // For scheduled parties, require invite to join-by-code
+    if (party.status === 'SCHEDULED') {
+      const invitedIds = new Set((party.invitedUsers || []).map((u) => u.id));
+      if (!invitedIds.has(user.id) && party.hostId !== user.id) {
+        throw new ForbiddenException('Invite required until party starts');
+      }
+    }
     await this.partyRepo.save(party);
-    const tok = await this.generateAgoraRTMToken(profileIdForToken || requestingUserId);
+    if (user.subscriptionType === SubscriptionType.FREEMIUM) {
+      await this.userRepo.update(
+        { id: user.id },
+        { lastFreemiumMovieId: party.movieId },
+      );
+    }
+    const tok = await this.generateAgoraRTMToken(
+      profileIdForToken || requestingUserId,
+    );
     return {
       party,
       rtmToken: tok.token,
@@ -535,7 +865,9 @@ export class WatchPartyService {
     const elapsed = Date.now() - new Date(party.hostLeftAt).getTime();
     if (elapsed < 60_000) return party;
     const participants = party.participants || [];
-    const candidate = participants.sort((a,b)=>String(a.id).localeCompare(String(b.id)))[0];
+    const candidate = participants.sort((a, b) =>
+      String(a.id).localeCompare(String(b.id)),
+    )[0];
     if (!candidate) return party;
     party.hostId = candidate.id;
     party.host = candidate;
@@ -566,7 +898,9 @@ export class WatchPartyService {
       party.lastStartScheduledKey === idempotencyKey &&
       party.status === 'ACTIVE'
     ) {
-      const tok = await this.generateAgoraRTMToken(profileIdForToken || requestingUserId);
+      const tok = await this.generateAgoraRTMToken(
+        profileIdForToken || requestingUserId,
+      );
       return {
         party,
         rtmToken: tok.token,
@@ -583,13 +917,43 @@ export class WatchPartyService {
       const h = await this.userRepo.findOne({ where: { id: party.hostId } });
       if (!h) throw new NotFoundException('Host not found');
     }
-    if (await this.userHasActiveParty(requestingUserId)) {
-      throw new ForbiddenException('You already have an active party');
+    const activeParty = await this.getActivePartyForUser(requestingUserId);
+    if (activeParty && activeParty.id !== party.id) {
+      if (activeParty.hostId === requestingUserId) {
+        await this.endParty(activeParty.id, requestingUserId);
+      } else {
+        activeParty.participants = activeParty.participants.filter(
+          (p) => p.id !== requestingUserId,
+        );
+        await this.partyRepo.save(activeParty);
+      }
+    }
+    const requester = await this.userRepo.findOne({
+      where: { id: requestingUserId },
+    });
+    if (requester) {
+      this.ensureEligible(requester);
+    }
+    if (requester && requester.subscriptionType === SubscriptionType.FREEMIUM) {
+      const lastMovie = (requester as any).lastFreemiumMovieId;
+      if (lastMovie && lastMovie !== party.movieId) {
+        throw new ForbiddenException(
+          'Freemium limited to one watch party for selected movie',
+        );
+      }
     }
     party.status = 'ACTIVE';
     party.lastStartScheduledKey = idempotencyKey;
     await this.partyRepo.save(party);
-    const tok = await this.generateAgoraRTMToken(profileIdForToken || requestingUserId);
+    if (requester && requester.subscriptionType === SubscriptionType.FREEMIUM) {
+      await this.userRepo.update(
+        { id: requestingUserId },
+        { lastFreemiumMovieId: party.movieId },
+      );
+    }
+    const tok = await this.generateAgoraRTMToken(
+      profileIdForToken || requestingUserId,
+    );
     return {
       party,
       rtmToken: tok.token,
@@ -606,21 +970,18 @@ export class WatchPartyService {
     if (!party) throw new NotFoundException('Party not found');
     if (party.hostId !== requestingUserId)
       throw new ForbiddenException('Only host can kick');
-    const removed = (party.participants || []).find((u) => u.id === userId) || null;
-    party.participants = (party.participants || []).filter((u) => u.id !== userId);
+    const removed =
+      (party.participants || []).find((u) => u.id === userId) || null;
+    party.participants = (party.participants || []).filter(
+      (u) => u.id !== userId,
+    );
     await this.partyRepo.save(party);
     if (removed) {
       const u = await this.userRepo.findOne({ where: { id: userId } });
-      if (u && u.subscriptionType === SubscriptionType.FREEMIUM && !(u as any).hasUsedWatchPartyTrial) {
+      if (u && u.subscriptionType === SubscriptionType.FREEMIUM) {
         await this.userRepo.update(
           { id: u.id },
-          {
-            hasUsedWatchPartyTrial: true,
-            subscriptionType: SubscriptionType.FREE_TIER,
-            isSubscribed: false,
-            subscriptionExpiresAt: null,
-            nextBillingDate: null,
-          },
+          { lastFreemiumMovieId: party.movieId },
         );
       }
     }
@@ -653,16 +1014,10 @@ export class WatchPartyService {
       (u) => u.id !== user.id,
     );
     await this.partyRepo.save(party);
-    if (user.subscriptionType === SubscriptionType.FREEMIUM && !(user as any).hasUsedWatchPartyTrial) {
+    if (user.subscriptionType === SubscriptionType.FREEMIUM) {
       await this.userRepo.update(
         { id: user.id },
-        {
-          hasUsedWatchPartyTrial: true,
-          subscriptionType: SubscriptionType.FREE_TIER,
-          isSubscribed: false,
-          subscriptionExpiresAt: null,
-          nextBillingDate: null,
-        },
+        { lastFreemiumMovieId: party.movieId },
       );
     }
     return party;
@@ -714,13 +1069,25 @@ export class WatchPartyService {
     return party;
   }
 
-  async transferHost(partyId: string, requestingUserId: string, newHostId: string) {
-    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { participants: true, host: true } });
+  async transferHost(
+    partyId: string,
+    requestingUserId: string,
+    newHostId: string,
+  ) {
+    const party = await this.partyRepo.findOne({
+      where: { id: partyId },
+      relations: { participants: true, host: true },
+    });
     if (!party) throw new NotFoundException('Party not found');
-    if (party.status !== 'ACTIVE') throw new BadRequestException('Party is not active');
-    if (party.hostId !== requestingUserId) throw new ForbiddenException('Only host can transfer');
-    const candidate = (party.participants || []).find((u) => u.id === newHostId);
-    if (!candidate) throw new BadRequestException('New host must be a participant');
+    if (party.status !== 'ACTIVE')
+      throw new BadRequestException('Party is not active');
+    if (party.hostId !== requestingUserId)
+      throw new ForbiddenException('Only host can transfer');
+    const candidate = (party.participants || []).find(
+      (u) => u.id === newHostId,
+    );
+    if (!candidate)
+      throw new BadRequestException('New host must be a participant');
     party.hostId = candidate.id;
     party.host = candidate;
     party.hostLeftAt = null;
@@ -729,25 +1096,26 @@ export class WatchPartyService {
   }
 
   async leaveParty(partyId: string, requestingUserId: string) {
-    const party = await this.partyRepo.findOne({ where: { id: partyId }, relations: { participants: true, host: true } });
+    const party = await this.partyRepo.findOne({
+      where: { id: partyId },
+      relations: { participants: true, host: true },
+    });
     if (!party) throw new NotFoundException('Party not found');
-    const user = await this.userRepo.findOne({ where: { id: requestingUserId } });
+    const user = await this.userRepo.findOne({
+      where: { id: requestingUserId },
+    });
     if (!user) throw new NotFoundException('User not found');
-    party.participants = (party.participants || []).filter((u) => u.id !== requestingUserId);
+    party.participants = (party.participants || []).filter(
+      (u) => u.id !== requestingUserId,
+    );
     if (party.hostId === requestingUserId) {
       party.hostLeftAt = new Date();
     }
     await this.partyRepo.save(party);
-    if (user.subscriptionType === SubscriptionType.FREEMIUM && !(user as any).hasUsedWatchPartyTrial) {
+    if (user.subscriptionType === SubscriptionType.FREEMIUM) {
       await this.userRepo.update(
         { id: user.id },
-        {
-          hasUsedWatchPartyTrial: true,
-          subscriptionType: SubscriptionType.FREE_TIER,
-          isSubscribed: false,
-          subscriptionExpiresAt: null,
-          nextBillingDate: null,
-        },
+        { lastFreemiumMovieId: party.movieId },
       );
     }
     return { partyId: party.id, status: 'left' };

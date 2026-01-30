@@ -9,4 +9,7 @@ export default registerAs('app', () => ({
     key: env.ENCRYPTION_KEY,
     iv: env.INITIATION_VECTOR,
   },
+  agoraAppId: env.AGORA_APP_ID,
+  agoraAppCertificate: env.AGORA_APP_CERTIFICATE,
+  agoraTokenExpiry: env.AGORA_TOKEN_EXPIRY,
 }));

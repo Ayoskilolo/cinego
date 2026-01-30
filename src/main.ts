@@ -11,10 +11,12 @@ async function bootstrap() {
   // Prepare HTTPS options from local certs (mkcert)
   const certPath =
     process.env.SSL_CERT_PATH ||
-    join(process.cwd(), 'certs', 'localhost-cert.pem');
+    join(process.cwd(), 'certs', 'localhost-cert.pem') ||
+    join(process.cwd(), 'certs', 'dev-cert.pem');
   const keyPath =
     process.env.SSL_KEY_PATH ||
-    join(process.cwd(), 'certs', 'localhost-key.pem');
+    join(process.cwd(), 'certs', 'localhost-key.pem') ||
+    join(process.cwd(), 'certs', 'dev-key.pem');
   let httpsOptions: { key: Buffer; cert: Buffer } | undefined;
   try {
     httpsOptions = {
