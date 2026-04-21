@@ -8,6 +8,7 @@ import {
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { WatchPartyService } from './watch-party.service';
+import { StructuredResponse } from '../response/structured-response';
 
 @ApiTags('watch-party')
 @Controller('watch-party')
@@ -181,7 +182,7 @@ export class WatchPartyController {
   @ApiResponse({ status: 200, description: 'Party roster.' })
   async getPartyRoster(@Param('partyId') partyId: string) {
     const data = await this.watchPartyService.getPartyRoster(partyId);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @ApiBearerAuth()
@@ -243,7 +244,7 @@ export class WatchPartyController {
       emails,
       phones,
     );
-    return { data: party };
+    return new StructuredResponse({ data: party });
   }
 
   @ApiBearerAuth()

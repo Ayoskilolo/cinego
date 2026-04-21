@@ -19,6 +19,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { StructuredResponse } from '../response/structured-response';
 
 @ApiTags('Admin Transactions')
 @ApiBearerAuth()
@@ -70,9 +71,9 @@ export class AdminTransactionsController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   async list(@Paginate() query: PaginateQuery) {
     const result = await this.transactionsService.findAll(query);
-    return {
+    return new StructuredResponse({
       data: { items: result.data, meta: result.meta, links: result.links },
-    };
+    });
   }
 
   // Moved above ':id' to avoid route conflict
@@ -133,7 +134,7 @@ export class AdminTransactionsController {
       status,
       timezone,
     });
-    return { data: res };
+    return new StructuredResponse({ data: res });
   }
 
   @Get(':id')

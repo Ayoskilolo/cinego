@@ -23,6 +23,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { StructuredResponse } from '../response/structured-response';
 
 class AdminUpdateMovieDto {
   title?: string;
@@ -61,7 +62,7 @@ export class AdminMoviesController {
   @ApiResponse({ status: 200, description: 'Successfully retrieved movies.' })
   async list(@Paginate() query: PaginateQuery) {
     const result = await this.movieService.adminFindAllPaginated(query);
-    return { data: { items: result.data, meta: result.meta, links: result.links } };
+    return new StructuredResponse({ data: { items: result.data, meta: result.meta, links: result.links } });
   }
 
   @Get(':id')
@@ -71,7 +72,7 @@ export class AdminMoviesController {
   @ApiResponse({ status: 404, description: 'Movie not found.' })
   async getById(@Param('id') id: string) {
     const data = await this.movieService.adminFindOne(id);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Patch(':id')
@@ -83,7 +84,7 @@ export class AdminMoviesController {
   @ApiResponse({ status: 404, description: 'Movie not found.' })
   async update(@Param('id') id: string, @Body() dto: AdminUpdateMovieDto) {
     const data = await this.movieService.adminUpdate(id, dto);
-    return { message: 'Movie updated successfully', data };
+    return new StructuredResponse({ message: 'Movie updated successfully', data });
   }
 
   @Delete(':id')

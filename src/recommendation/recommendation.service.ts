@@ -1,18 +1,27 @@
 import {
   Injectable,
+  Logger,
+  NotFoundException,
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, MoreThan, Repository } from 'typeorm';
+import { In, MoreThan, Repository, FindOptionsWhere } from 'typeorm';
 import { Movie } from '../movie/entities/movie.entity';
 import { Review } from '../review/entities/review.entity';
 import { MyListEntity } from '../my-list/entities/my-list.entity';
 import { Profile } from '../user/entities/profile.entity';
+import { User } from '../user/entities/user.entity';
+import { SessionEntity } from '../auth/entities/session.entity';
 import { ItemSimilarity } from './entities/item-similarity.entity';
+import {
+  EmailCampaignJob,
+  EmailCampaignStatus,
+} from './entities/email-campaign-job.entity';
 import { WatchHistory } from '../user/entities/watch-history.entity';
 import { Cron } from '@nestjs/schedule';
 import { MyListService } from '../my-list/my-list.service';
+import { MailService } from '../mail/mail.service';
 import { MovieContentType } from '../movie/enums/movie-content-type.enum';
 
 @Injectable()
@@ -22,6 +31,8 @@ export class RecommendationService {
 
   // How much to weight content-based vs collaborative filtering (50/50 split)
   private readonly CONTENT_WEIGHT = 0.5;
+
+  private readonly logger = new Logger(RecommendationService.name);
 
   constructor(
     @InjectRepository(Movie) private movieRepository: Repository<Movie>,
@@ -33,7 +44,13 @@ export class RecommendationService {
     @InjectRepository(Profile) private profileRepository: Repository<Profile>,
     @InjectRepository(ItemSimilarity)
     private itemSimilarityRepository: Repository<ItemSimilarity>,
+    @InjectRepository(User) private userRepository: Repository<User>,
+    @InjectRepository(SessionEntity)
+    private sessionRepository: Repository<SessionEntity>,
+    @InjectRepository(EmailCampaignJob)
+    private emailCampaignJobRepository: Repository<EmailCampaignJob>,
     private myListService: MyListService,
+    private mailService: MailService,
   ) {}
 
   /**
@@ -548,6 +565,411 @@ export class RecommendationService {
         totalSimilarities,
       },
     };
+  }
+
+  /**
+   * Enqueue a recommendation email campaign as a database job.
+   * Returns immediately with the job ID. The job is picked up by the cron poller.
+   */
+  async sendRecommendationEmails(
+    limit = 5,
+    userIds?: string[],
+  ): Promise<{ jobId: string; totalUsers: number }> {
+    const totalUsers = userIds
+      ? await this.userRepository.count({
+          where: { id: In(userIds), isEmailVerified: true },
+        })
+      : await this.userRepository.count({ where: { isEmailVerified: true } });
+
+    if (userIds && totalUsers === 0) {
+      throw new BadRequestException(
+        'No verified users found for the provided user IDs',
+      );
+    }
+
+    const job = this.emailCampaignJobRepository.create({
+      status: EmailCampaignStatus.PENDING,
+      movieLimit: limit,
+      userIds: userIds || null,
+      totalUsers,
+    });
+
+    const savedJob = await this.emailCampaignJobRepository.save(job);
+
+    this.logger.log(
+      `Email campaign job ${savedJob.id} created for ${totalUsers} users`,
+    );
+
+    return { jobId: savedJob.id, totalUsers };
+  }
+
+  /**
+   * Cron poller: checks for pending email campaign jobs every 30 seconds
+   * and processes them one at a time.
+   * Also recovers stale PROCESSING jobs that have been stuck for over 6 hours.
+   */
+  @Cron('*/30 * * * * *')
+  async processEmailCampaignJobs(): Promise<void> {
+    // Recover stale PROCESSING jobs (stuck for > 6 hours, likely from a crash)
+    const staleThreshold = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    await this.emailCampaignJobRepository
+      .createQueryBuilder()
+      .update(EmailCampaignJob)
+      .set({ status: EmailCampaignStatus.PENDING, startedAt: null })
+      .where('status = :status', { status: EmailCampaignStatus.PROCESSING })
+      .andWhere('startedAt < :staleThreshold', { staleThreshold })
+      .execute();
+
+    // Atomically claim the oldest pending job
+    const claimResult = await this.emailCampaignJobRepository
+      .createQueryBuilder()
+      .update(EmailCampaignJob)
+      .set({
+        status: EmailCampaignStatus.PROCESSING,
+        startedAt: new Date(),
+      })
+      .where(
+        'id = (SELECT id FROM email_campaign_jobs WHERE status = :status ORDER BY "dateCreated" ASC LIMIT 1)',
+        { status: EmailCampaignStatus.PENDING },
+      )
+      .returning('*')
+      .execute();
+
+    const jobRaw = claimResult.raw?.[0];
+    if (!jobRaw) return;
+
+    const job = await this.emailCampaignJobRepository.findOne({
+      where: { id: jobRaw.id },
+    });
+
+    this.logger.log(`Processing email campaign job ${job.id}`);
+
+    try {
+      // Load target users
+      let users: User[];
+      if (job.userIds && job.userIds.length > 0) {
+        users = await this.userRepository.find({
+          where: { id: In(job.userIds), isEmailVerified: true },
+          relations: ['profiles'],
+        });
+      } else {
+        users = await this.userRepository.find({
+          where: { isEmailVerified: true },
+          relations: ['profiles'],
+        });
+      }
+
+      // Fetch all recommendable movies once
+      const allMovies = await this.movieRepository.find({
+        where: [
+          { contentType: MovieContentType.FILM },
+          { contentType: MovieContentType.SERIES },
+        ],
+      });
+
+      // Pre-compute popular movies as fallback for users with no interactions.
+      // Primary: most-listed movies. Fallback: newest movies if nobody has listed anything yet.
+      const movieIds = allMovies.map((m) => m.id);
+      const myListCounts = await this.getMyListCountsBatch(movieIds);
+      let popularMovieIds = Object.entries(myListCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, job.movieLimit)
+        .map(([id]) => id);
+
+      if (popularMovieIds.length === 0) {
+        popularMovieIds = [...allMovies]
+          .sort(
+            (a, b) =>
+              new Date(b.dateCreated).getTime() -
+              new Date(a.dateCreated).getTime(),
+          )
+          .slice(0, job.movieLimit)
+          .map((m) => m.id);
+      }
+
+      const { emailsSent, emailsFailed } =
+        await this.processRecommendationEmails(
+          users,
+          allMovies,
+          popularMovieIds,
+          job.movieLimit,
+          job,
+        );
+
+      job.status = EmailCampaignStatus.COMPLETED;
+      job.emailsSent = emailsSent;
+      job.emailsFailed = emailsFailed;
+      job.totalUsers = users.length;
+      job.completedAt = new Date();
+      await this.emailCampaignJobRepository.save(job);
+
+      this.logger.log(
+        `Email campaign job ${job.id} completed: ${emailsSent} sent, ${emailsFailed} failed`,
+      );
+    } catch (error) {
+      job.status = EmailCampaignStatus.FAILED;
+      job.errorMessage = error.message;
+      job.completedAt = new Date();
+      await this.emailCampaignJobRepository.save(job);
+
+      this.logger.error(
+        `Email campaign job ${job.id} failed: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Get the status of an email campaign job by ID.
+   */
+  async getEmailCampaignJobStatus(
+    jobId: string,
+  ): Promise<EmailCampaignJob> {
+    const job = await this.emailCampaignJobRepository.findOne({
+      where: { id: jobId },
+    });
+
+    if (!job) {
+      throw new NotFoundException(`Job ${jobId} not found`);
+    }
+
+    return job;
+  }
+
+  /**
+   * Get paginated campaign history, optionally filtered by status.
+   */
+  async getEmailCampaignHistory(
+    page: number,
+    limit: number,
+    status?: EmailCampaignStatus,
+  ): Promise<{ data: EmailCampaignJob[]; total: number; page: number; limit: number }> {
+    const where: FindOptionsWhere<EmailCampaignJob> = {};
+    if (status) {
+      where.status = status;
+    }
+
+    const [data, total] = await this.emailCampaignJobRepository.findAndCount({
+      where,
+      order: { dateCreated: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return { data, total, page, limit };
+  }
+
+  /**
+   * Internal: processes the email loop for each user. Called in the background.
+   * Flushes progress to the job row every 25 users (also serves as a heartbeat
+   * so the stale-job recovery doesn't reset a legitimately running campaign).
+   */
+  private async processRecommendationEmails(
+    users: User[],
+    allMovies: Movie[],
+    popularMovieIds: string[],
+    limit: number,
+    job?: EmailCampaignJob,
+  ): Promise<{ emailsSent: number; emailsFailed: number }> {
+    let emailsSent = 0;
+    let emailsFailed = 0;
+    let processedSinceLastFlush = 0;
+
+    for (const user of users) {
+      if (!user.profiles || user.profiles.length === 0) continue;
+
+      // Find the last active session to determine which profile to use
+      const lastSession = await this.sessionRepository.findOne({
+        where: { userId: user.id },
+        order: { dateUpdated: 'DESC' },
+      });
+
+      const profileId =
+        lastSession?.currentProfileId || user.profiles[0].id;
+
+      const profile =
+        user.profiles.find((p) => p.id === profileId) || user.profiles[0];
+
+      try {
+        // Check if taste profile needs updating (safe Date coercion for #7)
+        const profileUpdatedAt = profile.contentProfileUpdatedAt
+          ? new Date(profile.contentProfileUpdatedAt).getTime()
+          : 0;
+        const shouldUpdateProfile =
+          !profile.contentProfileJSON ||
+          !profile.contentProfileUpdatedAt ||
+          Date.now() - profileUpdatedAt > 24 * 60 * 60 * 1000;
+
+        if (shouldUpdateProfile) {
+          await this.updateUserProfile(profile.id);
+        }
+
+        const updatedProfile = await this.profileRepository.findOne({
+          where: { id: profile.id },
+        });
+
+        const hasProfile =
+          updatedProfile?.contentProfileJSON &&
+          Object.keys(updatedProfile.contentProfileJSON).length > 0;
+
+        let topMovieIds: string[];
+
+        if (!hasProfile) {
+          // No interactions — send popular movies as fallback
+          topMovieIds = popularMovieIds;
+        } else {
+          // --- Content-based scoring ---
+          const userRatings = await this.reviewRepository.find({
+            where: { profileId: profile.id },
+          });
+          const userWatchedMovies = await this.watchHistoryRepository.find({
+            where: [
+              { profileId: profile.id, isCompleted: true },
+              { profileId: profile.id, watchProgress: MoreThan(85) },
+            ],
+          });
+          const alreadySeenMovies = new Set<string>([
+            ...userRatings.map((r) => r.movieId),
+            ...userWatchedMovies.map((w) => w.movieId),
+          ]);
+
+          const contentScores: Record<string, number> = {};
+          for (const movie of allMovies) {
+            if (alreadySeenMovies.has(movie.id)) continue;
+            let score = 0;
+            for (const genre of movie.genres || []) {
+              score +=
+                updatedProfile.contentProfileJSON['genre:' + genre] || 0;
+            }
+            if (score > 0) contentScores[movie.id] = score;
+          }
+
+          // --- Collaborative filtering scoring ---
+          const interactedMovieIds = [
+            ...new Set([
+              ...userRatings.map((r) => r.movieId),
+              ...userWatchedMovies.map((w) => w.movieId),
+            ]),
+          ];
+
+          let collabScores: Record<string, number> = {};
+
+          if (interactedMovieIds.length > 0) {
+            const movieSimilarities =
+              await this.itemSimilarityRepository.find({
+                where: { movieId: In(interactedMovieIds) },
+              });
+
+            const userRatingMap: Record<string, number> = {};
+            userRatings.forEach(
+              (r) => (userRatingMap[r.movieId] = r.rating),
+            );
+            userWatchedMovies.forEach((w) => {
+              if (!userRatingMap[w.movieId]) userRatingMap[w.movieId] = 1;
+            });
+
+            const normFactors: Record<string, number> = {};
+            movieSimilarities.forEach((sim) => {
+              const userRating = userRatingMap[sim.movieId] || 0;
+              if (
+                userRating > 0 &&
+                !alreadySeenMovies.has(sim.similarMovieId)
+              ) {
+                collabScores[sim.similarMovieId] =
+                  (collabScores[sim.similarMovieId] || 0) +
+                  sim.score * userRating;
+                normFactors[sim.similarMovieId] =
+                  (normFactors[sim.similarMovieId] || 0) + sim.score;
+              }
+            });
+            Object.keys(collabScores).forEach((id) => {
+              collabScores[id] /= normFactors[id] || 1;
+            });
+          }
+
+          // --- Combine scores ---
+          const finalScores: { movieId: string; score: number }[] = [];
+          for (const movie of allMovies) {
+            if (alreadySeenMovies.has(movie.id)) continue;
+            const cs = contentScores[movie.id] || 0;
+            const cf = collabScores[movie.id] || 0;
+            const final =
+              this.CONTENT_WEIGHT * cs + (1 - this.CONTENT_WEIGHT) * cf;
+            if (final > 0)
+              finalScores.push({ movieId: movie.id, score: final });
+          }
+
+          finalScores.sort((a, b) => b.score - a.score);
+          topMovieIds = finalScores.slice(0, limit).map((s) => s.movieId);
+
+          // If personalized recommendations are too sparse, pad with popular movies
+          if (topMovieIds.length < limit) {
+            const needed = limit - topMovieIds.length;
+            const existingIds = new Set([
+              ...topMovieIds,
+              ...alreadySeenMovies,
+            ]);
+            const padding = popularMovieIds
+              .filter((id) => !existingIds.has(id))
+              .slice(0, needed);
+            topMovieIds.push(...padding);
+          }
+        }
+
+        if (topMovieIds.length === 0) {
+          this.logger.warn(
+            `Skipping user ${user.email} — no recommendations available`,
+          );
+          continue;
+        }
+
+        const recommendedMovies = await this.movieRepository.find({
+          where: {
+            id: In(topMovieIds),
+            contentType: In([MovieContentType.FILM, MovieContentType.SERIES]),
+          },
+        });
+
+        const sent = await this.mailService.sendMovieRecommendationMail(
+          user.email,
+          {
+            recipientName: user.firstName,
+            movies: recommendedMovies.map((movie) => ({
+              title: movie.title,
+              posterUrl: movie.images?.poster || '',
+              genres: movie.genres || [],
+              productionYear: movie.productionYear,
+              duration: movie.duration,
+              synopsis: movie.synopsis,
+              marketRating: movie.marketRating,
+            })),
+          },
+        );
+
+        if (sent) {
+          emailsSent++;
+          this.logger.log(`Recommendation email sent to ${user.email}`);
+        } else {
+          emailsFailed++;
+        }
+      } catch (error) {
+        emailsFailed++;
+        this.logger.error(
+          `Failed to process recommendations for user ${user.email}: ${error.message}`,
+        );
+      }
+
+      // Flush progress to DB every 25 users (doubles as heartbeat for stale-job recovery)
+      processedSinceLastFlush++;
+      if (job && processedSinceLastFlush >= 25) {
+        job.emailsSent = emailsSent;
+        job.emailsFailed = emailsFailed;
+        job.startedAt = new Date();
+        await this.emailCampaignJobRepository.save(job);
+        processedSinceLastFlush = 0;
+      }
+    }
+
+    return { emailsSent, emailsFailed };
   }
 
   /**

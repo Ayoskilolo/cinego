@@ -10,6 +10,7 @@ import { Paginate, PaginateQuery } from 'nestjs-paginate'
 import { CreateBlogDto } from './dto/create-blog.dto'
 import { UpdateBlogDto } from './dto/update-blog.dto'
 import { UpdateBlogCommentDto } from './dto/update-blog-comment.dto'
+import { StructuredResponse } from '../response/structured-response'
 
 @ApiTags('Admin Blogs')
 @ApiBearerAuth()
@@ -34,7 +35,7 @@ export class AdminBlogsController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   async list(@Paginate() query: PaginateQuery) {
     const result = await this.blogsService.findAll(query)
-    return { data: { items: result.data, meta: result.meta, links: result.links } }
+    return new StructuredResponse({ data: { items: result.data, meta: result.meta, links: result.links } })
   }
 
   @Get(':id')
@@ -46,7 +47,7 @@ export class AdminBlogsController {
   @ApiResponse({ status: 404, description: 'Blog not found.' })
   async getById(@Param('id', ParseUUIDPipe) id: string) {
     const blog = await this.blogsService.findOne(id)
-    return { data: blog }
+    return new StructuredResponse({ data: blog })
   }
 
   @Post()
@@ -99,7 +100,7 @@ export class AdminBlogsController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   async listComments(@Paginate() query: PaginateQuery) {
     const result = await this.blogCommentService.findAll(query)
-    return { data: { items: result.data, meta: result.meta, links: result.links } }
+    return new StructuredResponse({ data: { items: result.data, meta: result.meta, links: result.links } })
   }
 
   @Get('comments/:id')
@@ -111,7 +112,7 @@ export class AdminBlogsController {
   @ApiResponse({ status: 404, description: 'Blog comment not found.' })
   async getCommentById(@Param('id', ParseUUIDPipe) id: string) {
     const comment = await this.blogCommentService.findOne(id)
-    return { data: comment }
+    return new StructuredResponse({ data: comment })
   }
 
   @Get(':blogId/comments')
@@ -130,7 +131,7 @@ export class AdminBlogsController {
     @Paginate() query: PaginateQuery,
   ) {
     const result = await this.blogCommentService.findAllCommentsByBlog(query, blogId)
-    return { data: { items: result.data, meta: result.meta, links: result.links } }
+    return new StructuredResponse({ data: { items: result.data, meta: result.meta, links: result.links } })
   }
 
   @Patch('comments/:id')

@@ -106,7 +106,7 @@ export class UserService {
       const defaultKidsProfile: CreateProfileDto = {
         userId: user.id,
         user,
-        profileName: user.lastName + 'Kids',
+        profileName: user.lastName + ' Kids',
         maturityRatings: MaturityRatings.PG,
       };
 
@@ -575,7 +575,7 @@ export class UserService {
     const verificationSuccessEmailSent =
       await this.mailService.sendGeneralTemplatedMail({
         recipients: [user.email],
-        subject: 'Cinego - Verify Your Email',
+        subject: 'Cinego - Email Verification Successful',
         templateData: verificationSuccessEmailData,
       });
 

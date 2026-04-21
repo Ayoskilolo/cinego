@@ -6,6 +6,7 @@ import { Role } from 'src/auth/enums/role.enum';
 import { Paginate, PaginateQuery } from 'nestjs-paginate';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { IsBoolean, IsNotEmpty, IsOptional, IsString, IsUrl, Matches } from 'class-validator';
+import { StructuredResponse } from '../response/structured-response';
 
 class AdminCreateProviderDto {
   @IsString()
@@ -64,7 +65,7 @@ export class AdminProvidersController {
   @ApiResponse({ status: 200, description: 'Successfully retrieved providers.' })
   async list(@Paginate() query: PaginateQuery) {
     const result = await this.providersService.adminFindAllPaginated(query);
-    return { data: { items: result.data, meta: result.meta, links: result.links } };
+    return new StructuredResponse({ data: { items: result.data, meta: result.meta, links: result.links } });
   }
 
   @Post()
@@ -73,7 +74,7 @@ export class AdminProvidersController {
   @ApiResponse({ status: 201, description: 'Provider created successfully.' })
   async create(@Body() dto: AdminCreateProviderDto) {
     const data = await this.providersService.adminCreate(dto);
-    return { message: 'Provider created successfully', data };
+    return new StructuredResponse({ message: 'Provider created successfully', data });
   }
 
   @Get(':id')
@@ -83,7 +84,7 @@ export class AdminProvidersController {
   @ApiResponse({ status: 404, description: 'Provider not found.' })
   async getById(@Param('id', ParseUUIDPipe) id: string) {
     const data = await this.providersService.adminFindOne(id);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Patch(':id')
@@ -94,7 +95,7 @@ export class AdminProvidersController {
   @ApiResponse({ status: 404, description: 'Provider not found.' })
   async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AdminUpdateProviderDto) {
     const data = await this.providersService.adminUpdate(id, dto);
-    return { message: 'Provider updated successfully', data };
+    return new StructuredResponse({ message: 'Provider updated successfully', data });
   }
 
   @Delete(':id')

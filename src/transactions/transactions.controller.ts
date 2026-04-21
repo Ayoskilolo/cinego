@@ -25,6 +25,7 @@ import {
   ApiBearerAuth,
   ApiQuery,
 } from '@nestjs/swagger';
+import { StructuredResponse } from '../response/structured-response';
 
 @ApiTags('Transactions')
 @Controller('transactions')
@@ -65,7 +66,7 @@ export class TransactionsController {
       userId,
       initiateDto.paymentReason,
     );
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Get()
@@ -110,7 +111,7 @@ export class TransactionsController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async findAll(@Paginate() query: PaginateQuery) {
     const data = await this.transactionsService.findAll(query);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Get('user/:userId')
@@ -170,7 +171,7 @@ export class TransactionsController {
   ) {
     // Add logic here to check if req['user'].sub === userId or if user is admin
     const data = await this.transactionsService.findByUser(userId, query);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Get(':id')
@@ -194,7 +195,7 @@ export class TransactionsController {
   async findOne(@Param('id', ParseUUIDPipe) id: string) {
     // Add logic here to check if user owns transaction or is admin
     const data = await this.transactionsService.findOne(id);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Post('cancel-subscription')
@@ -220,7 +221,7 @@ export class TransactionsController {
       );
     }
     const data = await this.transactionsService.cancelSubscription(userId);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Public()
@@ -251,6 +252,6 @@ export class TransactionsController {
       payload,
       signature,
     );
-    return { message };
+    return new StructuredResponse({ message });
   }
 }

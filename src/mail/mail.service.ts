@@ -4,7 +4,11 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EmailTemplateData, OTPTemplateData } from './interfaces';
+import {
+  EmailTemplateData,
+  MovieRecommendationData,
+  OTPTemplateData,
+} from './interfaces';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 
@@ -13,6 +17,15 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
   private readonly oneSignalApiUrl =
     this.configService.get('ONESIGNAL_BASE_URL');
+
+  private escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
 
   constructor(
     private readonly configService: ConfigService,
@@ -258,6 +271,169 @@ export class MailService {
 </body>
 </html>
   `;
+  }
+
+  async sendMovieRecommendationMail(
+    recipientEmail: string,
+    data: MovieRecommendationData,
+  ): Promise<boolean> {
+    try {
+      const htmlBody =
+        await this._generateMovieRecommendationTemplate(data);
+      const safeName = data.recipientName.replace(/[\r\n\t]/g, '');
+      return await this._sendMail({
+        recipients: [recipientEmail],
+        subject: `${safeName}, here are your personalized picks!`,
+        htmlBody,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to send movie recommendation email: ${error.message}`,
+      );
+      return false;
+    }
+  }
+
+  private async _generateMovieRecommendationTemplate(
+    data: MovieRecommendationData,
+  ): Promise<string> {
+    const currentYear = new Date().getFullYear();
+
+    const safeName = this.escapeHtml(data.recipientName);
+
+    const movieCardsHtml = data.movies
+      .map((movie) => {
+        const safeTitle = this.escapeHtml(movie.title);
+        const safeSynopsis = this.escapeHtml(
+          movie.synopsis.length > 120
+            ? movie.synopsis.substring(0, 120) + '...'
+            : movie.synopsis,
+        );
+        const safeGenres = movie.genres
+          .slice(0, 3)
+          .map((g) => this.escapeHtml(g))
+          .join(' &bull; ');
+        const safeYear = this.escapeHtml(movie.productionYear);
+        const safeDuration = this.escapeHtml(movie.duration);
+        const safeRating = this.escapeHtml(movie.marketRating);
+        const safePosterUrl = this.escapeHtml(movie.posterUrl || '');
+
+        return `
+            <tr>
+              <td style="padding: 0 0 20px 0;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #444444; border-radius: 8px; overflow: hidden;">
+                  <tr>
+                    <td style="width: 140px; vertical-align: top;">
+                      <img
+                        src="${safePosterUrl}"
+                        alt="${safeTitle}"
+                        width="140"
+                        style="display: block; width: 140px; height: 200px; object-fit: cover; border-radius: 8px 0 0 8px;"
+                      />
+                    </td>
+                    <td style="vertical-align: top; padding: 15px;">
+                      <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #FBBE25; font-weight: bold;">
+                        ${safeTitle}
+                      </h3>
+                      <p style="margin: 0 0 6px 0; font-size: 13px; color: #cccccc;">
+                        ${safeGenres} &bull; ${safeYear} &bull; ${safeDuration}
+                      </p>
+                      <p style="margin: 0 0 8px 0; font-size: 13px; color: #cccccc;">
+                        Rating: <strong style="color: #FBBE25;">${safeRating}</strong>
+                      </p>
+                      <p style="margin: 0; font-size: 13px; line-height: 18px; color: #dddddd;">
+                        ${safeSynopsis}
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>`;
+      })
+      .join('');
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cinego - Your Personalized Picks</title>
+  <style type="text/css">
+    body, p, td, th { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; }
+    body { background-color: #f5f5f5; }
+    @media only screen and (max-width: 600px) {
+      .email-container { width: 100% !important; }
+      .content-block { padding: 20px !important; }
+      .movie-poster { width: 100px !important; height: 150px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f5f5f5;">
+  <center>
+    <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px;" class="email-container">
+      <!-- Header -->
+      <tr>
+        <td align="center" bgcolor="#333333" style="padding:30px 0;">
+          <h1 style="margin:0;font-size:36px;font-weight:bold;color:#FBBE25;letter-spacing:1px;">CINEGO</h1>
+        </td>
+      </tr>
+
+      <!-- Main Content -->
+      <tr>
+        <td bgcolor="#333333" style="padding:40px 30px;" class="content-block">
+          <h2 style="margin:0 0 10px 0;font-size:24px;line-height:32px;color:#FBBE25;font-weight:bold;text-align:center;">
+            Hey ${safeName}, we picked these for you!
+          </h2>
+          <p style="margin:0 0 30px 0;font-size:15px;line-height:22px;color:#ffffff;text-align:center;">
+            Based on your viewing history and preferences, we think you'll love these titles.
+          </p>
+
+          <!-- Movie Cards -->
+          <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            ${movieCardsHtml}
+          </table>
+
+          <!-- CTA Button -->
+          <table align="center" border="0" cellpadding="0" cellspacing="0" style="margin: 30px auto;">
+            <tr>
+              <td align="center" bgcolor="#FBBE25" style="border-radius: 12px; padding: 16px 30px;">
+                <a
+                  href="https://cinego.com"
+                  target="_blank"
+                  style="font-size: 16px; font-weight: bold; color: #333333; text-decoration: none; text-transform: uppercase; display: inline-block;"
+                >
+                  Start Watching Now
+                </a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td bgcolor="#222222" style="padding:25px 30px;">
+          <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td style="color:#FFFFFF;font-size:12px;line-height:18px;text-align:center;">
+                <p style="margin:0 0 5px 0;">&copy; ${currentYear} Cinego. All rights reserved.</p>
+                <p style="margin:0 0 10px 0;">You're receiving this because you have a Cinego account.</p>
+                <p style="margin:0;">
+                  <a href="#" style="color: #fbbe25; text-decoration: underline; margin: 0 5px;">Unsubscribe</a>
+                  |
+                  <a href="#" style="color: #fbbe25; text-decoration: underline; margin: 0 5px;">Contact Us</a>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </center>
+</body>
+</html>
+    `;
   }
 
   // Kept the updated template generation logic

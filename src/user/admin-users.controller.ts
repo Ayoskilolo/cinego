@@ -21,6 +21,7 @@ import { UpdateAccountDto } from './dto/update-account.dto';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsBoolean, IsDateString } from 'class-validator';
 import { SubscriptionType } from './enum/userType';
+import { StructuredResponse } from '../response/structured-response';
 
 // Admin-only DTOs (scoped to this controller to avoid extra files)
 class AdminCreateUserDto extends SignUpDto {
@@ -88,7 +89,7 @@ export class AdminUsersController {
   async list(@Paginate() query: PaginateQuery) {
     const result = await this.userService.findAllPaginated(query);
     // Preserve pagination metadata by wrapping inside the data object
-    return { data: { items: result.data, meta: result.meta, links: result.links } };
+    return new StructuredResponse({ data: { items: result.data, meta: result.meta, links: result.links } });
   }
 
   @Post()
@@ -108,7 +109,7 @@ export class AdminUsersController {
     }
     // Return the fresh user state
     const updated = await this.userService.findOneById(user.id);
-    return { message: 'User created successfully', data: updated };
+    return new StructuredResponse({ message: 'User created successfully', data: updated });
   }
 
   @Get(':id')
@@ -120,7 +121,7 @@ export class AdminUsersController {
   @ApiResponse({ status: 404, description: 'User not found.' })
   async getById(@Param('id', ParseUUIDPipe) id: string) {
     const data = await this.userService.findOneById(id);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Patch(':id')
@@ -165,7 +166,7 @@ export class AdminUsersController {
     }
 
     const data = await this.userService.findOneById(id);
-    return { message: 'User updated successfully', data };
+    return new StructuredResponse({ message: 'User updated successfully', data });
   }
 
   @Delete(':id')

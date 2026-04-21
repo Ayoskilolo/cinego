@@ -18,6 +18,7 @@ import { RolesGuard } from '../auth/guards/roles.guard'
 import { Role } from '../auth/enums/role.enum'
 import { Roles } from '../auth/decorators/roles.decorator'
 import { Paginate, PaginateQuery } from 'nestjs-paginate'
+import { StructuredResponse } from '../response/structured-response'
 import {
   ApiTags,
   ApiOperation,
@@ -57,7 +58,7 @@ export class BlogsController {
   @ApiResponse({ status: 200, description: 'Successfully retrieved blogs.' })
   async findAll(@Paginate() query: PaginateQuery) {
     const data = await this.blogsService.findAll(query)
-    return { data }
+    return new StructuredResponse({ data })
   }
 
   @Get(':id')

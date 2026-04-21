@@ -35,6 +35,7 @@ import { ProfileSelectionDto } from './dto/profile-selection.dto';
 import { Request } from 'express';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import { StructuredResponse } from '../response/structured-response';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -60,7 +61,7 @@ export class AuthController {
   ) {
     const userAgent = request.headers['user-agent'];
     const data = await this.authService.signUp(createAuthDto, file, userAgent, ip);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Public()
@@ -76,7 +77,7 @@ export class AuthController {
   ) {
     const userAgent = request.headers['user-agent'];
     const data = await this.authService.adminLogin(loginDto, userAgent, ip);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Public()
@@ -95,7 +96,7 @@ export class AuthController {
   ) {
     const userAgent = request.headers['user-agent'];
     const data = await this.authService.login(loginDto, userAgent, ip);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @AllowPreProfile()
@@ -123,7 +124,7 @@ export class AuthController {
         userAgent,
       },
     );
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Public()
@@ -133,7 +134,7 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Returns whether the user exists.' })
   async checkIfUserExists(@Body() userExistsDto: UserExistsDto) {
     const data = await this.authService.checkIfUserExists(userExistsDto);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Public()
@@ -151,7 +152,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async forgotPassword(@Body() forgotPasswordDto: UserExistsDto) {
     const data = await this.authService.forgotPassword(forgotPasswordDto);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Public()
@@ -165,7 +166,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async validateOtp(@Body() validateOtpDto: ValidateOtpDto) {
     const result = await this.authService.validateOtp(validateOtpDto);
-    return { valid: result.valid, message: result.message };
+    return new StructuredResponse({ message: result.message, data: { valid: result.valid } });
   }
 
   @Public()
@@ -177,7 +178,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     const result = await this.authService.resetPassword(resetPasswordDto);
-    return { message: result.message };
+    return new StructuredResponse({ message: result.message });
   }
 
   @Public()
@@ -196,7 +197,7 @@ export class AuthController {
       throw new BadRequestException('Verification token is missing.');
     }
     const result = await this.authService.verifyEmail(token);
-    return { message: result.message, user: result.user };
+    return new StructuredResponse({ message: result.message, data: { user: result.user } });
   }
 
   @Public()
@@ -208,7 +209,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async resendVerificationEmail(@Body() resendDto: ResendVerificationDto) {
     const result = await this.authService.resendVerificationEmail(resendDto);
-    return { message: result.message };
+    return new StructuredResponse({ message: result.message });
   }
 
   @Public()
@@ -220,7 +221,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async resendOtp(@Body() resendOtpDto: ResendOtpDto) {
     const result = await this.authService.resendOtp(resendOtpDto);
-    return { message: result.message };
+    return new StructuredResponse({ message: result.message });
   }
 
   @Public()
@@ -233,7 +234,7 @@ export class AuthController {
     const result = await this.authService.refreshToken(
       refreshTokenDto.refreshToken,
     );
-    return { data: result };
+    return new StructuredResponse({ data: result });
   }
 
   @Get('sessions')
@@ -243,7 +244,7 @@ export class AuthController {
   async getSessions(@Req() request: Request) {
     const reqObj = request['user'];
     const result = await this.authService.getUserActiveSessions(reqObj.sub);
-    return { data: result };
+    return new StructuredResponse({ data: result });
   }
 
   @Post('logout')
@@ -253,7 +254,7 @@ export class AuthController {
   async logout(@Req() request: Request) {
     const reqObj = request['user'];
     const result = await this.authService.logout(reqObj.sessionId);
-    return { message: result.message };
+    return new StructuredResponse({ message: result.message });
   }
 
   @Post('logout-all')
@@ -263,7 +264,7 @@ export class AuthController {
   async logoutAll(@Req() request: Request) {
     const reqObj = request['user'];
     const result = await this.authService.logoutAll(reqObj.sub);
-    return { message: result.message };
+    return new StructuredResponse({ message: result.message });
   }
 
   @Post('logout-specific-session/:sessionId')
@@ -279,7 +280,7 @@ export class AuthController {
       reqObj.sub,
       sessionId,
     );
-    return { message: result.message };
+    return new StructuredResponse({ message: result.message });
   }
 
   @Post('logout-all-except-current')
@@ -295,6 +296,6 @@ export class AuthController {
       reqObj.sub,
       reqObj.sessionId,
     );
-    return { message: result.message };
+    return new StructuredResponse({ message: result.message });
   }
 }

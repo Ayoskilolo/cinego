@@ -28,6 +28,7 @@ import {
   FetchFromProvidersResponseDto,
   FetchFromSpecificProviderResponseDto,
 } from './dto/fetch-providers.dto';
+import { StructuredResponse } from '../response/structured-response';
 
 @ApiTags('Movies')
 @Controller('movie')
@@ -75,7 +76,7 @@ export class MovieController {
       user?.sub,
       user?.profileId,
     );
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Get('genres')
@@ -125,7 +126,7 @@ export class MovieController {
       query,
       user?.profileId,
     );
-    return { data: result };
+    return new StructuredResponse({ data: result });
   }
 
   @Get('series/:seriesId')
@@ -146,7 +147,7 @@ export class MovieController {
       seriesId,
       user?.profileId,
     );
-    return { data: result };
+    return new StructuredResponse({ data: result });
   }
 
   @Get('series/:seriesId/episodes')
@@ -185,7 +186,7 @@ export class MovieController {
       query,
       user?.profileId,
     );
-    return { data: result };
+    return new StructuredResponse({ data: result });
   }
 
   @Get('fetch-from-providers')
@@ -206,13 +207,13 @@ export class MovieController {
   @ApiBearerAuth()
   async fetchFromAllProviders() {
     const result = await this.movieService.fetchAndSaveMoviesFromProviders();
-    return {
+    return new StructuredResponse({
       message: result.message,
       data: {
         newMovies: result.newMovies,
         skippedDuplicates: result.skippedDuplicates,
       },
-    };
+    });
   }
 
   @Get('/genres/:genre')
@@ -266,10 +267,10 @@ export class MovieController {
       movieId,
       isPremium,
     );
-    return {
+    return new StructuredResponse({
       message: 'Movie premium status updated successfully.',
       data: updatedMovie,
-    };
+    });
   }
 
   @Post('fetch-from-provider/:providerId')
@@ -297,14 +298,14 @@ export class MovieController {
   async fetchFromSpecificProvider(@Param('providerId') providerId: string) {
     const result =
       await this.movieService.fetchMoviesFromSpecificProvider(providerId);
-    return {
+    return new StructuredResponse({
       message: result.message,
       data: {
         provider: result.provider,
         newMovies: result.newMovies,
         skippedDuplicates: result.skippedDuplicates,
       },
-    };
+    });
   }
 
   @Get(':id')

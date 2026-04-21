@@ -28,6 +28,7 @@ import {
   ApiParam,
   ApiBody,
 } from '@nestjs/swagger';
+import { StructuredResponse } from '../response/structured-response';
 
 @ApiTags('User')
 @ApiBearerAuth()
@@ -64,7 +65,7 @@ export class UserController {
       req['user'].sub,
       genres,
     );
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   // TODO: Make this an admin endpoint just so that the admin can grant premium to a user
@@ -92,7 +93,7 @@ export class UserController {
       req['user'].sub,
       createProfileDto,
     );
-    return { data, message: 'Profile created successfully' };
+    return new StructuredResponse({ data, message: 'Profile created successfully' });
   }
 
   @Get('current-profile')
@@ -101,7 +102,7 @@ export class UserController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async getCurrentProfile(@Req() req: Request) {
     const data = await this.userService.getCurrentProfile(req['user']);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Get('profiles')
@@ -110,7 +111,7 @@ export class UserController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async findUserProfiles(@Req() req: Request) {
     const data = await this.userService.getAllUserProfiles(req['user'].sub);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Put('profiles/:profileId')
@@ -132,7 +133,7 @@ export class UserController {
       profileId,
       updateProfileDto,
     );
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Delete('profiles/:profileId')
@@ -153,7 +154,7 @@ export class UserController {
       profileId,
       req['user'].sessionId,
     );
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Post('profiles/:profileId/switch')
@@ -175,10 +176,10 @@ export class UserController {
         profileId,
         req['user'].sessionId,
       );
-    return {
+    return new StructuredResponse({
       data: { profile, accessToken, refreshToken },
       message: 'Profile switched successfully',
-    };
+    });
   }
 
   // TODO: This should be a profile specific endpoint from the path
@@ -189,7 +190,7 @@ export class UserController {
   async getMyList(@Req() req: Request) {
     const user = req['user'];
     const data = await this.myListService.getMyList(user.profileId);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Post('my-list/:movieId')
@@ -204,7 +205,7 @@ export class UserController {
   async addToMyList(@Req() req: Request, @Param('movieId') movieId: string) {
     const user = req['user'];
     const data = await this.myListService.addToMyList(user.profileId, movieId);
-    return { data, message: 'Movie added to MyList' };
+    return new StructuredResponse({ data, message: 'Movie added to MyList' });
   }
 
   @Delete('my-list/:movieId')
@@ -225,7 +226,7 @@ export class UserController {
       user.profileId,
       movieId,
     );
-    return { data, message: 'Movie removed from MyList' };
+    return new StructuredResponse({ data, message: 'Movie removed from MyList' });
   }
 
   @Post('watch-history')
@@ -245,10 +246,10 @@ export class UserController {
       user.profileId,
       updateWatchHistoryDto,
     );
-    return {
+    return new StructuredResponse({
       data: watchHistory,
       message: 'Watch history updated successfully',
-    };
+    });
   }
 
   @Get('watch-history')
@@ -261,10 +262,10 @@ export class UserController {
   async getWatchHistory(@Req() req: Request) {
     const user = req['user'];
     const watchHistory = await this.userService.getWatchHistory(user.profileId);
-    return {
+    return new StructuredResponse({
       data: watchHistory,
       message: 'Watch history retrieved successfully',
-    };
+    });
   }
 
   @Delete('watch-history')
@@ -277,10 +278,10 @@ export class UserController {
   async clearWatchHistory(@Req() req: Request) {
     const user = req['user'];
     const result = await this.userService.clearWatchHistory(user.profileId);
-    return {
+    return new StructuredResponse({
       data: result,
       message: 'Watch history cleared successfully',
-    };
+    });
   }
 
   @Delete('watch-history/:movieId')
@@ -307,10 +308,10 @@ export class UserController {
       user.profileId,
       movieId,
     );
-    return {
+    return new StructuredResponse({
       data: result,
       message: 'Watch history entry deleted successfully',
-    };
+    });
   }
 
   @Post('profiles/:profileId/validate-pin')
@@ -334,10 +335,10 @@ export class UserController {
       profileId,
       pin,
     );
-    return {
+    return new StructuredResponse({
       data: isValid,
       message: 'PIN validated successfully',
-    };
+    });
   }
 
   @Get('account')
@@ -349,7 +350,7 @@ export class UserController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async getAccountDetails(@Req() req: Request) {
     const data = await this.userService.getAccountDetails(req['user'].sub);
-    return { data, message: 'Account details retrieved successfully' };
+    return new StructuredResponse({ data, message: 'Account details retrieved successfully' });
   }
 
   @Put('account')
@@ -367,7 +368,7 @@ export class UserController {
       req['user'].sub,
       updateAccountDto,
     );
-    return { data, message: 'Account details updated successfully' };
+    return new StructuredResponse({ data, message: 'Account details updated successfully' });
   }
 
   @Delete('account')
@@ -376,7 +377,7 @@ export class UserController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async deleteAccount(@Req() req: Request) {
     const data = await this.userService.deleteAccount(req['user'].sub);
-    return { data, message: 'Account deleted successfully' };
+    return new StructuredResponse({ data, message: 'Account deleted successfully' });
   }
 
   @Post('start-free-trial')
@@ -394,6 +395,6 @@ export class UserController {
       throw new UnauthorizedException('User not authenticated.');
     }
     const updatedUser = await this.userService.startFreeTrial(userId);
-    return { data: updatedUser, message: 'Free trial started successfully.' };
+    return new StructuredResponse({ data: updatedUser, message: 'Free trial started successfully.' });
   }
 }

@@ -28,6 +28,7 @@ import {
   ApiBearerAuth,
   ApiQuery,
 } from '@nestjs/swagger';
+import { StructuredResponse } from '../response/structured-response';
 
 @ApiTags('Reviews')
 @ApiBearerAuth() // Apply BearerAuth to all routes in this controller
@@ -165,7 +166,7 @@ export class ReviewController {
       movieId,
     );
     console.log(data);
-    return { data };
+    return new StructuredResponse({ data });
   }
 
   @Patch(':id')
