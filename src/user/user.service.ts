@@ -402,6 +402,48 @@ export class UserService {
     }
   }
 
+  private toAdminUserScalar(user: User) {
+    const {
+      password,
+      emailVerificationToken,
+      emailVerificationExpires,
+      passwordResetOtp,
+      passwordResetExpires,
+      profiles,
+      ...rest
+    } = user as any;
+    return rest;
+  }
+
+  private toAdminProfile(profile: Profile) {
+    return {
+      id: profile.id,
+      dateCreated: profile.dateCreated,
+      dateUpdated: profile.dateUpdated,
+      userId: profile.userId,
+      profileName: profile.profileName,
+      maturityRatings: profile.maturityRatings,
+      profileImageUrl: profile.profileImageUrl,
+      hasPin: !!profile.pin,
+    };
+  }
+
+  async findOneByIdForAdmin(id: string) {
+    let user: User;
+    try {
+      user = await this.userRepository.findOneOrFail({
+        where: { id },
+        relations: ['profiles'],
+      });
+    } catch (error) {
+      throw new NotFoundException('User does not exist');
+    }
+    return {
+      ...this.toAdminUserScalar(user),
+      profiles: (user.profiles ?? []).map((p) => this.toAdminProfile(p)),
+    };
+  }
+
   async updateSubscriptionType(
     id: string,
     subscriptionType: SubscriptionType,
@@ -1057,9 +1099,15 @@ export class UserService {
         'role',
         'dateCreated',
         'dateUpdated',
+        'emailVerificationSentAt',
+        'passwordResetOtpSentAt',
       ],
     };
 
-    return await paginate(query, this.userRepository, paginateConfig);
+    const result = await paginate(query, this.userRepository, paginateConfig);
+    return {
+      ...result,
+      data: result.data.map((u) => this.toAdminUserScalar(u)),
+    };
   }
 }

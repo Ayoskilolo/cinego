@@ -108,7 +108,7 @@ export class AdminUsersController {
       });
     }
     // Return the fresh user state
-    const updated = await this.userService.findOneById(user.id);
+    const updated = await this.userService.findOneByIdForAdmin(user.id);
     return new StructuredResponse({ message: 'User created successfully', data: updated });
   }
 
@@ -120,7 +120,7 @@ export class AdminUsersController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'User not found.' })
   async getById(@Param('id', ParseUUIDPipe) id: string) {
-    const data = await this.userService.findOneById(id);
+    const data = await this.userService.findOneByIdForAdmin(id);
     return new StructuredResponse({ data });
   }
 
@@ -165,7 +165,7 @@ export class AdminUsersController {
       await this.userService.updateUser(id, adminUpdates);
     }
 
-    const data = await this.userService.findOneById(id);
+    const data = await this.userService.findOneByIdForAdmin(id);
     return new StructuredResponse({ message: 'User updated successfully', data });
   }
 
