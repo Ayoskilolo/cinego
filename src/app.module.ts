@@ -84,9 +84,9 @@ import { WatchPartyModule } from './watch-party/watch-party.module';
   providers: [
     AppService,
     JwtService,
-    { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
-    { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ClassSerializerInterceptor },
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_GUARD, useClass: AuthGuard },
     // FileResolver,
   ],
