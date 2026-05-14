@@ -31,8 +31,8 @@ export class AdminMovieNewsController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a movie news item by ID (Admin)' })
   @ApiParam({ name: 'id', type: 'string' })
-  @ApiResponse({ status: 200 })
-  @ApiResponse({ status: 404 })
+  @ApiResponse({ status: 200, description: 'Movie news item retrieved.' })
+  @ApiResponse({ status: 404, description: 'Movie news item not found.' })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.findOne(id)
   }
@@ -40,7 +40,7 @@ export class AdminMovieNewsController {
   @Post()
   @ApiOperation({ summary: 'Create a movie news item (Admin)' })
   @ApiBody({ type: CreateMovieNewsDto })
-  @ApiResponse({ status: 201 })
+  @ApiResponse({ status: 201, description: 'Movie news item created.' })
   create(@Body() dto: CreateMovieNewsDto) {
     return this.service.create(dto)
   }
@@ -49,7 +49,8 @@ export class AdminMovieNewsController {
   @ApiOperation({ summary: 'Update a movie news item (Admin)' })
   @ApiParam({ name: 'id', type: 'string' })
   @ApiBody({ type: UpdateMovieNewsDto })
-  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 200, description: 'Movie news item updated.' })
+  @ApiResponse({ status: 404, description: 'Movie news item not found.' })
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateMovieNewsDto) {
     return this.service.update(id, dto)
   }
@@ -58,7 +59,7 @@ export class AdminMovieNewsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a movie news item (Admin)' })
   @ApiParam({ name: 'id', type: 'string' })
-  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 204, description: 'Movie news item deleted.' })
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.remove(id)
   }

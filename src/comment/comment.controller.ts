@@ -17,9 +17,11 @@ import {
   ApiBody,
   ApiParam,
   ApiQuery,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 
 @ApiTags('Comments')
+@ApiBearerAuth()
 @Controller('comments')
 export class CommentController {
   constructor(private readonly commentService: CommentService) {}

@@ -74,16 +74,25 @@ async function bootstrap() {
 
   app.useGlobalPipes(new ValidationPipe());
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('CineGo API')
-    .setDescription('API documentation for CineGo application')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api-docs', app, document);
-  const appService = app.get(AppService);
-  appService.setSwaggerDocument(document);
+  const swaggerEnabledRaw = configService.get<string>('SWAGGER_ENABLED');
+  const swaggerEnabled =
+    swaggerEnabledRaw !== undefined && swaggerEnabledRaw !== ''
+      ? swaggerEnabledRaw.toLowerCase() === 'true'
+      : (configService.get<string>('NODE_ENV') || '').toLowerCase() !==
+        'production';
+
+  if (swaggerEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('CineGo API')
+      .setDescription('API documentation for CineGo application')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api-docs', app, document);
+    const appService = app.get(AppService);
+    appService.setSwaggerDocument(document);
+  }
 
   const port = (await app.get(ConfigService)).get('app.port');
   await app.listen(port);

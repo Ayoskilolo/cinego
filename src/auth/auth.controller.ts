@@ -30,6 +30,7 @@ import {
   ApiBody,
   ApiConsumes,
   ApiQuery,
+  ApiParam,
 } from '@nestjs/swagger';
 import { ProfileSelectionDto } from './dto/profile-selection.dto';
 import { Request } from 'express';
@@ -238,6 +239,7 @@ export class AuthController {
   }
 
   @Get('sessions')
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all active sessions for a user' })
   @ApiResponse({ status: 200, description: 'Sessions retrieved successfully.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
@@ -248,6 +250,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout a user' })
   @ApiResponse({ status: 200, description: 'User successfully logged out.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
@@ -258,6 +261,7 @@ export class AuthController {
   }
 
   @Post('logout-all')
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout all sessions for a user' })
   @ApiResponse({ status: 200, description: 'All sessions logged out.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
@@ -268,7 +272,9 @@ export class AuthController {
   }
 
   @Post('logout-specific-session/:sessionId')
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout a specific session for a user' })
+  @ApiParam({ name: 'sessionId', description: 'Session ID to log out', type: 'string' })
   @ApiResponse({ status: 200, description: 'Session logged out.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async logoutSpecificSession(
@@ -284,6 +290,7 @@ export class AuthController {
   }
 
   @Post('logout-all-except-current')
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout all sessions except the current one' })
   @ApiResponse({
     status: 200,

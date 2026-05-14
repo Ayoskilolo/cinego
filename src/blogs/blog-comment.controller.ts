@@ -24,6 +24,7 @@ import {
 } from '@nestjs/swagger';
 
 @ApiTags('Blog Comments')
+@ApiBearerAuth()
 @Controller('blog-comments')
 export class BlogCommentController {
   constructor(private readonly blogCommentService: BlogCommentService) {}

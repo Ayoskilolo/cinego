@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import {
   ApiBody,
   ApiOperation,
+  ApiParam,
   ApiResponse,
   ApiTags,
   ApiBearerAuth,
@@ -171,6 +172,7 @@ export class WatchPartyController {
   @ApiBearerAuth()
   @Get('party/:partyId')
   @ApiOperation({ summary: 'Get party metadata' })
+  @ApiParam({ name: 'partyId', description: 'Watch party ID', type: 'string' })
   @ApiResponse({ status: 200, description: 'Party metadata.' })
   async getPartyMetadata(@Param('partyId') partyId: string) {
     return this.watchPartyService.getPartyMetadata(partyId);
@@ -179,6 +181,7 @@ export class WatchPartyController {
   @ApiBearerAuth()
   @Get('party/:partyId/roster')
   @ApiOperation({ summary: 'Get party roster with resolved profile names' })
+  @ApiParam({ name: 'partyId', description: 'Watch party ID', type: 'string' })
   @ApiResponse({ status: 200, description: 'Party roster.' })
   async getPartyRoster(@Param('partyId') partyId: string) {
     const data = await this.watchPartyService.getPartyRoster(partyId);

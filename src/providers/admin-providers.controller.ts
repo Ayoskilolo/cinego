@@ -59,7 +59,7 @@ export class AdminProvidersController {
   @ApiOperation({ summary: 'Get a paginated list of providers (Admin only)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'sortBy', required: false, type: Number })
+  @ApiQuery({ name: 'sortBy', required: false, type: String })
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'filter', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Successfully retrieved providers.' })
