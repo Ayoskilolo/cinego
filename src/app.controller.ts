@@ -1,6 +1,14 @@
-import { Controller, Get, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpStatus,
+  NotFoundException,
+  Res,
+} from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 import { AppService } from './app.service';
+import { StructuredResponse } from './response/structured-response';
 import { Public } from './auth/auth.decorator';
 
 @ApiTags('App')
@@ -30,9 +38,22 @@ export class AppController {
 
   @Get('health')
   @Public()
-  @ApiOperation({ summary: 'Health check' })
-  @ApiResponse({ status: 200, description: 'Service is healthy.' })
-  getHealth() {
-    return { status: 'ok' };
+  @ApiOperation({ summary: 'Health check with dependency status' })
+  @ApiResponse({
+    status: 200,
+    description: 'Service and all dependencies are healthy.',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'One or more dependencies are unavailable.',
+  })
+  async getHealth(@Res({ passthrough: true }) res: Response) {
+    const { healthy, payload } = await this.appService.getHealthStatus();
+    res.status(healthy ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE);
+    return new StructuredResponse({
+      status: healthy,
+      message: healthy ? 'Service is healthy' : 'Service is degraded',
+      data: payload,
+    });
   }
 }
