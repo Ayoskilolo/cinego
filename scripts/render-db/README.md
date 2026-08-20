@@ -11,7 +11,13 @@ service, redeploy, reseed, then confirm the service is healthy again.
 
 ## For clients — no credentials needed
 
-1. Open the repo's **Actions** tab.
+The button lives in a separate private repo,
+**[dranoid/cinego-db-rotation](https://github.com/dranoid/cinego-db-rotation)**,
+which checks this repo out and runs the CLI below. Keeping it there means the
+Render API key sits in a private repo with exactly one workflow, and access is
+granted purely through GitHub collaborator permissions.
+
+1. Open that repo's **Actions** tab.
 2. Pick **Rotate dev database** → **Run workflow**.
 3. Type `rotate` in the confirm box and run it.
 
@@ -42,13 +48,15 @@ infrastructure.
 
 ## One-time setup
 
-1. Fill in `ownerId` in [`config.json`](./config.json) — `pnpm db:discover` prints it.
-   Everything in that file is non-secret and meant to be committed.
-2. Add the API key as a repository secret: **Settings ▸ Secrets and variables ▸
-   Actions ▸ New repository secret**, named `RENDER_API_KEY`.
-3. Recommended: create an **Environment** named `dev-database` (**Settings ▸
-   Environments**) with required reviewers, so rotations need your approval
-   before they run.
+Already done, recorded here for reference:
+
+1. `ownerId` is pinned in [`config.json`](./config.json) — `pnpm db:discover`
+   prints it. Everything in that file is non-secret and meant to be committed.
+2. `RENDER_API_KEY` is set as a repository secret on
+   [dranoid/cinego-db-rotation](https://github.com/dranoid/cinego-db-rotation),
+   **not** on this repo — this one is public, and the key cannot be scoped.
+3. An Environment named `dev-database` exists on that repo. Add required
+   reviewers to it if rotations should need approval before running.
 
 ## Safety
 
