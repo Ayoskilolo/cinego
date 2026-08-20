@@ -1,0 +1,46 @@
+{
+  "//": "Non-secret config for the dev-database rotation CLI. Safe to commit. Run `pnpm db:discover` to fill in ownerId.",
+
+  "//ownerId": "Render workspace id (tea-... or usr-...). Leave empty only if your API key sees exactly one workspace.",
+  "ownerId": "tea-cspsfe23esus738f525g",
+  "region": "oregon",
+
+  "database": {
+    "name": "cinego-dev-db",
+    "plan": "free",
+    "version": "16",
+    "databaseName": "cinego",
+    "databaseUser": "cinego",
+
+    "//ipAllowList": "REQUIRED for external access. Creating via the API does NOT apply the dashboard's default rule, and an empty list silently blocks every external connection — TCP connects, then the TLS handshake is dropped. Narrow these CIDRs if you only ever connect from known networks.",
+    "ipAllowList": [
+      {
+        "cidrBlock": "0.0.0.0/0",
+        "description": "Dev access (matches the Render dashboard default)"
+      }
+    ]
+  },
+
+  "service": {
+    "name": "cinego-backend",
+    "healthCheckUrl": "https://cinego-backend.onrender.com/health",
+    "triggerDeploy": true,
+    "//useInternalConnection": "Point the deployed service at Render's internal hostname. Only safe when the service sits in the same region and workspace as the database.",
+    "useInternalConnection": false
+  },
+
+  "envFile": ".env",
+
+  "//allowedPlans": "Hard guardrail: the CLI refuses to delete any database whose plan is not listed here, so it can never destroy a paid or production instance even if misconfigured.",
+  "allowedPlans": ["free", "basic_256mb"],
+
+  "envKeys": {
+    "host": "POSTGRES_HOST",
+    "port": "POSTGRES_PORT",
+    "user": "POSTGRES_USER",
+    "password": "POSTGRES_PASSWORD",
+    "database": "POSTGRES_DB",
+    "ssl": "POSTGRES_SSL",
+    "url": "DATABASE_URL"
+  }
+}
