@@ -62,3 +62,5 @@ summary.txt
 cf_private_key.pem
 
 certs/
+# Env-file backups written by scripts/render-db
+.env.backup-*
